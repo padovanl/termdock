@@ -1,0 +1,192 @@
+// Scripting commands: termdock's equivalent of tmux's command interface
+// (send-keys, new-window, split-window, select-window, list-windows,
+// list-panes), for driving a session from outside — a shell script
+// setting up a dev environment, a Makefile, whatever — rather than a
+// live client. Each dials the target session's socket, sends one control
+// message, prints the reply, and exits; the running session (and any
+// attached client) is untouched otherwise.
+package main
+
+import (
+	"encoding/gob"
+	"fmt"
+	"net"
+	"os"
+	"strconv"
+	"strings"
+	"text/tabwriter"
+
+	"termdock/internal/proto"
+	"termdock/internal/server"
+)
+
+func cmdSendKeys(args []string) {
+	target, rest := extractTarget(args)
+	if target == "" || len(rest) == 0 {
+		fatal("usage: termdock send-keys -t TARGET text... [Enter]")
+	}
+	enter := false
+	if rest[len(rest)-1] == "Enter" {
+		enter = true
+		rest = rest[:len(rest)-1]
+	}
+	session, winIdx, winName, paneID := parseTarget(target)
+	reply := dialCLI(session, proto.ClientMsg{
+		Kind: "send-keys", WindowIdx: winIdx, WindowName: winName, PaneID: paneID,
+		CLIText: strings.Join(rest, " "), CLIEnter: enter,
+	})
+	if reply.CLIError != "" {
+		fatal(reply.CLIError)
+	}
+}
+
+func cmdNewWindow(args []string) {
+	target, rest := extractTarget(args)
+	if target == "" {
+		fatal("usage: termdock new-window -t SESSION [-n NAME] [command...]")
+	}
+	name := ""
+	if len(rest) >= 2 && rest[0] == "-n" {
+		name, rest = rest[1], rest[2:]
+	}
+	session, _, _, _ := parseTarget(target)
+	reply := dialCLI(session, proto.ClientMsg{Kind: "new-window", CLIName: name, CLICommand: strings.Join(rest, " ")})
+	if reply.CLIError != "" {
+		fatal(reply.CLIError)
+	}
+	fmt.Printf("created window %d\n", reply.CLIIndex)
+}
+
+func cmdSplitWindow(args []string) {
+	target, rest := extractTarget(args)
+	if target == "" {
+		fatal("usage: termdock split-window -t TARGET [-v|-s] [command...]")
+	}
+	axis := "v" // v = side by side, s = stacked — matches termdock's own Ctrl-B v/s, not tmux's inverted -h/-v
+	if len(rest) > 0 && (rest[0] == "-v" || rest[0] == "-s") {
+		axis, rest = strings.TrimPrefix(rest[0], "-"), rest[1:]
+	}
+	session, winIdx, winName, _ := parseTarget(target)
+	reply := dialCLI(session, proto.ClientMsg{
+		Kind: "split-window", WindowIdx: winIdx, WindowName: winName,
+		CLIAxis: axis, CLICommand: strings.Join(rest, " "),
+	})
+	if reply.CLIError != "" {
+		fatal(reply.CLIError)
+	}
+	fmt.Printf("created pane %d\n", reply.CLIPaneID)
+}
+
+func cmdSelectWindow(args []string) {
+	target, _ := extractTarget(args)
+	session, winIdx, winName, _ := parseTarget(target)
+	if target == "" || (winIdx < 0 && winName == "") {
+		fatal("usage: termdock select-window -t SESSION:WINDOW")
+	}
+	reply := dialCLI(session, proto.ClientMsg{Kind: "select-window", WindowIdx: winIdx, WindowName: winName})
+	if reply.CLIError != "" {
+		fatal(reply.CLIError)
+	}
+}
+
+func cmdListWindows(args []string) {
+	target, _ := extractTarget(args)
+	if target == "" {
+		fatal("usage: termdock list-windows -t SESSION")
+	}
+	session, _, _, _ := parseTarget(target)
+	reply := dialCLI(session, proto.ClientMsg{Kind: "list-windows"})
+	if reply.CLIError != "" {
+		fatal(reply.CLIError)
+	}
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "INDEX\tNAME\tPANES\tACTIVE")
+	for _, w := range reply.CLIWindows {
+		fmt.Fprintf(tw, "%d\t%s\t%d\t%s\n", w.Index, w.Name, w.Panes, activeMark(w.Active))
+	}
+	tw.Flush()
+}
+
+func cmdListPanes(args []string) {
+	target, _ := extractTarget(args)
+	if target == "" {
+		fatal("usage: termdock list-panes -t SESSION[:WINDOW]")
+	}
+	session, winIdx, winName, _ := parseTarget(target)
+	reply := dialCLI(session, proto.ClientMsg{Kind: "list-panes", WindowIdx: winIdx, WindowName: winName})
+	if reply.CLIError != "" {
+		fatal(reply.CLIError)
+	}
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "ID\tTITLE\tACTIVE")
+	for _, p := range reply.CLIPanes {
+		fmt.Fprintf(tw, "%d\t%s\t%s\n", p.ID, p.Title, activeMark(p.Active))
+	}
+	tw.Flush()
+}
+
+func activeMark(active bool) string {
+	if active {
+		return "*"
+	}
+	return ""
+}
+
+// extractTarget pulls "-t VALUE" (or --target) out of args, returning the
+// value and the remaining args with it removed.
+func extractTarget(args []string) (target string, rest []string) {
+	for i, a := range args {
+		if (a == "-t" || a == "--target") && i+1 < len(args) {
+			rest = append(append([]string{}, args[:i]...), args[i+2:]...)
+			return args[i+1], rest
+		}
+	}
+	return "", args
+}
+
+// parseTarget splits a "session[:window[.pane]]" spec, where window may
+// be either a numeric index or the name it was given (via new-window -n,
+// or the default auto-name). windowIdx is -1 (meaning "look at
+// windowName instead, or if that's empty too, the active window") if the
+// window part isn't a plain integer. paneID is 0 (meaning "that window's
+// active pane") if unspecified.
+func parseTarget(spec string) (session string, windowIdx int, windowName string, paneID int) {
+	windowIdx = -1
+	parts := strings.SplitN(spec, ":", 2)
+	session = parts[0]
+	if len(parts) != 2 || parts[1] == "" {
+		return session, windowIdx, windowName, paneID
+	}
+	wp := strings.SplitN(parts[1], ".", 2)
+	if n, err := strconv.Atoi(wp[0]); err == nil {
+		windowIdx = n
+	} else {
+		windowName = wp[0]
+	}
+	if len(wp) == 2 {
+		if n, err := strconv.Atoi(wp[1]); err == nil {
+			paneID = n
+		}
+	}
+	return session, windowIdx, windowName, paneID
+}
+
+// dialCLI sends one control message to session's socket and returns its
+// single reply. Exits the process on any transport error, same as check.
+func dialCLI(session string, msg proto.ClientMsg) proto.ServerMsg {
+	sock, err := server.SocketPath(session)
+	check(err)
+	conn, err := net.Dial("unix", sock)
+	if err != nil {
+		fatal(fmt.Sprintf("session %q not reachable: %v", session, err))
+	}
+	defer conn.Close()
+	if err := gob.NewEncoder(conn).Encode(msg); err != nil {
+		fatal(err.Error())
+	}
+	var reply proto.ServerMsg
+	if err := gob.NewDecoder(conn).Decode(&reply); err != nil {
+		fatal(err.Error())
+	}
+	return reply
+}
