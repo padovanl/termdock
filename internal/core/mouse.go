@@ -16,11 +16,11 @@ func (c *Core) handleMouse(m proto.ClientMsg) Result {
 	if len(c.windows) == 0 {
 		return Result{} // session mid-shutdown; a lingering connection raced us here
 	}
-	if c.mode == ModeConfirm || c.mode == ModePicker || c.mode == ModeHelp {
-		// A pending "kill this window?" prompt, the jump picker, or the
-		// help screen only listen for keyboard input — a stray click
-		// shouldn't be able to act on whatever's underneath while any of
-		// them are up.
+	switch c.mode {
+	case ModeConfirm, ModePicker, ModeHelp, ModeRegisters, ModeSessions, ModeSearch:
+		// These are keyboard-only type-ahead/prompt modes — a stray
+		// click shouldn't be able to act on whatever's underneath while
+		// any of them are up.
 		return Result{}
 	}
 
@@ -42,9 +42,12 @@ func (c *Core) handleMouse(m proto.ClientMsg) Result {
 	released := buttons == tcell.ButtonNone
 
 	var res Result
-	if c.mode == ModeCopy {
+	switch c.mode {
+	case ModeCopy:
 		res = c.handleCopyMouse(primary, released, x, y)
-	} else {
+	case ModeOverview:
+		c.handleOverviewMouse(primary, released, x, y)
+	default:
 		c.handleNormalMouse(primary, released, x, y)
 	}
 	c.markDirty()

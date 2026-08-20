@@ -43,7 +43,7 @@ func main() {
 		}
 		cmdNew(name)
 	case "attach":
-		cmdAttach(parseSessionFlag(args[1:], defaultSession))
+		cmdAttach(parseSessionFlag(args[1:], defaultSession), hasFlag(args[1:], "-r", "--view"))
 	case "ls", "list-sessions":
 		cmdList()
 	case "kill-session":
@@ -79,7 +79,7 @@ func cmdAttachOrCreate(name string) {
 	if _, ok := server.Probe(sock); !ok {
 		check(spawnDaemon(name, sock))
 	}
-	check(client.Run(sock, config.Load()))
+	check(client.Run(sock, config.Load(), false))
 }
 
 func cmdNew(name string) {
@@ -89,16 +89,16 @@ func cmdNew(name string) {
 		fatal(fmt.Sprintf("session %q is already active (use: termdock attach -t %s)", name, name))
 	}
 	check(spawnDaemon(name, sock))
-	check(client.Run(sock, config.Load()))
+	check(client.Run(sock, config.Load(), false))
 }
 
-func cmdAttach(name string) {
+func cmdAttach(name string, readOnly bool) {
 	sock, err := server.SocketPath(name)
 	check(err)
 	if _, ok := server.Probe(sock); !ok {
 		fatal(fmt.Sprintf("no active session %q (use: termdock new -s %s)", name, name))
 	}
-	check(client.Run(sock, config.Load()))
+	check(client.Run(sock, config.Load(), readOnly))
 }
 
 func cmdList() {
@@ -206,6 +206,17 @@ func parseSessionFlag(args []string, def string) string {
 	return def
 }
 
+func hasFlag(args []string, names ...string) bool {
+	for _, a := range args {
+		for _, n := range names {
+			if a == n {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func check(err error) {
 	if err != nil {
 		fatal(err.Error())
@@ -223,7 +234,8 @@ func printUsage() {
 Usage:
   termdock                     attach to (or create) the default "main" session
   termdock new [-s NAME]       create a new session and attach to it
-  termdock attach [-t NAME]    attach to an existing session (default "main")
+  termdock attach [-t NAME] [-r]  attach to an existing session (default "main");
+                                  -r attaches read-only, as an observer
   termdock ls                  list active sessions
   termdock kill-session -t NAME  terminate a session
 

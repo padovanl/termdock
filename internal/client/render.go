@@ -23,10 +23,14 @@ const (
 func draw(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	screen.Clear()
 
-	for _, p := range f.Panes {
-		drawPaneContent(screen, p)
+	if f.Overview != nil {
+		drawOverview(screen, f, cfg)
+	} else {
+		for _, p := range f.Panes {
+			drawPaneContent(screen, p)
+		}
+		drawBorders(screen, f, cfg)
 	}
-	drawBorders(screen, f, cfg)
 
 	if f.ShowStatus {
 		drawStatusBar(screen, f, cfg)
@@ -35,6 +39,37 @@ func draw(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 		drawOverlay(screen, f, cfg)
 	}
 	screen.Show()
+}
+
+// drawOverview paints the Ctrl-B g "mission control" grid: every pane's
+// tile, already positioned and sized by the server (see
+// Core.overviewLayout), drawn as a small bordered box with its title and
+// a live content preview — the selected tile's border in the accent
+// color, same convention as a pane's own border elsewhere.
+func drawOverview(screen tcell.Screen, f proto.Frame, cfg config.Config) {
+	normalStyle := tcell.StyleDefault.Foreground(tcell.ColorGray)
+	accentStyle := tcell.StyleDefault.Foreground(cfg.PaneActiveBG).Bold(true)
+	for _, tile := range f.Overview.Tiles {
+		r := tile.Rect
+		if r.W <= 2 || r.H <= 2 {
+			continue // too small to draw a border and any content
+		}
+		style := normalStyle
+		if tile.Active {
+			style = accentStyle
+		}
+		fillRect(screen, r.X, r.Y, r.W, r.H, tcell.StyleDefault)
+		drawFloatingBorder(screen, r.X, r.Y, r.W, r.H, style)
+		overlayText(screen, r.X+2, r.Y, r.X+r.W-1, style, " "+tile.Title+" ")
+		for y, row := range tile.Cells {
+			for x, cell := range row {
+				cx, cy := r.X+1+x, r.Y+1+y
+				if cx < r.X+r.W-1 && cy < r.Y+r.H-1 {
+					screen.SetContent(cx, cy, cellRune(cell), nil, cellStyle(cell))
+				}
+			}
+		}
+	}
 }
 
 func drawPaneContent(screen tcell.Screen, p proto.PaneFrame) {

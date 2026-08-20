@@ -31,8 +31,12 @@ const (
 	ModeResize
 	ModeInput   // typing a line for rename or search; see input.go
 	ModeConfirm // a pending destructive action awaiting y/n; see confirmKillWindow
-	ModePicker  // type-ahead jump to any window/pane; see picker.go
-	ModeHelp    // scrollable keybinding reference; see help.go
+	ModePicker      // type-ahead jump to any window/pane; see picker.go
+	ModeHelp        // scrollable keybinding reference; see help.go
+	ModeSessions    // type-ahead switch to another session; see sessions.go
+	ModeSearch      // type-ahead search every pane's scrollback; see search.go
+	ModeOverview    // live-thumbnail grid of every pane; see overview.go
+	ModeRegisters   // type-ahead pick which yank to paste; see registers.go
 )
 
 const resizeStep = 2
@@ -103,12 +107,22 @@ type Core struct {
 	copy         copyState
 	input        inputState
 	picker       pickerState
+	regPicker    registerPickerState
+	sessions     sessionPickerState
+	search       globalSearchState
+	overview     overviewState
 	help         helpState
 	drag         *dragState
 	tabDrag      *tabDragState
 	contentPress *contentPressState
 	titleDrag    *titleDragState
-	lastPaste    string // most recent copy-mode yank, for Ctrl-B ]
+	registers    []registerEntry // yanks, most recent first, for Ctrl-B ] and Ctrl-B = (see registers.go)
+
+	// ListSessions, if set (by the server, which knows about sibling
+	// daemons — core deliberately doesn't import internal/server, so it
+	// can't discover them itself), lists every session available to
+	// switch to (Ctrl-B S), excluding this one.
+	ListSessions func() []string
 
 	mouseDown              bool
 	mouseDownX, mouseDownY int
@@ -250,9 +264,10 @@ func (c *Core) Shutdown() {
 // state changes, which just get broadcast to every attached client via
 // Dirty/Frame).
 type Result struct {
-	Clipboard    string // text yanked in copy-mode, to push via the client's OSC52
-	HasClipboard bool
-	Detach       bool // the requesting client should disconnect
+	Clipboard     string // text yanked in copy-mode, to push via the client's OSC52
+	HasClipboard  bool
+	Detach        bool   // the requesting client should disconnect
+	SwitchSession string // the requesting client should reconnect to this session instead (see sessions.go)
 }
 
 // HandleClientMsg applies one input message from an attached client.

@@ -30,6 +30,22 @@ func Run(name, sockPath string, cfg config.Config) error {
 		return err
 	}
 	c.SetPrefixKey(cfg.Prefix)
+	// core deliberately doesn't import server (server already imports
+	// core; Go disallows the cycle), so it can't discover sibling
+	// sessions itself — supplied here instead, for Ctrl-B S.
+	c.ListSessions = func() []string {
+		infos, err := List()
+		if err != nil {
+			return nil
+		}
+		var names []string
+		for _, info := range infos {
+			if info.Name != name {
+				names = append(names, info.Name)
+			}
+		}
+		return names
+	}
 
 	os.Remove(sockPath) // clear a stale socket from a previous, crashed run
 	ln, err := net.Listen("unix", sockPath)
@@ -86,9 +102,10 @@ type Session struct {
 }
 
 type clientConn struct {
-	conn net.Conn
-	enc  *gob.Encoder
-	mu   sync.Mutex // guards enc.Encode, called from both the broadcaster and this client's own handler
+	conn     net.Conn
+	enc      *gob.Encoder
+	mu       sync.Mutex // guards enc.Encode, called from both the broadcaster and this client's own handler
+	readOnly bool // an observer: sees every frame, but its key/mouse/resize input is dropped (see handleConn)
 }
 
 func (cc *clientConn) send(m proto.ServerMsg) error {
@@ -232,7 +249,13 @@ func (s *Session) handleConn(conn net.Conn, stop func()) {
 		return
 	}
 
-	s.core.Resize(hello.Cols, hello.Rows)
+	cc.readOnly = hello.ReadOnly
+	if !cc.readOnly {
+		// An observer's own terminal size is irrelevant to (and
+		// mustn't shrink or otherwise disrupt) the session everyone
+		// else is actually working in.
+		s.core.Resize(hello.Cols, hello.Rows)
+	}
 	s.addClient(cc)
 	defer func() {
 		s.removeClient(cc)
@@ -248,11 +271,18 @@ func (s *Session) handleConn(conn net.Conn, stop func()) {
 		if err := dec.Decode(&m); err != nil {
 			return // EOF/network drop: just stop attaching, session lives on
 		}
+		if cc.readOnly && (m.Kind == "key" || m.Kind == "mouse" || m.Kind == "resize") {
+			continue // observer: watch only, input has no effect on the shared session
+		}
 		res := s.core.HandleClientMsg(m)
 		if res.HasClipboard {
 			if err := cc.send(proto.ServerMsg{Kind: "clipboard", Clipboard: res.Clipboard}); err != nil {
 				return
 			}
+		}
+		if res.SwitchSession != "" {
+			cc.send(proto.ServerMsg{Kind: "switch", SwitchTo: res.SwitchSession})
+			return
 		}
 		if res.Detach {
 			cc.send(proto.ServerMsg{Kind: "bye", Bye: "detached"})

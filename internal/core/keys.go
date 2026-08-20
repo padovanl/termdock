@@ -48,6 +48,22 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 		c.handleHelpKey(key, r)
 		c.markDirty()
 		return Result{}
+	case ModeRegisters:
+		c.handleRegisterKey(key, r)
+		c.markDirty()
+		return Result{}
+	case ModeSessions:
+		res := c.handleSessionsKey(key, r)
+		c.markDirty()
+		return res
+	case ModeSearch:
+		c.handleSearchKey(key, r)
+		c.markDirty()
+		return Result{}
+	case ModeOverview:
+		c.handleOverviewKey(key, r)
+		c.markDirty()
+		return Result{}
 	}
 
 	if !c.prefix {
@@ -113,6 +129,14 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 		c.confirmKillWindow()
 	case r == ']':
 		c.pasteRegister()
+	case r == '=':
+		c.enterRegisterPicker()
+	case r == 'S':
+		c.enterSessionPicker()
+	case r == '/':
+		c.enterGlobalSearch()
+	case r == 'g':
+		c.enterOverview()
 	case r == 'd':
 		res.Detach = true
 	case r == 'q':
@@ -135,20 +159,6 @@ func (c *Core) requestQuit() {
 	}
 }
 
-// pasteRegister writes the most recent copy-mode yank straight into the
-// active pane, the counterpart to y/Enter in copy-mode — tmux's
-// paste-buffer (prefix ]). Sent as plain bytes, not wrapped in a
-// bracketed-paste escape: vt10x doesn't track whether the foreground app
-// asked for one, and guessing wrong would leak literal escape codes into
-// whatever's running.
-func (c *Core) pasteRegister() {
-	if c.lastPaste == "" {
-		return
-	}
-	if p, ok := c.panes[c.win().active.ID]; ok {
-		p.Write([]byte(c.lastPaste))
-	}
-}
 
 func (c *Core) forwardKey(key tcell.Key, r rune) {
 	b := keyBytes(key, r)

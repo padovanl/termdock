@@ -68,6 +68,22 @@ type Overlay struct {
 	PreviewCells [][]Cell
 }
 
+// OverviewTile is one pane's thumbnail in the Ctrl-B g overview grid: a
+// small live snapshot of its content plus enough to draw its frame and
+// resolve a click.
+type OverviewTile struct {
+	Title  string
+	Cells  [][]Cell
+	Active bool // this is the tile currently selected via keyboard
+	Rect   Rect // where the tile (border included) sits on screen, for hit-testing a click
+}
+
+// Overview is the full-screen "mission control" grid drawn instead of
+// the normal pane layout while Ctrl-B g is active.
+type Overview struct {
+	Tiles []OverviewTile
+}
+
 // Frame is a full snapshot of everything the client needs to paint.
 // The server sends one whenever session state changes.
 type Frame struct {
@@ -80,7 +96,8 @@ type Frame struct {
 	StatusStyle  string      // "normal" | "prefix" | "mode" | "confirm"
 	ShowStatus   bool        // false on a 1-row-tall terminal: no room for it
 	SessionName  string
-	Overlay      *Overlay // non-nil while a modal (e.g. the jump picker) is open
+	Overlay      *Overlay  // non-nil while a modal (e.g. the jump picker) is open
+	Overview     *Overview // non-nil while the Ctrl-B g pane grid is open; drawn instead of Panes
 }
 
 // WindowInfo and PaneInfo answer the list-windows/list-panes CLI
@@ -119,7 +136,8 @@ type ServerInfo struct {
 type ClientMsg struct {
 	Kind string
 
-	Cols, Rows int // hello, resize
+	Cols, Rows int  // hello, resize
+	ReadOnly   bool // hello: attach as a view-only observer — key/mouse input is ignored server-side
 
 	// key: raw tcell.EventKey fields, forwarded verbatim so all
 	// interpretation logic lives server-side in internal/core.
@@ -147,11 +165,12 @@ type ClientMsg struct {
 
 // ServerMsg is anything the server sends to the client.
 type ServerMsg struct {
-	Kind      string // "frame" | "info" | "clipboard" | "bye" | "cli"
+	Kind      string // "frame" | "info" | "clipboard" | "bye" | "switch" | "cli"
 	Frame     *Frame
 	Info      *ServerInfo
 	Clipboard string // Kind == "clipboard": text to push via OSC52
 	Bye       string // Kind == "bye": human-readable reason, shown before the client exits
+	SwitchTo  string // Kind == "switch": session name the client should reconnect to instead (see Ctrl-B S)
 
 	// Kind == "cli": reply to a scripting command.
 	CLIError   string

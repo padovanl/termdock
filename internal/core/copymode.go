@@ -204,8 +204,9 @@ func (c *Core) yank() (string, bool) {
 			b.WriteByte('\n')
 		}
 	}
-	c.lastPaste = b.String()
-	return c.lastPaste, true
+	text := b.String()
+	c.pushRegister(text)
+	return text, true
 }
 
 // searchNext looks for the next (dir=1) or previous (dir=-1) occurrence of

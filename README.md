@@ -10,14 +10,21 @@ manages pseudo-terminals (ptys) and its own VT100 emulator (with
 scrollback) for every pane directly.
 
 It also does a handful of things tmux doesn't, by default, at all — 🔍 a
-fuzzy jump picker, 🖱️ click-and-drag everywhere, and 💾 crash/reboot
-recovery among them. See [✨ What makes it different](#-what-makes-it-different-from-tmux).
+fuzzy jump picker, 🖼️ a live pane overview, 🔎 search across every pane's
+scrollback at once, 🔄 session switching without detaching, and 💾
+crash/reboot recovery among them. See
+[✨ What makes it different](#-what-makes-it-different-from-tmux).
 
 ## ✨ What makes it different from tmux
 
 | | termdock | tmux |
 |---|---|---|
 | 🔍 **Jump to a window/pane** | one type-ahead, fuzzy-filtered list of every pane, ranked most-recently-used | separate `choose-window` / `choose-pane`, paged with j/k, no fuzzy filter |
+| 🖼️ **See every pane at once** | a live-thumbnail grid overview (`Ctrl-B g`) | no equivalent — one pane at a time |
+| 🔎 **Search the scrollback** | one search across *every* pane in *every* window | copy-mode `/` only ever searches the one pane you're already in |
+| 🔄 **Switch sessions** | fuzzy-picker, no detach required (`Ctrl-B S`) | detach and reattach, or `choose-tree` |
+| 👀 **Screen-share / pair** | a real read-only attach mode (`termdock attach -r`) | everyone who attaches can type |
+| 📋 **Paste history** | a fuzzy picker over your last 20 yanks (`Ctrl-B =`) | `choose-buffer`, same idea, no fuzzy filter |
 | 🖱️ **Select text** | click-drag on any pane, anywhere, any time | needs `mouse on` + drag-to-select behavior varies by config |
 | 🖱️ **Reorder/move things** | drag a window tab to reorder it, drag a pane's title onto a tab to relocate it | `swap-window`/`join-pane`, typed out by index |
 | 💾 **Survive a crash or reboot** | automatic — layout + working directories snapshotted continuously, restored on next launch | needs the external `tmux-resurrect` plugin |
@@ -55,7 +62,7 @@ Requires Go 1.21+ and a POSIX system (Linux/macOS/WSL).
 ```sh
 termdock                        # attach to (or create) the default "main" session
 termdock new [-s NAME]          # create a new session and attach to it
-termdock attach [-t NAME]       # attach to an existing session
+termdock attach [-t NAME] [-r]  # attach to an existing session; -r = read-only
 termdock ls                     # list active sessions
 termdock kill-session -t NAME   # terminate a session (and all its panes)
 ```
@@ -64,6 +71,21 @@ Sessions survive the terminal closing: you can disconnect over SSH, close
 the window, or press `Ctrl-B d`, and find everything exactly as you left
 it with a plain `termdock attach`. They survive the *daemon* dying too —
 see [💾 Session persistence](#-session-persistence).
+
+### 👀 Read-only observer
+
+`termdock attach -t NAME -r` attaches as a view-only observer: every
+frame streams to it exactly like a normal client, but every keystroke and
+mouse event it sends is dropped server-side before it ever reaches the
+session — it can watch, not touch. Good for screen-sharing or pairing
+without handing over control, or for looking in on a long-running job
+without any risk of an accidental keypress landing in someone else's
+shell. Any number of normal and read-only clients can attach to the same
+session at once (that's what makes detach/reattach work in the first
+place — the server was already built to broadcast to multiple clients).
+An observer's own terminal size never resizes the shared session either,
+so a smaller/larger window on their end doesn't disrupt anyone actually
+working in it.
 
 ## ⌨️ Keys
 
@@ -80,15 +102,19 @@ active pane.
 | `z` | 🎯 zoom: the active pane fills the whole screen — its border turns magenta and its title gets a `[Z]` tag, so it's obvious you're zoomed (`z` again to undo) |
 | `r` | **resize-mode**: subsequent arrows/hjkl resize the pane, any other key exits |
 | `[` | enter **copy-mode** (scroll the scrollback, see below) |
+| `]` | paste the most recently copied (yanked) text into the active pane |
+| `=` | 📋 **paste register picker**: fuzzy-pick one of your last 20 yanks to paste (see below) |
 | `y` | toggle **sync-panes**: keystrokes get sent to every pane in this window at once |
-| `x` | close the active pane |
 | `c` | create a new **window** (tab) |
 | `n` / `p` | switch to the next / previous window |
 | `w` | 🔍 **jump picker**: type to fuzzy-filter every window/pane, ↑↓/Tab to select, Enter to jump (see below) |
+| `g` | 🖼️ **overview**: a live-thumbnail grid of every pane in the session (see below) |
+| `/` | 🔎 **search**: search every pane's scrollback at once (see below) |
+| `S` | 🔄 **switch session**: fuzzy-pick another session, no detach needed (see below) |
 | `0`-`9` | jump straight to window N |
 | `,` | rename the current window |
 | `&` | ⚠️ close the current window and every pane in it (asks `y`/`n` first) |
-| `]` | paste the most recently copied (yanked) text into the active pane |
+| `x` | close the active pane |
 | `d` | **detach**: disconnect from the session, which keeps running in the background |
 | `q` | quit termdock (closes the whole session and every window) |
 | `?` | ❓ open a scrollable keybinding reference (any key closes it) |
@@ -130,6 +156,44 @@ as you move the selection — no need to jump blind. With an empty query
 (the moment it opens, or after clearing it) the list is ordered
 most-recently-used first instead, so `Ctrl-B w` then `Enter` is a fast
 "jump back to whatever I was just looking at," Alt-Tab style.
+
+### 🖼️ Pane overview
+
+`Ctrl-B g` replaces the screen with a grid of every pane in every window
+of the session, each tile a small live preview of what's actually running
+in it — nothing in tmux shows more than one pane's content at a time
+outside of actually looking at it. Arrows/hjkl move the selection around
+the grid (up/down jump a full row, not just one tile), `Enter` or a click
+jumps straight to that pane, `Esc` cancels. Good for "where did I leave
+that build running" when you've lost track across a dozen panes.
+
+### 🔎 Search everywhere
+
+`Ctrl-B /` searches every pane's scrollback — history and the live
+screen — across every window, all at once. Copy-mode's own `/` (below)
+only ever looks inside the one pane you're already in; this is for "did
+I see that error somewhere, but I don't remember which pane." Type to
+search (plain case-insensitive substring, live results as you type),
+`↑`/`↓` move between matches, `Enter` jumps straight to the exact
+matching line — switching to that window/pane and dropping you into
+copy-mode with the cursor right on it — `Esc` cancels.
+
+### 🔄 Switching sessions
+
+`Ctrl-B S` opens a fuzzy picker over every *other* active session, so
+jumping from one project's session to another doesn't mean detaching
+first and reattaching by name — tmux needs `choose-tree` or a manual
+detach/reattach round-trip to do the same. Type to filter, `↑`/`↓`
+select, `Enter` switches (your terminal reconnects to the other daemon in
+place — no flicker, no dropping back to the shell), `Esc` cancels.
+
+### 📋 Paste registers
+
+`Ctrl-B ]` alone always pastes your single most recent copy-mode yank, no
+picker involved — unchanged, still the fast path. `Ctrl-B =` (tmux's
+`choose-buffer`, same key) opens a fuzzy picker over your last 20 yanks
+instead, each shown as a one-line preview, for when the thing you want
+isn't the very last thing you copied.
 
 ### ❓ Help
 
@@ -301,8 +365,9 @@ attach and can differ between two clients looking at the same session.
 - `internal/layout` — the binary split tree (vertical/horizontal) that
   computes each pane's on-screen rectangle, and interactive resizing.
 - `internal/core` — the session's brain, with no terminal attached:
-  windows, panes, layout, copy-mode, mouse, resize-mode, the jump
-  picker, help screen. Runs in the server.
+  windows, panes, layout, copy-mode, mouse, resize-mode, the jump picker,
+  global search, the pane overview, paste registers, session switching,
+  help screen. Runs in the server.
 - `internal/proto` — the messages exchanged between client and server
   over the socket.
 - `internal/persist` — the on-disk session-snapshot format and file I/O
@@ -321,17 +386,21 @@ go test ./...    # the actual test suite
 ```
 
 Every package with logic worth pinning down has one: layout geometry and
-the split-tree edge cases, the client's box-drawing/overlay rendering,
-pane process handling, the snapshot format, and — the bulk of it — the
-session brain in `internal/core`: mouse gesture disambiguation (click vs.
-drag vs. double-click, all sharing the same press/release events), the
-jump picker's fuzzy filter and MRU ordering, window/pane reordering and
-moving, and end-to-end crash-recovery (save a session, construct a fresh
-one from the same name, check it rebuilds with live panes). They spin up
-real shells in real ptys rather than mocking the terminal layer, and
-isolate session-snapshot I/O to a throwaway temp directory
-(`$XDG_STATE_HOME`) for the run so they never touch — or get confused
-by — your actual `~/.local/state/termdock`.
+the split-tree edge cases, the client's box-drawing/overlay/grid
+rendering, pane process handling, the snapshot format, the session brain
+in `internal/core` (mouse gesture disambiguation — click vs. drag vs.
+double-click, all sharing the same press/release events — every picker's
+fuzzy filter, window/pane reordering and moving, the pane overview's grid
+math, global search, and end-to-end crash-recovery), and
+`internal/server`, with real socket-level integration tests: two actual
+daemons for a session-switch to jump between, a read-only client's input
+and resize both confirmed dropped by driving a second, ordinary client
+and checking what it sees. All of it spins up real shells in real ptys
+and real unix-socket daemons rather than mocking the terminal or network
+layer, and isolates every bit of state a run touches — session-snapshot
+I/O (`$XDG_STATE_HOME`) and session sockets (`$XDG_RUNTIME_DIR`) alike —
+to throwaway temp directories, so a test run never touches or gets
+confused by your actual sessions.
 
 CI (`.github/workflows/ci.yml`) runs build, vet, and the full test suite
 on every push and pull request against `master`.
@@ -340,6 +409,6 @@ on every push and pull request against `master`.
 
 Still not there, to keep the scope manageable: remapping individual key
 bindings (only the prefix key itself is configurable), regex search
-(substring only), named/numbered paste buffers (just the one most-recent
-register), and reflowing scrollback lines to a new width on resize (they
-keep whatever width they were written at).
+(substring only, in both copy-mode and the global search), and reflowing
+scrollback lines to a new width on resize (they keep whatever width they
+were written at).

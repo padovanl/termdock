@@ -44,10 +44,14 @@ func (c *Core) Frame() proto.Frame {
 	f.StatusPrefix = c.statusPrefix()
 	f.Windows = c.windowTabs()
 	f.StatusText, f.StatusRight, f.StatusStyle = c.statusLine()
-	f.Overlay = c.pickerOverlay()
-	if f.Overlay == nil {
-		f.Overlay = c.helpOverlay()
+	for _, provider := range []func() *proto.Overlay{
+		c.pickerOverlay, c.helpOverlay, c.registersOverlay, c.sessionsOverlay, c.searchOverlay,
+	} {
+		if f.Overlay = provider(); f.Overlay != nil {
+			break
+		}
 	}
+	f.Overview = c.overviewFrame()
 	return f
 }
 
@@ -149,8 +153,8 @@ func (c *Core) paneTitle(idx int, p *pane.Pane) string {
 // this line exists, "Ctrl-B ?" is what the idle status bar tells you to
 // press, so it needs to actually go somewhere.
 const helpText = "v/% vsplit | s/\" hsplit | hjkl/arrows move | o/Tab cycle | z zoom | r resize | " +
-	"[ copy | ] paste | y sync | c new-win | n/p next/prev-win | w jump | 0-9 win# | , rename | & kill-win | " +
-	"x close-pane | d detach | q quit | ? help"
+	"[ copy | ] paste | = registers | y sync | c new-win | n/p next/prev-win | w jump | g overview | " +
+	"/ search | S sessions | 0-9 win# | , rename | & kill-win | x close-pane | d detach | q quit | ? help"
 
 func (c *Core) statusLine() (text, right, style string) {
 	// Minimal at rest — like tmux's default status line, not a permanent
@@ -176,6 +180,18 @@ func (c *Core) statusLine() (text, right, style string) {
 	case c.mode == ModeHelp:
 		style = "mode"
 		hint = "↑↓/jk/PgUp/PgDn scroll, any other key closes"
+	case c.mode == ModeRegisters:
+		style = "mode"
+		hint = "type to filter, ↑↓ select, enter paste, esc cancel"
+	case c.mode == ModeSessions:
+		style = "mode"
+		hint = "type to filter, ↑↓ select, enter switch, esc cancel"
+	case c.mode == ModeSearch:
+		style = "mode"
+		hint = "type to search every pane's scrollback, ↑↓ select, enter jump, esc cancel"
+	case c.mode == ModeOverview:
+		style = "mode"
+		hint = "arrows/hjkl move, click or enter jump, esc cancel"
 	case c.prefix:
 		style = "prefix"
 		hint = "PREFIX > " + helpText

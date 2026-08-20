@@ -19,17 +19,21 @@ import (
 
 	"termdock/internal/config"
 	"termdock/internal/proto"
+	"termdock/internal/server"
 )
 
 // Run attaches to the session listening on sockPath and drives it until
 // the user detaches, the session ends, or the connection drops.
-func Run(sockPath string, cfg config.Config) error {
-	conn, err := net.Dial("unix", sockPath)
-	if err != nil {
-		return fmt.Errorf("could not connect to session: %w", err)
-	}
-	defer conn.Close()
-
+// readOnly attaches as a view-only observer (Ctrl-B S is server-driven,
+// so switching sessions works the same either way; every other keypress
+// and mouse event is simply dropped server-side — see internal/server).
+//
+// A session switch (Ctrl-B S) reconnects to the new session's socket
+// without tearing down and reinitializing the tcell screen — a client
+// mid-multi-session-switch shouldn't have to eat a full terminal
+// flash-and-redraw on every hop the way exiting and relaunching would
+// cause.
+func Run(sockPath string, cfg config.Config, readOnly bool) error {
 	screen, err := tcell.NewScreen()
 	if err != nil {
 		return err
@@ -51,30 +55,6 @@ func Run(sockPath string, cfg config.Config) error {
 	}
 	defer finish()
 
-	enc := gob.NewEncoder(conn)
-	dec := gob.NewDecoder(conn)
-
-	w, h := screen.Size()
-	if err := enc.Encode(proto.ClientMsg{Kind: "hello", Cols: w, Rows: h}); err != nil {
-		return err
-	}
-
-	type serverEvent struct {
-		msg proto.ServerMsg
-		err error
-	}
-	serverCh := make(chan serverEvent, 8)
-	go func() {
-		for {
-			var m proto.ServerMsg
-			err := dec.Decode(&m)
-			serverCh <- serverEvent{m, err}
-			if err != nil {
-				return
-			}
-		}
-	}()
-
 	events := make(chan tcell.Event, 16)
 	go func() {
 		for {
@@ -91,44 +71,96 @@ func Run(sockPath string, cfg config.Config) error {
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 	defer signal.Stop(sigCh)
 
-	var bye string
-loop:
+	for {
+		bye, switchTo, err := attachOnce(screen, sockPath, cfg, readOnly, events, sigCh)
+		if err != nil {
+			return err
+		}
+		if switchTo == "" {
+			finish()
+			if bye != "" {
+				fmt.Fprintln(os.Stderr, "termdock:", bye)
+			}
+			return nil
+		}
+		next, err := server.SocketPath(switchTo)
+		if err != nil {
+			finish()
+			fmt.Fprintln(os.Stderr, "termdock:", err)
+			return nil
+		}
+		sockPath = next
+		screen.Clear() // the new session's first frame hasn't arrived yet; don't sit on the old one's
+		screen.Show()
+	}
+}
+
+// attachOnce drives a single socket connection until it ends, for
+// whatever reason: a real detach/quit (bye != ""), a session switch
+// (switchTo != ""), the connection dropping, or a signal. The screen and
+// its event stream are owned by the caller and outlive any one
+// connection, since a session switch reuses them rather than
+// reinitializing the terminal.
+func attachOnce(screen tcell.Screen, sockPath string, cfg config.Config, readOnly bool, events <-chan tcell.Event, sigCh <-chan os.Signal) (bye, switchTo string, err error) {
+	conn, dialErr := net.Dial("unix", sockPath)
+	if dialErr != nil {
+		return "", "", fmt.Errorf("could not connect to session: %w", dialErr)
+	}
+	defer conn.Close()
+
+	enc := gob.NewEncoder(conn)
+	dec := gob.NewDecoder(conn)
+
+	w, h := screen.Size()
+	if err := enc.Encode(proto.ClientMsg{Kind: "hello", Cols: w, Rows: h, ReadOnly: readOnly}); err != nil {
+		return "", "", err
+	}
+
+	type serverEvent struct {
+		msg proto.ServerMsg
+		err error
+	}
+	serverCh := make(chan serverEvent, 8)
+	go func() {
+		for {
+			var m proto.ServerMsg
+			decErr := dec.Decode(&m)
+			serverCh <- serverEvent{m, decErr}
+			if decErr != nil {
+				return
+			}
+		}
+	}()
+
 	for {
 		select {
 		case se := <-serverCh:
 			if se.err != nil {
-				bye = "connection to session lost"
-				break loop
+				return "connection to session lost", "", nil
 			}
 			switch se.msg.Kind {
 			case "frame":
 				draw(screen, *se.msg.Frame, cfg)
 			case "clipboard":
 				writeClipboard(se.msg.Clipboard)
+			case "switch":
+				return "", se.msg.SwitchTo, nil
 			case "bye":
-				bye = se.msg.Bye
-				break loop
+				return se.msg.Bye, "", nil
 			}
 
 		case ev, ok := <-events:
 			if !ok {
-				break loop
+				return "", "", nil
 			}
 			if !forwardEvent(enc, ev) {
-				bye = "connection to session lost"
-				break loop
+				return "connection to session lost", "", nil
 			}
 
 		case <-sigCh:
-			break loop
+			return "", "", nil
 		}
 	}
-
-	finish()
-	if bye != "" {
-		fmt.Fprintln(os.Stderr, "termdock:", bye)
-	}
-	return nil
 }
 
 func forwardEvent(enc *gob.Encoder, ev tcell.Event) bool {

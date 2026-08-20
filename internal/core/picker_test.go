@@ -114,11 +114,11 @@ func TestPickerPreviewSizedAndCropped(t *testing.T) {
 
 	c.mu.Lock()
 	id := c.win().root.ID // the one pane in the initial window
-	preview := c.buildPickerPreview(id)
+	preview := c.buildPreview(id, previewCols, previewRows)
 	c.mu.Unlock()
 
 	if preview == nil {
-		t.Fatal("buildPickerPreview returned nil for a live pane")
+		t.Fatal("buildPreview returned nil for a live pane")
 	}
 	if len(preview) != previewRows {
 		t.Fatalf("expected %d preview rows (pane is plenty tall), got %d", previewRows, len(preview))
@@ -130,7 +130,7 @@ func TestPickerPreviewSizedAndCropped(t *testing.T) {
 	}
 
 	c.mu.Lock()
-	missing := c.buildPickerPreview(999999)
+	missing := c.buildPreview(999999, previewCols, previewRows)
 	c.mu.Unlock()
 	if missing != nil {
 		t.Fatalf("expected nil preview for a nonexistent pane ID, got %v", missing)

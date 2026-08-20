@@ -218,17 +218,18 @@ func (c *Core) pickerOverlay() *proto.Overlay {
 	}
 	if c.picker.sel < len(c.picker.filtered) {
 		it := c.picker.items[c.picker.filtered[c.picker.sel]]
-		ov.PreviewCells = c.buildPickerPreview(it.paneID)
+		ov.PreviewCells = c.buildPreview(it.paneID, previewCols, previewRows)
 	}
 	return ov
 }
 
-// buildPickerPreview snapshots the bottom-left corner of paneID's current
+// buildPreview snapshots the bottom-left corner of paneID's current
 // terminal content — the most recently active rows, generally more
-// telling at a glance than whatever scrolled to the top — cropped to
-// previewCols x previewRows, or nil if the pane's gone or the picker's
-// selection is otherwise stale (see enterPicker's doc comment).
-func (c *Core) buildPickerPreview(paneID int) [][]proto.Cell {
+// telling at a glance than whatever scrolled to the top — cropped to at
+// most maxW x maxH, or nil if the pane's gone or there's no room at all.
+// Shared by the jump picker's single preview box (see pickerOverlay) and
+// the Ctrl-B g overview's whole grid of them (see overview.go).
+func (c *Core) buildPreview(paneID int, maxW, maxH int) [][]proto.Cell {
 	p, ok := c.panes[paneID]
 	if !ok {
 		return nil
@@ -237,7 +238,7 @@ func (c *Core) buildPickerPreview(paneID int) [][]proto.Cell {
 	t.Lock()
 	defer t.Unlock()
 	cols, rows := t.Size()
-	w, h := minInt(previewCols, cols), minInt(previewRows, rows)
+	w, h := minInt(maxW, cols), minInt(maxH, rows)
 	if w <= 0 || h <= 0 {
 		return nil
 	}
