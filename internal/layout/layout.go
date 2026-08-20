@@ -118,16 +118,28 @@ func Remove(root, n *Node) (newRoot, nextFocus *Node) {
 		sibling = parent.First
 	}
 
-	// Splice sibling into parent's slot, keeping parent's own place in
-	// the tree (its grandparent link) rather than sibling's stale one.
+	// Re-point whoever held parent's slot (its own parent's First/Second,
+	// or root itself) at sibling directly, rather than copying sibling's
+	// fields into parent's node in place. The copy used to be here, but
+	// it silently orphaned any *other* pointer to the sibling node
+	// itself — e.g. Window.active, if the sibling being promoted also
+	// happened to be the currently focused pane (a leaf's shell exiting
+	// while a sibling pane has focus is a completely ordinary sequence,
+	// not an edge case): active would end up pointing at a detached
+	// node no longer reachable from root, silently breaking every
+	// subsequent operation on "the active pane" and leaking the new
+	// pane a split off of it would create. Keeping sibling's own
+	// identity and only rewiring the edge into it keeps every existing
+	// pointer to it valid.
 	grandparent := parent.Parent
-	*parent = *sibling
-	parent.Parent = grandparent
-	if parent.First != nil {
-		parent.First.Parent = parent
-	}
-	if parent.Second != nil {
-		parent.Second.Parent = parent
+	sibling.Parent = grandparent
+	switch {
+	case grandparent == nil:
+		root = sibling
+	case grandparent.First == parent:
+		grandparent.First = sibling
+	default:
+		grandparent.Second = sibling
 	}
 
 	next := FirstLeaf(root)

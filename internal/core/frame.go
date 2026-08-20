@@ -34,10 +34,10 @@ func (c *Core) Frame() proto.Frame {
 
 	w := c.win()
 	if w.zoomed != nil {
-		f.Panes = append(f.Panes, c.buildPaneFrame(w.zoomed, true))
+		f.Panes = append(f.Panes, c.buildPaneFrame(w.zoomed, true, 1))
 	} else {
-		for _, leaf := range layout.Leaves(w.root) {
-			f.Panes = append(f.Panes, c.buildPaneFrame(leaf, leaf == w.active))
+		for i, leaf := range layout.Leaves(w.root) {
+			f.Panes = append(f.Panes, c.buildPaneFrame(leaf, leaf == w.active, i+1))
 		}
 	}
 
@@ -45,7 +45,14 @@ func (c *Core) Frame() proto.Frame {
 	return f
 }
 
-func (c *Core) buildPaneFrame(n *layout.Node, active bool) proto.PaneFrame {
+// idx is the pane's 1-based position within its window (left-to-right,
+// top-to-bottom), not its internal ID: the ID is a session-wide counter
+// that never resets or reuses a number, so after a bit of splitting and
+// closing panes it stops meaning anything spatial ("why is this pane
+// called 7 when there are only two panes?"). idx is what's shown in the
+// title bar and status line instead — small, stable-within-the-window,
+// and lines up with what the user can actually see and count.
+func (c *Core) buildPaneFrame(n *layout.Node, active bool, idx int) proto.PaneFrame {
 	pf := proto.PaneFrame{
 		ID:     n.ID,
 		Rect:   proto.Rect(n.Rect),
@@ -55,7 +62,7 @@ func (c *Core) buildPaneFrame(n *layout.Node, active bool) proto.PaneFrame {
 	if !ok {
 		return pf
 	}
-	pf.Title = c.paneTitle(n.ID, p)
+	pf.Title = c.paneTitle(idx, p)
 
 	if active && c.mode == ModeCopy && c.copy.paneID == n.ID {
 		return c.buildCopyFrame(n, p, pf)
@@ -120,12 +127,20 @@ func glyphToCell(g vt10x.Glyph) proto.Cell {
 	return proto.Cell{Ch: g.Char, FG: uint32(g.FG), BG: uint32(g.BG), Attr: uint16(g.Mode)}
 }
 
-func (c *Core) paneTitle(id int, p *pane.Pane) string {
+func (c *Core) paneTitle(idx int, p *pane.Pane) string {
 	if fg := p.ForegroundTitle(); fg != "" {
-		return fmt.Sprintf("%d:%s", id, fg)
+		return fmt.Sprintf("%d:%s", idx, fg)
 	}
-	return fmt.Sprintf("%d:%s", id, c.shellName)
+	return fmt.Sprintf("%d:%s", idx, c.shellName)
 }
+
+// helpText is the full keybinding cheat-sheet, shown both transiently
+// while the prefix key is held and persistently after Ctrl-B ? — until
+// this line exists, "Ctrl-B ?" is what the idle status bar tells you to
+// press, so it needs to actually go somewhere.
+const helpText = "v/% vsplit | s/\" hsplit | hjkl/arrows move | o/Tab cycle | z zoom | r resize | " +
+	"[ copy | ] paste | y sync | c new-win | n/p next/prev-win | 0-9 win# | , rename | & kill-win | " +
+	"x close-pane | d detach | q quit | ? help"
 
 func (c *Core) statusLine() (text, right, style string) {
 	// Minimal at rest — like tmux's default status line, not a permanent
@@ -144,7 +159,7 @@ func (c *Core) statusLine() (text, right, style string) {
 		hint = c.statusMsg
 	case c.prefix:
 		style = "prefix"
-		hint = "PREFIX > v/s split | c/n/p window | z zoom | r resize | [ copy | y sync | ] paste | x close | d detach | q quit"
+		hint = "PREFIX > " + helpText
 	case c.statusMsg != "":
 		hint = c.statusMsg
 	}
@@ -154,7 +169,7 @@ func (c *Core) statusLine() (text, right, style string) {
 	if w.syncPanes {
 		sync = " [SYNC]"
 	}
-	text = fmt.Sprintf(" termdock:%s %s | active pane: %d%s | %s", c.SessionName, c.windowListText(), w.active.ID, sync, hint)
+	text = fmt.Sprintf(" termdock:%s %s | active pane: %d%s | %s", c.SessionName, c.windowListText(), activePaneIndex(w), sync, hint)
 
 	right = time.Now().Format("15:04 02-Jan-06")
 	if c.hostname != "" {
@@ -162,6 +177,22 @@ func (c *Core) statusLine() (text, right, style string) {
 	}
 	right += " "
 	return text, right, style
+}
+
+// activePaneIndex returns the active pane's 1-based position within its
+// window (matching the number shown in its title bar; see
+// Core.buildPaneFrame), or 1 when zoomed, since zoom always shows exactly
+// the one pane.
+func activePaneIndex(w *Window) int {
+	if w.zoomed != nil {
+		return 1
+	}
+	for i, l := range layout.Leaves(w.root) {
+		if l == w.active {
+			return i + 1
+		}
+	}
+	return 1
 }
 
 // windowListText renders the tab bar segment of the status line, e.g.

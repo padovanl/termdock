@@ -103,6 +103,8 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 		res.Detach = true
 	case r == 'q':
 		c.requestQuit()
+	case r == '?':
+		c.statusMsg = helpText
 	}
 	c.markDirty()
 	return res

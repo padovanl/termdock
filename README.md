@@ -71,6 +71,7 @@ active pane.
 | `]` | paste the most recently copied (yanked) text into the active pane |
 | `d` | **detach**: disconnect from the session, which keeps running in the background |
 | `q` | quit termdock (closes the whole session and every window) |
+| `?` | show the full key list in the status bar (until the next command) |
 | `Ctrl-B` | double-press: sends a literal `Ctrl-B` to the active pane |
 
 If a shell exits (e.g. with `exit`), its pane closes on its own; when a
@@ -106,22 +107,30 @@ Enter with `Ctrl-B [`. From there:
 ### Mouse
 
 - Click a pane: gives it focus.
-- Drag the divider between two side-by-side panes: resizes them.
+- Drag the border between two panes, side by side or stacked: resizes
+  them.
 - Wheel: if the pane has scrollback, automatically enters copy-mode and
   scrolls; scrolling back to the bottom exits it automatically.
 - Drag in copy-mode: selects text and copies it on release.
 
-### Pane titles
+### Pane titles and borders
 
-Each pane's title shows the foreground command (e.g. `2:vim`), not just
-the shell name — handy for keeping track of what's running where. (Linux
-only; elsewhere it always shows the shell name.)
+Every pane is framed by a thin border, with its title embedded in the top
+edge (e.g. `2:vim`) — the number is the pane's position within its window
+(left-to-right, top-to-bottom), not an internal id, so it stays small and
+predictable as you split and close panes. The title shows the foreground
+command, not just the shell name, so you can tell what's running where at
+a glance. (Linux only; elsewhere it always shows the shell name.) The
+active pane's border is drawn in the accent color (`pane-active-bg`
+below) so it's obvious which pane has focus.
 
 ### Status bar
 
 The left side is minimal at rest (`Ctrl-B ?`) so there's room for the
 right side: hostname and clock, tmux-style. Press the prefix and the left
-side expands to the full key list for as long as you're mid-command.
+side expands to the full key list for as long as you're mid-command;
+`Ctrl-B ?` pins that same list in place until your next command, for
+when you just want to read it.
 
 ## Scripting a session
 
@@ -160,11 +169,12 @@ session — they talk straight to the daemon over its socket, the same way
 
 The layout degrades gracefully instead of breaking, the same way tmux
 keeps shrinking panes rather than refusing to redraw: panes shrink
-proportionally down to zero size if there truly isn't room, a pane's
-title bar is dropped first to give a one-row-tall pane its full row of
-real content, and the status bar is the first thing to go on a
-single-row terminal. Nothing crashes at any size; existing splits just
-get harder to see the smaller you go, exactly like a real multiplexer.
+proportionally down to zero size if there truly isn't room, the outer
+border/margin around the whole pane area is dropped first to give a very
+small terminal every last row and column of real content, and the status
+bar is the first thing to go on a single-row terminal. Nothing crashes at
+any size; existing splits just get harder to see the smaller you go,
+exactly like a real multiplexer.
 
 ## Configuration
 
@@ -182,7 +192,7 @@ history-limit 10000     # scrollback lines kept per pane (default 10000)
 shell /bin/zsh           # shell for new panes (default $SHELL)
 status-bg black          # status bar background (default black)
 status-fg silver         # status bar foreground (default silver)
-pane-active-bg teal       # active pane's title bar background (default teal)
+pane-active-bg teal       # active pane's border/title color (default teal)
 ```
 
 Colors accept any W3C name tcell understands, or `#rrggbb` hex.
