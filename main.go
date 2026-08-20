@@ -165,6 +165,11 @@ func spawnDaemon(name, sock string) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
+	// Start has already duplicated both into the child; the parent goes on
+	// to run a whole interactive client, so holding them open here just
+	// leaks two descriptors for its lifetime.
+	logFile.Close()
+	devnull.Close()
 	// The daemon fully detaches (new session, stdio elsewhere); don't wait
 	// on it, just poll until its socket answers.
 	deadline := time.Now().Add(3 * time.Second)
@@ -250,7 +255,8 @@ Usage:
   termdock --version            print the version and exit
 
 Scripting (drive a session without attaching to it; TARGET is
-SESSION[:WINDOW[.PANE]], e.g. "main", "main:1", "main:1.4"):
+SESSION[:WINDOW[.PANE]], e.g. "main", "main:1", "main:1.2", where PANE is
+the number shown in the pane's title bar — the INDEX column of list-panes):
   termdock send-keys -t TARGET text... [Enter]
   termdock new-window -t SESSION [-n NAME] [command...]
   termdock split-window -t TARGET [-v|-s] [command...]

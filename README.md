@@ -539,9 +539,12 @@ in a few pre-arranged windows, a Makefile target that tails a log in a
 split pane, anything you'd otherwise have to click through by hand. This
 is what `tmux send-keys`/`new-window`/`split-window`/... are for tmux.
 
-`TARGET` is `SESSION[:WINDOW[.PANE]]` — e.g. `main`, `main:1`, `main:1.4`.
-Omitting `WINDOW` means "the active window"; omitting `PANE` means "that
-window's active pane".
+`TARGET` is `SESSION[:WINDOW[.PANE]]` — e.g. `main`, `main:1`, `main:1.2`.
+`WINDOW` is either its index (the number in the status bar's tab strip) or
+its name; `PANE` is the number shown in that pane's own title bar, which is
+also the `INDEX` column of `list-panes`. Omitting `WINDOW` means "the active
+window"; omitting `PANE` means "that window's active pane". `select-pane`
+and `list-panes` act on a whole window, so they ignore a `.PANE` part.
 
 ```sh
 termdock send-keys -t TARGET text... [Enter]     # type text into a pane; trailing "Enter" submits it

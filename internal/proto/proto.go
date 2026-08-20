@@ -124,7 +124,14 @@ type WindowInfo struct {
 	Panes  int
 }
 
+// PaneInfo's Index is the pane's 1-based position within its window —
+// the number shown in its own title bar on screen, and the one a TARGET's
+// ".PANE" part refers to. ID is the session-wide internal identifier,
+// which never repeats and survives nothing in particular (respawn-pane
+// gives a pane a new one); it's reported too, but it isn't what you
+// address a pane by.
 type PaneInfo struct {
+	Index  int
 	ID     int
 	Title  string
 	Active bool
@@ -168,10 +175,12 @@ type ClientMsg struct {
 
 	// Scripting commands. WindowIdx >= 0 wins if given; else WindowName is
 	// looked up by the window's display name; else it's the active
-	// window. PaneID <= 0 means "that window's active pane".
+	// window. PaneIndex is a 1-based position *within that window* — the
+	// number the pane shows in its own title bar — and <= 0 means "that
+	// window's active pane".
 	WindowIdx  int
 	WindowName string
-	PaneID     int
+	PaneIndex  int
 	CLIText    string // send-keys: literal text to write to the pane
 	CLIEnter   bool   // send-keys: append a carriage return after CLIText
 	CLICommand string // new-window/split-window: run this instead of the shell

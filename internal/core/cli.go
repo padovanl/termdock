@@ -21,10 +21,10 @@ import (
 
 // CLISendKeys writes text (and, if enter, a carriage return) straight to
 // the target pane, exactly as if it had been typed.
-func (c *Core) CLISendKeys(windowIdx int, windowName string, paneID int, text string, enter bool) error {
+func (c *Core) CLISendKeys(windowIdx int, windowName string, paneIndex int, text string, enter bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	p, ok := c.resolveTargetPane(windowIdx, windowName, paneID)
+	p, ok := c.resolveTargetPane(windowIdx, windowName, paneIndex)
 	if !ok {
 		return errors.New("no such pane")
 	}
@@ -48,16 +48,24 @@ func (c *Core) CLINewWindow(name, command string) (int, error) {
 	return c.activeWindow, nil
 }
 
-// CLISplitWindow splits the target window's active pane and returns the
-// new pane's ID.
-func (c *Core) CLISplitWindow(windowIdx int, windowName string, axis layout.SplitType, command string) (int, error) {
+// CLISplitWindow splits a pane in the target window — the one paneIndex
+// names (1-based, the number in its title bar), or the window's active
+// one when that's 0 — and returns the new pane's ID. paneIndex used to be
+// parsed off the TARGET and then dropped on the floor here, so the
+// README's own `-t main:dev.1` example quietly split whatever pane
+// happened to be active instead of pane 1.
+func (c *Core) CLISplitWindow(windowIdx int, windowName string, paneIndex int, axis layout.SplitType, command string) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	w, ok := c.resolveWindow(windowIdx, windowName)
 	if !ok {
 		return 0, errors.New("no such window")
 	}
-	id, err := c.doSplitIn(w, axis, command)
+	target, ok := paneAt(w, paneIndex)
+	if !ok {
+		return 0, errors.New("no such pane in that window")
+	}
+	id, err := c.doSplitLeafIn(w, target, axis, command)
 	if err != nil {
 		return 0, err
 	}
@@ -136,27 +144,53 @@ func (c *Core) CLIListPanes(windowIdx int, windowName string) ([]proto.PaneInfo,
 		return nil, errors.New("no such window")
 	}
 	var out []proto.PaneInfo
-	for _, l := range layout.Leaves(w.root) {
-		info := proto.PaneInfo{ID: l.ID, Active: l == w.active}
+	for i, l := range layout.Leaves(w.root) {
+		info := proto.PaneInfo{Index: i + 1, ID: l.ID, Active: l == w.active}
 		if p, ok := c.panes[l.ID]; ok {
-			info.Title = c.paneTitle(l.ID, p)
+			// Positional index, not l.ID: paneTitle renders the number
+			// the pane shows in its own title bar on screen (see
+			// buildPaneFrame), and passing the ID here made list-panes
+			// disagree with what the user is looking at — "3:bash" for
+			// the pane labelled 2:bash — as soon as closing and
+			// splitting had let IDs drift away from positions.
+			info.Title = c.paneTitle(i+1, p)
 		}
 		out = append(out, info)
 	}
 	return out, nil
 }
 
-// resolveTargetPane finds the pane a scripting command should act on:
-// paneID if given (> 0), else the target window's active pane.
-func (c *Core) resolveTargetPane(windowIdx int, windowName string, paneID int) (*pane.Pane, bool) {
-	if paneID > 0 {
-		p, ok := c.panes[paneID]
-		return p, ok
+// paneAt returns w's index-th pane (1-based, matching the number in its
+// title bar and PaneInfo.Index), or w's active pane when index is 0.
+func paneAt(w *Window, index int) (*layout.Node, bool) {
+	if index == 0 {
+		return w.active, true
 	}
+	leaves := layout.Leaves(w.root)
+	if index < 1 || index > len(leaves) {
+		return nil, false
+	}
+	return leaves[index-1], true
+}
+
+// resolveTargetPane finds the pane a scripting command should act on: the
+// paneIndex-th pane of the target window (1-based, the number in its
+// title bar), or that window's active pane when paneIndex is 0.
+//
+// This used to treat the number as a session-wide internal pane ID and
+// look it up in c.panes directly, which ignored the window part of the
+// TARGET entirely — "-t main:1.2" could act on a pane in window 0 — and
+// meant the number to pass bore no relation to any number shown on
+// screen.
+func (c *Core) resolveTargetPane(windowIdx int, windowName string, paneIndex int) (*pane.Pane, bool) {
 	w, ok := c.resolveWindow(windowIdx, windowName)
 	if !ok {
 		return nil, false
 	}
-	p, ok := c.panes[w.active.ID]
+	n, ok := paneAt(w, paneIndex)
+	if !ok {
+		return nil, false
+	}
+	p, ok := c.panes[n.ID]
 	return p, ok
 }

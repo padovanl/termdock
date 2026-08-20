@@ -114,8 +114,15 @@ func Load() Config {
 			continue
 		}
 		applySetting(&cfg, key, val)
-		if key == "status-bg" || key == "status-fg" || key == "pane-active-bg" {
-			overridden[key] = true
+		switch key {
+		case "status-bg", "status-fg", "pane-active-bg":
+			// Only a color that actually parsed counts as "the user set
+			// this deliberately"; a typo'd one has to leave the door open
+			// for a "theme" line to fill it in, the same as if the line
+			// weren't there at all.
+			if _, ok := parseColor(val); ok {
+				overridden[key] = true
+			}
 		}
 	}
 	if themeName != "" {
@@ -131,9 +138,13 @@ func applySetting(cfg *Config, key, val string) {
 			cfg.Prefix = k
 		}
 	case "mouse":
-		cfg.Mouse = val == "on" || val == "true" || val == "yes"
+		if b, ok := parseBool(val); ok {
+			cfg.Mouse = b
+		}
 	case "focus-events":
-		cfg.FocusEvents = val == "on" || val == "true" || val == "yes"
+		if b, ok := parseBool(val); ok {
+			cfg.FocusEvents = b
+		}
 	case "history-limit":
 		if n, err := strconv.Atoi(val); err == nil && n > 0 {
 			cfg.HistoryLimit = n
@@ -143,11 +154,17 @@ func applySetting(cfg *Config, key, val string) {
 	case "popup-command":
 		cfg.PopupCommand = val
 	case "status-bg":
-		cfg.StatusBG = tcell.GetColor(val)
+		if c, ok := parseColor(val); ok {
+			cfg.StatusBG = c
+		}
 	case "status-fg":
-		cfg.StatusFG = tcell.GetColor(val)
+		if c, ok := parseColor(val); ok {
+			cfg.StatusFG = c
+		}
 	case "pane-active-bg":
-		cfg.PaneActiveBG = tcell.GetColor(val)
+		if c, ok := parseColor(val); ok {
+			cfg.PaneActiveBG = c
+		}
 	case "status-segments":
 		cfg.StatusSegments = nil
 		for _, s := range strings.Split(val, ",") {
@@ -156,6 +173,38 @@ func applySetting(cfg *Config, key, val string) {
 			}
 		}
 	}
+}
+
+// parseBool reads an on/off setting, case-insensitively, reporting
+// whether it recognized the value at all. That second return is the whole
+// point: "cfg.Mouse = val == \"on\"" quietly turned the mouse *off* for
+// "mouse ON", "mouse 1", or any typo, when this package's contract (see
+// Load) is that an unrecognized value leaves the default alone. Silently
+// disabling a feature because of a capital letter is exactly the kind of
+// thing nobody thinks to suspect the config file for.
+func parseBool(val string) (value, ok bool) {
+	switch strings.ToLower(strings.TrimSpace(val)) {
+	case "on", "true", "yes", "1":
+		return true, true
+	case "off", "false", "no", "0":
+		return false, true
+	}
+	return false, false
+}
+
+// parseColor resolves a color name or "#rrggbb", reporting whether it
+// meant anything. tcell.GetColor answers ColorDefault for a name it
+// doesn't know, so assigning its result blindly turned a typo'd color
+// into "whatever the terminal does by default" *and* marked the setting
+// as explicitly overridden, which then stopped a "theme" line from
+// filling it in. "default" itself stays a legitimate thing to ask for.
+func parseColor(val string) (tcell.Color, bool) {
+	val = strings.TrimSpace(val)
+	c := tcell.GetColor(val)
+	if c == tcell.ColorDefault && !strings.EqualFold(val, "default") {
+		return c, false
+	}
+	return c, true
 }
 
 // applyBindLine handles one "bind <key> <action>" line — fields is

@@ -387,6 +387,13 @@ func (c *Core) doSplit(st layout.SplitType) {
 // keybindings and the split-window CLI command, which can target any
 // window, not just the currently active one.
 func (c *Core) doSplitIn(w *Window, st layout.SplitType, command string) (int, error) {
+	return c.doSplitLeafIn(w, w.active, st, command)
+}
+
+// doSplitLeafIn is doSplitIn aimed at a specific pane rather than
+// whichever one happens to be active — what a scripting TARGET's ".PANE"
+// part resolves to (see CLISplitWindow).
+func (c *Core) doSplitLeafIn(w *Window, target *layout.Node, st layout.SplitType, command string) (int, error) {
 	if w.zoomed != nil {
 		return 0, errors.New("exit zoom (prefix z) before splitting")
 	}
@@ -395,7 +402,7 @@ func (c *Core) doSplitIn(w *Window, st layout.SplitType, command string) (int, e
 	if err != nil {
 		return 0, fmt.Errorf("error creating pane: %w", err)
 	}
-	newLeaf, ok := layout.Split(w.active, st, id, p)
+	newLeaf, ok := layout.Split(target, st, id, p)
 	if !ok {
 		p.Close()
 		return 0, errors.New("not enough room to split")

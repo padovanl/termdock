@@ -168,3 +168,88 @@ func TestThemeNamesAreAllApplicable(t *testing.T) {
 		t.Errorf("ThemeNames() lists %d names, but themes has %d entries", len(ThemeNames()), len(themes))
 	}
 }
+
+// loadFrom writes body to a throwaway config file and loads it.
+func loadFrom(t *testing.T, body string) Config {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "termdock.conf")
+	if err := os.WriteFile(path, []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TERMDOCK_CONFIG", path)
+	return Load()
+}
+
+// TestBoolSettingsAreCaseInsensitive: "mouse ON" used to compare against
+// the literal lowercase "on" and fall through to false, silently turning
+// the mouse off — the opposite of what the line says, and not something
+// anyone would think to blame the config file for.
+func TestBoolSettingsAreCaseInsensitive(t *testing.T) {
+	for _, val := range []string{"on", "ON", "On", "true", "TRUE", "yes", "1"} {
+		if cfg := loadFrom(t, "focus-events "+val+"\n"); !cfg.FocusEvents {
+			t.Errorf("focus-events %q should enable it", val)
+		}
+		if cfg := loadFrom(t, "mouse "+val+"\n"); !cfg.Mouse {
+			t.Errorf("mouse %q should enable it", val)
+		}
+	}
+	for _, val := range []string{"off", "OFF", "false", "no", "0"} {
+		if cfg := loadFrom(t, "mouse "+val+"\n"); cfg.Mouse {
+			t.Errorf("mouse %q should disable it", val)
+		}
+	}
+}
+
+// TestUnrecognizedBoolKeepsTheDefault holds this package to its own
+// documented contract (see Load): a bad value falls back to the default
+// for that setting rather than quietly meaning "off".
+func TestUnrecognizedBoolKeepsTheDefault(t *testing.T) {
+	cfg := loadFrom(t, "mouse enable-please\n")
+	if !cfg.Mouse {
+		t.Error("an unrecognized mouse value should leave the default (on) alone, not disable the mouse")
+	}
+	cfg = loadFrom(t, "focus-events maybe\n")
+	if cfg.FocusEvents {
+		t.Error("an unrecognized focus-events value should leave the default (off) alone")
+	}
+}
+
+func TestValidColorsStillApply(t *testing.T) {
+	cfg := loadFrom(t, "status-bg red\nstatus-fg #00ff00\npane-active-bg default\n")
+	if cfg.StatusBG != tcell.ColorRed {
+		t.Errorf("status-bg = %v, want red", cfg.StatusBG)
+	}
+	if cfg.StatusFG != tcell.GetColor("#00ff00") {
+		t.Errorf("status-fg = %v, want #00ff00", cfg.StatusFG)
+	}
+	if cfg.PaneActiveBG != tcell.ColorDefault {
+		t.Errorf("pane-active-bg = %v, want the terminal default (asked for explicitly)", cfg.PaneActiveBG)
+	}
+}
+
+// TestTypoedColorKeepsTheDefault: tcell.GetColor answers ColorDefault for
+// a name it doesn't know, so assigning it blindly turned a typo into
+// "whatever the terminal does" rather than the documented default.
+func TestTypoedColorKeepsTheDefault(t *testing.T) {
+	cfg := loadFrom(t, "status-bg dracula-purple\n")
+	if cfg.StatusBG != Default().StatusBG {
+		t.Errorf("status-bg after a typo = %v, want the default %v", cfg.StatusBG, Default().StatusBG)
+	}
+}
+
+// TestTypoedColorDoesNotBlockATheme: a color the file set explicitly wins
+// over a "theme" line, but a *typo* isn't a deliberate setting and must
+// not stop the theme from filling that slot in.
+func TestTypoedColorDoesNotBlockATheme(t *testing.T) {
+	themed := loadFrom(t, "theme dracula\n")
+	typoed := loadFrom(t, "theme dracula\nstatus-bg nonsense-color\n")
+	if typoed.StatusBG != themed.StatusBG {
+		t.Errorf("status-bg = %v with a typo'd override, want the theme's %v", typoed.StatusBG, themed.StatusBG)
+	}
+
+	// ...while a real one still takes precedence over the theme.
+	explicit := loadFrom(t, "theme dracula\nstatus-bg red\n")
+	if explicit.StatusBG != tcell.ColorRed {
+		t.Errorf("an explicit status-bg should still beat the theme, got %v", explicit.StatusBG)
+	}
+}

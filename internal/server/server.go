@@ -217,7 +217,7 @@ func (s *Session) handleConn(conn net.Conn, stop func()) {
 		return
 
 	case "send-keys":
-		err := s.core.CLISendKeys(hello.WindowIdx, hello.WindowName, hello.PaneID, hello.CLIText, hello.CLIEnter)
+		err := s.core.CLISendKeys(hello.WindowIdx, hello.WindowName, hello.PaneIndex, hello.CLIText, hello.CLIEnter)
 		enc.Encode(cliReply(err))
 		conn.Close()
 		return
@@ -235,7 +235,7 @@ func (s *Session) handleConn(conn net.Conn, stop func()) {
 		if hello.CLIAxis == "s" {
 			axis = layout.Horizontal
 		}
-		paneID, err := s.core.CLISplitWindow(hello.WindowIdx, hello.WindowName, axis, hello.CLICommand)
+		paneID, err := s.core.CLISplitWindow(hello.WindowIdx, hello.WindowName, hello.PaneIndex, axis, hello.CLICommand)
 		reply := cliReply(err)
 		reply.CLIPaneID = paneID
 		enc.Encode(reply)

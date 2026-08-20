@@ -30,9 +30,9 @@ func cmdSendKeys(args []string) {
 		enter = true
 		rest = rest[:len(rest)-1]
 	}
-	session, winIdx, winName, paneID := parseTarget(target)
+	session, winIdx, winName, paneIdx := parseTarget(target)
 	reply := dialCLI(session, proto.ClientMsg{
-		Kind: "send-keys", WindowIdx: winIdx, WindowName: winName, PaneID: paneID,
+		Kind: "send-keys", WindowIdx: winIdx, WindowName: winName, PaneIndex: paneIdx,
 		CLIText: strings.Join(rest, " "), CLIEnter: enter,
 	})
 	if reply.CLIError != "" {
@@ -66,9 +66,9 @@ func cmdSplitWindow(args []string) {
 	if len(rest) > 0 && (rest[0] == "-v" || rest[0] == "-s") {
 		axis, rest = strings.TrimPrefix(rest[0], "-"), rest[1:]
 	}
-	session, winIdx, winName, _ := parseTarget(target)
+	session, winIdx, winName, paneIdx := parseTarget(target)
 	reply := dialCLI(session, proto.ClientMsg{
-		Kind: "split-window", WindowIdx: winIdx, WindowName: winName,
+		Kind: "split-window", WindowIdx: winIdx, WindowName: winName, PaneIndex: paneIdx,
 		CLIAxis: axis, CLICommand: strings.Join(rest, " "),
 	})
 	if reply.CLIError != "" {
@@ -143,9 +143,13 @@ func cmdListPanes(args []string) {
 		fatal(reply.CLIError)
 	}
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tTITLE\tACTIVE")
+	// INDEX first, and it's what a TARGET's ".PANE" part takes: it's the
+	// number the pane shows in its own title bar on screen. ID is the
+	// internal identifier, reported because respawn-pane changes it and
+	// it can be handy to see, but it isn't an address.
+	fmt.Fprintln(tw, "INDEX\tID\tTITLE\tACTIVE")
 	for _, p := range reply.CLIPanes {
-		fmt.Fprintf(tw, "%d\t%s\t%s\n", p.ID, p.Title, activeMark(p.Active))
+		fmt.Fprintf(tw, "%d\t%d\t%s\t%s\n", p.Index, p.ID, p.Title, activeMark(p.Active))
 	}
 	tw.Flush()
 }
@@ -173,14 +177,16 @@ func extractTarget(args []string) (target string, rest []string) {
 // be either a numeric index or the name it was given (via new-window -n,
 // or the default auto-name). windowIdx is -1 (meaning "look at
 // windowName instead, or if that's empty too, the active window") if the
-// window part isn't a plain integer. paneID is 0 (meaning "that window's
+// window part isn't a plain integer. paneIdx is the pane's 1-based
+// position within that window — the number it shows in its own title bar,
+// and the INDEX column of list-panes — or 0 (meaning "that window's
 // active pane") if unspecified.
-func parseTarget(spec string) (session string, windowIdx int, windowName string, paneID int) {
+func parseTarget(spec string) (session string, windowIdx int, windowName string, paneIdx int) {
 	windowIdx = -1
 	parts := strings.SplitN(spec, ":", 2)
 	session = parts[0]
 	if len(parts) != 2 || parts[1] == "" {
-		return session, windowIdx, windowName, paneID
+		return session, windowIdx, windowName, paneIdx
 	}
 	wp := strings.SplitN(parts[1], ".", 2)
 	if n, err := strconv.Atoi(wp[0]); err == nil {
@@ -190,10 +196,10 @@ func parseTarget(spec string) (session string, windowIdx int, windowName string,
 	}
 	if len(wp) == 2 {
 		if n, err := strconv.Atoi(wp[1]); err == nil {
-			paneID = n
+			paneIdx = n
 		}
 	}
-	return session, windowIdx, windowName, paneID
+	return session, windowIdx, windowName, paneIdx
 }
 
 // dialCLI sends one control message to session's socket and returns its
