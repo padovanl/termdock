@@ -40,6 +40,10 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 		c.handleConfirmKey(r)
 		c.markDirty()
 		return Result{}
+	case ModePicker:
+		c.handlePickerKey(key, r)
+		c.markDirty()
+		return Result{}
 	}
 
 	if !c.prefix {
@@ -95,6 +99,8 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 		c.switchWindow(1)
 	case r == 'p':
 		c.switchWindow(-1)
+	case r == 'w':
+		c.enterPicker()
 	case r >= '0' && r <= '9':
 		c.selectWindowIndex(int(r - '0'))
 	case r == ',':

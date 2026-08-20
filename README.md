@@ -65,6 +65,7 @@ active pane.
 | `x` | close the active pane |
 | `c` | create a new **window** (tab) |
 | `n` / `p` | switch to the next / previous window |
+| `w` | **jump picker**: type to fuzzy-filter every window/pane, ↑↓/Tab to select, Enter to jump (see below) |
 | `0`-`9` | jump straight to window N |
 | `,` | rename the current window |
 | `&` | close the current window and every pane in it (asks `y`/`n` first) |
@@ -89,6 +90,18 @@ the text too, in case colors aren't your thing). Click a tab to switch to
 it, the same as a browser tab. A window's name is automatically the
 foreground command of its active pane, the same as pane titles, until you
 rename it with `Ctrl-B ,`.
+
+### Jump picker
+
+`Ctrl-B w` opens a type-ahead picker listing every pane in every window of
+the session — tmux splits this across `choose-window` and `choose-pane`,
+each a static list you page through with j/k; termdock's is one list,
+fuzzy-filtered as you type (characters just need to appear in order, not
+consecutively — `depl` matches `1:deploy`), so getting to a specific pane
+in a session with a dozen windows is a few keystrokes instead of hunting
+through a list by eye. `↑`/`↓`/`Tab` move the selection, `Enter` jumps
+straight to it — switching windows and focusing that exact pane in one
+step — `Esc` cancels.
 
 ### Copy-mode (scrollback and copying)
 

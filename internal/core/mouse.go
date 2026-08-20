@@ -16,10 +16,10 @@ func (c *Core) handleMouse(m proto.ClientMsg) Result {
 	if len(c.windows) == 0 {
 		return Result{} // session mid-shutdown; a lingering connection raced us here
 	}
-	if c.mode == ModeConfirm {
-		// A pending "kill this window?" prompt only listens for
-		// keyboard y/n (handleConfirmKey) — a stray click shouldn't be
-		// able to act on whatever's underneath while it's up.
+	if c.mode == ModeConfirm || c.mode == ModePicker {
+		// A pending "kill this window?" prompt, or the jump picker, only
+		// listen for keyboard input — a stray click shouldn't be able to
+		// act on whatever's underneath while either is up.
 		return Result{}
 	}
 

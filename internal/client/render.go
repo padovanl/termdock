@@ -31,6 +31,9 @@ func draw(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	if f.ShowStatus {
 		drawStatusBar(screen, f, cfg)
 	}
+	if f.Overlay != nil {
+		drawOverlay(screen, f, cfg)
+	}
 	screen.Show()
 }
 
@@ -220,6 +223,96 @@ func drawPaneTitle(screen tcell.Screen, r proto.Rect, title string, style tcell.
 // tabStyle) so the active window and ones with unseen activity stand out
 // visually, not just via the "*"/"!" markers already baked into each
 // tab's Label.
+// drawOverlay paints the jump picker (or any future modal list) as a
+// centered floating box on top of everything already drawn: a title,
+// the live query with a block cursor, and a scrollable, selection-
+// highlighted item list — termdock's answer to tmux's choose-tree, but
+// type-ahead filterable instead of a static list you page through.
+func drawOverlay(screen tcell.Screen, f proto.Frame, cfg config.Config) {
+	ov := f.Overlay
+
+	innerW := len([]rune(ov.Title)) + 2
+	for _, it := range ov.Items {
+		if l := len([]rune(it)) + 2; l > innerW {
+			innerW = l
+		}
+	}
+	if maxW := f.Cols - 4; innerW > maxW {
+		innerW = maxW
+	}
+	if innerW < 24 {
+		innerW = 24
+	}
+	w := innerW + 2 // + left/right border
+
+	const headerRows = 3 // title, query, separator
+	listRows := len(ov.Items)
+	if maxList := f.Rows - headerRows - 3; listRows > maxList {
+		listRows = maxList
+	}
+	if listRows < 1 {
+		listRows = 1
+	}
+	h := headerRows + listRows + 2 // + top/bottom border
+
+	if w > f.Cols {
+		w = f.Cols
+	}
+	if h > f.Rows {
+		h = f.Rows
+	}
+	x0 := maxi(0, (f.Cols-w)/2)
+	y0 := maxi(0, (f.Rows-h)/2)
+
+	bg := tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(tcell.ColorSilver)
+	accent := tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(cfg.PaneActiveBG).Bold(true)
+	dim := tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(tcell.ColorGray)
+
+	for y := y0; y < y0+h; y++ {
+		for x := x0; x < x0+w; x++ {
+			screen.SetContent(x, y, ' ', nil, bg)
+		}
+	}
+	for x := x0; x < x0+w; x++ {
+		screen.SetContent(x, y0, '─', nil, accent)
+		screen.SetContent(x, y0+h-1, '─', nil, accent)
+	}
+	for y := y0; y < y0+h; y++ {
+		screen.SetContent(x0, y, '│', nil, accent)
+		screen.SetContent(x0+w-1, y, '│', nil, accent)
+	}
+	screen.SetContent(x0, y0, '┌', nil, accent)
+	screen.SetContent(x0+w-1, y0, '┐', nil, accent)
+	screen.SetContent(x0, y0+h-1, '└', nil, accent)
+	screen.SetContent(x0+w-1, y0+h-1, '┘', nil, accent)
+
+	innerX, maxX := x0+1, x0+1+innerW
+	overlayText(screen, innerX, y0+1, maxX, dim, " "+ov.Title)
+	overlayText(screen, innerX, y0+2, maxX, bg.Bold(true), " > "+ov.Query+"_")
+	for x := innerX; x < maxX; x++ {
+		screen.SetContent(x, y0+3, '─', nil, dim)
+	}
+
+	if len(ov.Items) == 0 {
+		overlayText(screen, innerX, y0+4, maxX, dim, " no matches")
+		return
+	}
+
+	start := clampi(ov.Selected-listRows+1, 0, maxi(0, len(ov.Items)-listRows))
+	for i := 0; i < listRows && start+i < len(ov.Items); i++ {
+		idx := start + i
+		row := y0 + headerRows + 1 + i
+		style := bg
+		if idx == ov.Selected {
+			style = tcell.StyleDefault.Background(cfg.PaneActiveBG).Foreground(tcell.ColorBlack).Bold(true)
+			for x := innerX; x < maxX; x++ {
+				screen.SetContent(x, row, ' ', nil, style)
+			}
+		}
+		overlayText(screen, innerX, row, maxX, style, " "+ov.Items[idx])
+	}
+}
+
 func drawStatusBar(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	y := f.Rows - 1
 	if y < 0 {
@@ -299,6 +392,26 @@ func drawText(screen tcell.Screen, x, y, w int, style tcell.Style, text string) 
 		screen.SetContent(x+i, y, r, nil, style)
 		i++
 	}
+}
+
+func maxi(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func clampi(v, lo, hi int) int {
+	if hi < lo {
+		return lo
+	}
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 // convColor decodes a raw vt10x.Color value (see internal/vt10x/color.go):

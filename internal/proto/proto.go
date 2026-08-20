@@ -48,6 +48,17 @@ type WindowTab struct {
 	X, W     int
 }
 
+// Overlay is a centered modal box drawn on top of everything else — today
+// just the jump picker (Ctrl-B w), but general enough for another modal
+// list later. Items is already filtered and ordered by the server;
+// Selected indexes into it.
+type Overlay struct {
+	Title    string
+	Query    string
+	Items    []string
+	Selected int
+}
+
 // Frame is a full snapshot of everything the client needs to paint.
 // The server sends one whenever session state changes.
 type Frame struct {
@@ -57,9 +68,10 @@ type Frame struct {
 	Windows      []WindowTab // the window tab strip, drawn after StatusPrefix
 	StatusText   string      // trailing segment, drawn after the tab strip
 	StatusRight  string      // right-aligned segment (hostname/clock)
-	StatusStyle  string      // "normal" | "prefix" | "mode"
+	StatusStyle  string      // "normal" | "prefix" | "mode" | "confirm"
 	ShowStatus   bool        // false on a 1-row-tall terminal: no room for it
 	SessionName  string
+	Overlay      *Overlay // non-nil while a modal (e.g. the jump picker) is open
 }
 
 // WindowInfo and PaneInfo answer the list-windows/list-panes CLI

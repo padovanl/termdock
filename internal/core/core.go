@@ -30,6 +30,7 @@ const (
 	ModeResize
 	ModeInput   // typing a line for rename or search; see input.go
 	ModeConfirm // a pending destructive action awaiting y/n; see confirmKillWindow
+	ModePicker  // type-ahead jump to any window/pane; see picker.go
 )
 
 const resizeStep = 2
@@ -68,6 +69,7 @@ type Core struct {
 
 	copy      copyState
 	input     inputState
+	picker    pickerState
 	drag      *dragState
 	lastPaste string // most recent copy-mode yank, for Ctrl-B ]
 

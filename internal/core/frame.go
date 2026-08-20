@@ -44,6 +44,7 @@ func (c *Core) Frame() proto.Frame {
 	f.StatusPrefix = c.statusPrefix()
 	f.Windows = c.windowTabs()
 	f.StatusText, f.StatusRight, f.StatusStyle = c.statusLine()
+	f.Overlay = c.pickerOverlay()
 	return f
 }
 
@@ -145,7 +146,7 @@ func (c *Core) paneTitle(idx int, p *pane.Pane) string {
 // this line exists, "Ctrl-B ?" is what the idle status bar tells you to
 // press, so it needs to actually go somewhere.
 const helpText = "v/% vsplit | s/\" hsplit | hjkl/arrows move | o/Tab cycle | z zoom | r resize | " +
-	"[ copy | ] paste | y sync | c new-win | n/p next/prev-win | 0-9 win# | , rename | & kill-win | " +
+	"[ copy | ] paste | y sync | c new-win | n/p next/prev-win | w jump | 0-9 win# | , rename | & kill-win | " +
 	"x close-pane | d detach | q quit | ? help"
 
 func (c *Core) statusLine() (text, right, style string) {
@@ -166,6 +167,9 @@ func (c *Core) statusLine() (text, right, style string) {
 	case c.mode == ModeConfirm:
 		style = "confirm"
 		hint = c.statusMsg
+	case c.mode == ModePicker:
+		style = "mode"
+		hint = "type to filter, ↑↓/Tab select, enter jump, esc cancel"
 	case c.prefix:
 		style = "prefix"
 		hint = "PREFIX > " + helpText
