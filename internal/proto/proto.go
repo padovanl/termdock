@@ -18,7 +18,10 @@ type Cell struct {
 	Attr uint16
 }
 
-// PaneFrame is the rendered content of a single pane.
+// PaneFrame is the rendered content of a single pane. Rect is pure
+// terminal content — the client draws a one-cell border around it (with
+// Title embedded in the top edge) entirely outside these bounds, inferred
+// from the Rects of all panes in the Frame rather than sent explicitly.
 type PaneFrame struct {
 	ID            int
 	Rect          Rect
@@ -35,7 +38,6 @@ type PaneFrame struct {
 type Frame struct {
 	Cols, Rows  int
 	Panes       []PaneFrame
-	VDividers   [][3]int // x, yStart, yEnd
 	StatusText  string
 	StatusRight string // right-aligned segment (hostname/clock)
 	StatusStyle string // "normal" | "prefix" | "mode"

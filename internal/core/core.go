@@ -34,7 +34,8 @@ const (
 const resizeStep = 2
 
 type dragState struct {
-	node *layout.Node // Vertical split node whose divider is being dragged
+	node *layout.Node // split node whose divider is being dragged
+	axis layout.SplitType
 }
 
 // Core is one session's live state: its windows (each with their own pane
@@ -416,14 +417,32 @@ func (c *Core) statusRows() int {
 // relayoutLocked recomputes every window's layout, not just the visible
 // one, so a hidden window's panes stay correctly sized (and their output
 // wraps the way it will look once you switch to them) the whole time.
+//
+// A one-cell margin is reserved around the whole pane area first: the
+// client draws every pane's border in that margin/in the gap each split
+// reserves between its children, entirely outside the Rects computed
+// here, so panes never need to give up their own content rows/columns for
+// chrome (see internal/client/render.go).
 func (c *Core) relayoutLocked() {
-	full := layout.Rect{X: 0, Y: 0, W: c.cols, H: max(c.rows-c.statusRows(), 0)}
+	outer := layout.Rect{X: 0, Y: 0, W: c.cols, H: max(c.rows-c.statusRows(), 0)}
+	full := outer
+	if full.W >= 3 {
+		full.X++
+		full.W -= 2
+	} else {
+		full.W = 0
+	}
+	if full.H >= 3 {
+		full.Y++
+		full.H -= 2
+	} else {
+		full.H = 0
+	}
 	for _, w := range c.windows {
 		if w.zoomed != nil {
 			w.zoomed.Rect = full
-			cr := w.zoomed.ContentRect()
-			if cr.W > 0 && cr.H > 0 && w.zoomed.Pane != nil {
-				w.zoomed.Pane.Resize(cr.W, cr.H)
+			if full.W > 0 && full.H > 0 && w.zoomed.Pane != nil {
+				w.zoomed.Pane.Resize(full.W, full.H)
 			}
 			continue
 		}

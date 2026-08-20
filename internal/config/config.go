@@ -15,7 +15,7 @@
 //	shell <path>           shell to launch in new panes (default $SHELL)
 //	status-bg <color>      status bar background (default black)
 //	status-fg <color>      status bar foreground (default silver)
-//	pane-active-bg <color> active pane's title bar background (default teal)
+//	pane-active-bg <color> active pane's border/title color (default teal)
 //
 // Colors accept any W3C name tcell understands ("black", "teal", ...) or
 // a "#rrggbb" hex value.

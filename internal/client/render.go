@@ -24,15 +24,9 @@ func draw(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	screen.Clear()
 
 	for _, p := range f.Panes {
-		drawPane(screen, p, cfg)
+		drawPaneContent(screen, p)
 	}
-	dividerStyle := tcell.StyleDefault.Foreground(tcell.ColorGray)
-	for _, dv := range f.VDividers {
-		x, y0, y1 := dv[0], dv[1], dv[2]
-		for y := y0; y <= y1; y++ {
-			screen.SetContent(x, y, tcell.RuneVLine, nil, dividerStyle)
-		}
-	}
+	drawBorders(screen, f, cfg)
 
 	if f.ShowStatus {
 		drawStatusBar(screen, f, cfg)
@@ -40,23 +34,10 @@ func draw(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	screen.Show()
 }
 
-func drawPane(screen tcell.Screen, p proto.PaneFrame, cfg config.Config) {
+func drawPaneContent(screen tcell.Screen, p proto.PaneFrame) {
 	r := p.Rect
 	if r.W <= 0 || r.H <= 0 {
 		return
-	}
-
-	// The server only reserves a title row when the pane is tall enough
-	// to spare one (see layout.Node.ContentRect); infer that from how
-	// many content rows actually came back rather than assuming r.H-1.
-	contentY := r.Y
-	if len(p.Cells) < r.H {
-		titleStyle := tcell.StyleDefault.Background(tcell.ColorDarkSlateGray).Foreground(tcell.ColorWhite)
-		if p.Active {
-			titleStyle = tcell.StyleDefault.Background(cfg.PaneActiveBG).Foreground(tcell.ColorBlack).Bold(true)
-		}
-		drawText(screen, r.X, r.Y, r.W, titleStyle, " "+p.Title+" ")
-		contentY = r.Y + 1
 	}
 
 	for y, row := range p.Cells {
@@ -78,7 +59,7 @@ func drawPane(screen tcell.Screen, p proto.PaneFrame, cfg config.Config) {
 			if ch == 0 {
 				ch = ' '
 			}
-			screen.SetContent(r.X+x, contentY+y, ch, nil, style)
+			screen.SetContent(r.X+x, r.Y+y, ch, nil, style)
 		}
 	}
 
@@ -88,6 +69,142 @@ func drawPane(screen tcell.Screen, p proto.PaneFrame, cfg config.Config) {
 		} else {
 			screen.HideCursor()
 		}
+	}
+}
+
+// drawBorders draws a one-cell border around every pane in f, entirely
+// outside each pane's content Rect (in the margin reserved around the
+// whole tree and the single row/column each split reserves between its
+// two children — see internal/layout.Compute). Borders are inferred purely
+// from the geometry of the pane Rects the server already sends, rather
+// than an explicit divider list: two panes can only be geometrically
+// adjacent if the split tree actually placed them that way, so unioning
+// every pane's own outline and auto-tiling the box-drawing glyphs from
+// each cell's neighbors naturally produces correctly joined T/cross
+// junctions wherever three or four panes meet, with no tree-topology
+// bookkeeping needed here. The active pane's own outline is drawn in the
+// accent color so it's obvious at a glance which pane has focus (and,
+// practically, which divider a click will grab for resizing).
+func drawBorders(screen tcell.Screen, f proto.Frame, cfg config.Config) {
+	cells := map[[2]int]bool{}
+	var active *proto.PaneFrame
+	for i := range f.Panes {
+		p := &f.Panes[i]
+		if p.Rect.W <= 0 || p.Rect.H <= 0 {
+			continue
+		}
+		addRectBorder(cells, p.Rect)
+		if p.Active {
+			active = p
+		}
+	}
+	activeCells := map[[2]int]bool{}
+	if active != nil {
+		addRectBorder(activeCells, active.Rect)
+	}
+
+	normalStyle := tcell.StyleDefault.Foreground(tcell.ColorGray)
+	activeStyle := tcell.StyleDefault.Foreground(cfg.PaneActiveBG).Bold(true)
+
+	for cell := range cells {
+		x, y := cell[0], cell[1]
+		if x < 0 || y < 0 || x >= f.Cols || y >= f.Rows {
+			continue
+		}
+		up := cells[[2]int{x, y - 1}]
+		down := cells[[2]int{x, y + 1}]
+		left := cells[[2]int{x - 1, y}]
+		right := cells[[2]int{x + 1, y}]
+		style := normalStyle
+		if activeCells[cell] {
+			style = activeStyle
+		}
+		screen.SetContent(x, y, boxChar(up, down, left, right), nil, style)
+	}
+
+	for i := range f.Panes {
+		p := &f.Panes[i]
+		if p.Rect.W <= 0 || p.Rect.H <= 0 {
+			continue
+		}
+		style := normalStyle
+		if p.Active {
+			style = activeStyle
+		}
+		drawPaneTitle(screen, p.Rect, p.Title, style, f.Cols, f.Rows)
+	}
+}
+
+// addRectBorder marks the perimeter of r, expanded by one cell on every
+// side, as border cells.
+func addRectBorder(cells map[[2]int]bool, r proto.Rect) {
+	x0, y0 := r.X-1, r.Y-1
+	x1, y1 := r.X+r.W, r.Y+r.H
+	for x := x0; x <= x1; x++ {
+		cells[[2]int{x, y0}] = true
+		cells[[2]int{x, y1}] = true
+	}
+	for y := y0; y <= y1; y++ {
+		cells[[2]int{x0, y}] = true
+		cells[[2]int{x1, y}] = true
+	}
+}
+
+// boxChar picks the Unicode box-drawing glyph matching which of a border
+// cell's four neighbors are themselves border cells.
+func boxChar(up, down, left, right bool) rune {
+	switch {
+	case up && down && left && right:
+		return '┼'
+	case down && left && right:
+		return '┬'
+	case up && left && right:
+		return '┴'
+	case up && down && right:
+		return '├'
+	case up && down && left:
+		return '┤'
+	case down && right:
+		return '┌'
+	case down && left:
+		return '┐'
+	case up && right:
+		return '└'
+	case up && left:
+		return '┘'
+	case left, right:
+		return '─'
+	case up, down:
+		return '│'
+	default:
+		return ' '
+	}
+}
+
+// drawPaneTitle overlays a pane's title on its own top border edge, e.g.
+// "┌─ 1:bash ──────┐". Skipped entirely if the pane is too narrow to fit
+// anything more than its corners.
+func drawPaneTitle(screen tcell.Screen, r proto.Rect, title string, style tcell.Style, cols, rows int) {
+	y := r.Y - 1
+	if y < 0 || y >= rows {
+		return
+	}
+	label := " " + title + " "
+	x := r.X + 1 // one cell in from the top-left corner/dash
+	maxW := r.W - 2
+	if maxW < 1 {
+		return
+	}
+	i := 0
+	for _, ch := range label {
+		if i >= maxW {
+			break
+		}
+		cx := x + i
+		if cx >= 0 && cx < cols {
+			screen.SetContent(cx, y, ch, nil, style)
+		}
+		i++
 	}
 }
 

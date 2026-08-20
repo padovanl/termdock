@@ -39,7 +39,6 @@ func (c *Core) Frame() proto.Frame {
 		for _, leaf := range layout.Leaves(w.root) {
 			f.Panes = append(f.Panes, c.buildPaneFrame(leaf, leaf == w.active))
 		}
-		f.VDividers = layout.VerticalDividers(w.root)
 	}
 
 	f.StatusText, f.StatusRight, f.StatusStyle = c.statusLine()
@@ -62,7 +61,7 @@ func (c *Core) buildPaneFrame(n *layout.Node, active bool) proto.PaneFrame {
 		return c.buildCopyFrame(n, p, pf)
 	}
 
-	cr := n.ContentRect()
+	cr := n.Rect
 	t := p.Term()
 	t.Lock()
 	defer t.Unlock()
@@ -90,7 +89,7 @@ func (c *Core) buildPaneFrame(n *layout.Node, active bool) proto.PaneFrame {
 }
 
 func (c *Core) buildCopyFrame(n *layout.Node, p *pane.Pane, pf proto.PaneFrame) proto.PaneFrame {
-	cr := n.ContentRect()
+	cr := n.Rect
 	t := p.Term()
 	t.Lock()
 	defer t.Unlock()

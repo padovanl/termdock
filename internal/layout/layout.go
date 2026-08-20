@@ -11,8 +11,8 @@ const (
 	// Vertical arranges children side by side (left/right), separated by
 	// a single-column divider.
 	Vertical
-	// Horizontal stacks children top/bottom. No extra divider row is
-	// reserved: the lower pane's title bar acts as the separator.
+	// Horizontal stacks children top/bottom, separated by a single-row
+	// divider (symmetric with Vertical).
 	Horizontal
 )
 
@@ -46,8 +46,17 @@ type Node struct {
 	Ratio    float64 // size fraction given to First
 	First    *Node
 	Second   *Node
-	DividerX int // absolute column of the vertical divider (Vertical splits only)
+	DividerX int // absolute column of the divider (Vertical splits only)
+	DividerY int // absolute row of the divider (Horizontal splits only)
 
+	// Rect is the pane's content area. A one-cell border is drawn around
+	// every leaf by the client (see internal/client/render.go), entirely
+	// outside Rect: the outermost border comes from the margin Compute's
+	// caller reserves around the whole tree, and internal borders come
+	// from the single row/column each split reserves between its two
+	// children. Because that margin/gap is symmetric on every side, a
+	// leaf's Rect is always exactly its terminal content — no title-row
+	// bookkeeping needed here.
 	Rect Rect
 }
 
@@ -59,22 +68,6 @@ func NewLeaf(id int, pane PaneHost) *Node {
 // IsLeaf reports whether n holds a pane directly.
 func (n *Node) IsLeaf() bool {
 	return n.Split == NoSplit
-}
-
-// ContentRect returns the area available for the pane's terminal content,
-// i.e. Rect minus the one-row title bar every leaf normally reserves at
-// its top. When the pane is too short to spare a row for the title
-// (Rect.H < 2), the whole rect goes to content instead and no title bar
-// is drawn — the same spirit as tmux dropping pane borders/status lines
-// it has no room for rather than corrupting the layout.
-func (n *Node) ContentRect() Rect {
-	if n.Rect.H < 2 {
-		return n.Rect
-	}
-	r := n.Rect
-	r.Y++
-	r.H--
-	return r
 }
 
 // Split turns leaf n into a split node with two new leaf children: the
@@ -160,14 +153,15 @@ func Leaves(n *Node) []*Node {
 	return append(Leaves(n.First), Leaves(n.Second)...)
 }
 
-// Compute assigns Rect (and DividerX) to every node in the tree rooted at n,
-// recursively, and resizes every leaf's pane to match its new content area.
+// Compute assigns Rect (and DividerX/DividerY) to every node in the tree
+// rooted at n, recursively, and resizes every leaf's pane to match its new
+// content area. The caller is expected to have already reserved a one-cell
+// margin around r for the outer border, if any.
 func Compute(n *Node, r Rect) {
 	n.Rect = r
 	if n.IsLeaf() {
-		cr := n.ContentRect()
-		if cr.W > 0 && cr.H > 0 && n.Pane != nil {
-			n.Pane.Resize(cr.W, cr.H)
+		if r.W > 0 && r.H > 0 && n.Pane != nil {
+			n.Pane.Resize(r.W, r.H)
 		}
 		return
 	}
@@ -190,11 +184,12 @@ func Compute(n *Node, r Rect) {
 		Compute(n.Second, Rect{r.X + firstW + 1, r.Y, secondW, r.H})
 
 	case Horizontal:
-		avail := maxInt(r.H, 0)
+		avail := maxInt(r.H-1, 0)
 		firstH := clampInt(int(float64(avail)*n.Ratio), 0, avail)
 		secondH := avail - firstH
+		n.DividerY = r.Y + firstH
 		Compute(n.First, Rect{r.X, r.Y, r.W, firstH})
-		Compute(n.Second, Rect{r.X, r.Y + firstH, r.W, secondH})
+		Compute(n.Second, Rect{r.X, r.Y + firstH + 1, r.W, secondH})
 	}
 }
 
@@ -218,7 +213,7 @@ func Resize(n *Node, axis SplitType, delta int) {
 		if axis == Vertical {
 			size = p.Rect.W - 1
 		} else {
-			size = p.Rect.H
+			size = p.Rect.H - 1
 		}
 		if size <= 0 {
 			return
@@ -246,15 +241,19 @@ func clampInt(v, lo, hi int) int {
 	return v
 }
 
-// HitDivider returns the vertical-split node whose divider line passes
-// through screen column x at row y, or nil. Used for mouse-drag resizing:
-// the caller sets the returned node's Ratio directly from the drag
-// position.
+// HitDivider returns the split node whose divider line passes through
+// screen column x at row y, or nil. Used for mouse-drag resizing: the
+// caller checks the returned node's Split to know which axis it's
+// dragging, and sets its Ratio directly from the drag position (via
+// SetRatioFromColumn/SetRatioFromRow).
 func HitDivider(n *Node, x, y int) *Node {
 	if n == nil || n.IsLeaf() {
 		return nil
 	}
 	if n.Split == Vertical && x == n.DividerX && y >= n.Rect.Y && y < n.Rect.Y+n.Rect.H {
+		return n
+	}
+	if n.Split == Horizontal && y == n.DividerY && x >= n.Rect.X && x < n.Rect.X+n.Rect.W {
 		return n
 	}
 	if h := HitDivider(n.First, x, y); h != nil {
@@ -274,17 +273,13 @@ func SetRatioFromColumn(n *Node, x int) {
 	n.Ratio = float64(next) / float64(size)
 }
 
-// VerticalDividers returns the (x, yStart, yEnd) runs of every vertical
-// divider in the tree, for drawing.
-func VerticalDividers(n *Node) [][3]int {
-	if n == nil || n.IsLeaf() {
-		return nil
+// SetRatioFromRow sets a Horizontal split node's Ratio so its divider
+// lands as close as possible to absolute screen row y.
+func SetRatioFromRow(n *Node, y int) {
+	size := n.Rect.H - 1
+	if size <= 0 {
+		return
 	}
-	var out [][3]int
-	if n.Split == Vertical {
-		out = append(out, [3]int{n.DividerX, n.Rect.Y, n.Rect.Y + n.Rect.H - 1})
-	}
-	out = append(out, VerticalDividers(n.First)...)
-	out = append(out, VerticalDividers(n.Second)...)
-	return out
+	next := clampInt(y-n.Rect.Y, MinHeight, size-MinHeight)
+	n.Ratio = float64(next) / float64(size)
 }

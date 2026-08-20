@@ -51,13 +51,17 @@ func (c *Core) handleNormalMouse(primary, released bool, x, y int) {
 		return
 	}
 	if c.drag != nil {
-		layout.SetRatioFromColumn(c.drag.node, x)
+		if c.drag.axis == layout.Vertical {
+			layout.SetRatioFromColumn(c.drag.node, x)
+		} else {
+			layout.SetRatioFromRow(c.drag.node, y)
+		}
 		c.relayoutLocked()
 		return
 	}
 	if c.win().zoomed == nil {
 		if node := layout.HitDivider(c.win().root, x, y); node != nil {
-			c.drag = &dragState{node: node}
+			c.drag = &dragState{node: node, axis: node.Split}
 			return
 		}
 	}
@@ -87,7 +91,7 @@ func (c *Core) handleCopyMouse(primary, released bool, x, y int) Result {
 		return Result{}
 	}
 
-	cr := leaf.ContentRect()
+	cr := leaf.Rect
 	cols, rows, total, ok := c.copyPaneDims()
 	if !ok {
 		return Result{}
