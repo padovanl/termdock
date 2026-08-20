@@ -16,10 +16,11 @@ func (c *Core) handleMouse(m proto.ClientMsg) Result {
 	if len(c.windows) == 0 {
 		return Result{} // session mid-shutdown; a lingering connection raced us here
 	}
-	if c.mode == ModeConfirm || c.mode == ModePicker {
-		// A pending "kill this window?" prompt, or the jump picker, only
-		// listen for keyboard input — a stray click shouldn't be able to
-		// act on whatever's underneath while either is up.
+	if c.mode == ModeConfirm || c.mode == ModePicker || c.mode == ModeHelp {
+		// A pending "kill this window?" prompt, the jump picker, or the
+		// help screen only listen for keyboard input — a stray click
+		// shouldn't be able to act on whatever's underneath while any of
+		// them are up.
 		return Result{}
 	}
 
@@ -56,6 +57,18 @@ func (c *Core) handleNormalMouse(primary, released bool, x, y int) {
 			c.endTabDrag()
 			return
 		}
+		if c.titleDrag != nil {
+			c.endTitleDrag(x, y)
+			return
+		}
+		if c.contentPress != nil {
+			// Never escalated into a text-selection drag (see below) —
+			// a plain click, so give that pane focus same as always.
+			cp := c.contentPress
+			c.contentPress = nil
+			c.setActive(cp.leaf)
+			return
+		}
 		drag := c.drag
 		c.drag = nil
 		// A divider is also where a "second child" pane's title bar
@@ -78,6 +91,9 @@ func (c *Core) handleNormalMouse(primary, released bool, x, y int) {
 		c.updateTabDrag(x)
 		return
 	}
+	if c.titleDrag != nil {
+		return // no live feedback while dragging a pane's title (yet); resolved entirely on release
+	}
 	if c.drag != nil {
 		if c.drag.axis == layout.Vertical {
 			layout.SetRatioFromColumn(c.drag.node, x)
@@ -85,6 +101,12 @@ func (c *Core) handleNormalMouse(primary, released bool, x, y int) {
 			layout.SetRatioFromRow(c.drag.node, y)
 		}
 		c.relayoutLocked()
+		return
+	}
+	if c.contentPress != nil {
+		if x != c.contentPress.x || y != c.contentPress.y {
+			c.startContentDragSelect(x, y)
+		}
 		return
 	}
 	// A tab press is deferred the same way a divider press is (see
@@ -103,24 +125,103 @@ func (c *Core) handleNormalMouse(primary, released bool, x, y int) {
 			return
 		}
 	}
-	c.clickAt(x, y)
-}
-
-// clickAt handles a plain click (a press with no divider or tab under it,
-// or a press-and-release on a divider with no movement in between): a
-// pane's title bar — which focuses it, or on a second quick click
-// zooms/unzooms it, the same double-click convention a window manager
-// uses — or otherwise just gives the clicked pane focus.
-func (c *Core) clickAt(x, y int) {
 	if leaf := c.leafTitleAt(x, y); leaf != nil {
-		if c.registerTitleClick(leaf) {
-			c.toggleZoomOn(leaf)
-		} else {
-			c.setActive(leaf)
-		}
+		c.clickTitle(leaf)
+		c.titleDrag = &titleDragState{leaf: leaf, win: c.win()}
+		c.dragDownX, c.dragDownY = x, y
+		return
+	}
+	// A press on ordinary pane content is deferred exactly like a
+	// divider or tab press: it might be a plain click (focus, handled
+	// on release above) or the start of a text-selection drag — see
+	// startContentDragSelect, triggered by the *next* event once it
+	// shows real movement.
+	if leaf := c.leafAt(x, y); leaf != nil {
+		c.contentPress = &contentPressState{leaf: leaf, x: x, y: y}
 		return
 	}
 	c.focusAt(x, y)
+}
+
+// startContentDragSelect turns a content-area press that's just started
+// moving into a copy-mode text selection anchored at the *original*
+// press point (cp.x/cp.y), with the cursor already tracking the current
+// drag position (x,y) rather than sitting on top of the anchor until the
+// next move event — a single quick drag (press, one move, release) is
+// the common case for a deliberate selection, not a rare edge case, and
+// leaving the cursor pinned to the anchor until "the next event" would
+// make that common case select nothing. Matches how any ordinary
+// terminal lets you click-drag to select without first having to
+// explicitly enter a "selection mode." From here, c.mode is ModeCopy, so
+// every further event for this same gesture (more moves, then the
+// release) is naturally picked up by handleCopyMouse instead — this only
+// handles the transition itself.
+func (c *Core) startContentDragSelect(x, y int) {
+	cp := c.contentPress
+	c.contentPress = nil
+	c.setActive(cp.leaf)
+	c.enterCopyMode() // sets c.copy.top to the live bottom of the buffer
+	cr := cp.leaf.Rect
+	cols, rows, total, ok := c.copyPaneDims()
+	if !ok {
+		c.exitCopyMode()
+		return
+	}
+	toAbs := func(px, py int) (int, int) {
+		localX := clampi(px-cr.X, 0, maxi(0, cols-1))
+		localY := clampi(py-cr.Y, 0, maxi(0, rows-1))
+		return localX, clampi(c.copy.top+localY, 0, maxi(0, total-1))
+	}
+	c.copy.selecting = true
+	c.copy.anchorX, c.copy.anchorY = toAbs(cp.x, cp.y)
+	c.copy.curX, c.copy.curY = toAbs(x, y)
+	c.mouseDown = true
+	c.mouseDownX, c.mouseDownY = cp.x, cp.y
+}
+
+// clickAt handles a divider press-and-release with no movement in
+// between: the one row/column where a title-bar click (see clickTitle)
+// couldn't be resolved immediately on press, because that exact spot was
+// also a divider and might instead have been the start of a resize drag
+// (see handleNormalMouse). Everywhere else a title click resolves
+// straight away; this is just that one edge case's release-time fallback.
+func (c *Core) clickAt(x, y int) {
+	if leaf := c.leafTitleAt(x, y); leaf != nil {
+		c.clickTitle(leaf)
+		return
+	}
+	c.focusAt(x, y)
+}
+
+// clickTitle focuses leaf, or on a second quick click zooms/unzooms it —
+// the same double-click convention a window manager uses.
+func (c *Core) clickTitle(leaf *layout.Node) {
+	if c.registerTitleClick(leaf) {
+		c.toggleZoomOn(leaf)
+	} else {
+		c.setActive(leaf)
+	}
+}
+
+// endTitleDrag resolves a title-bar drag on release: dropping it on a
+// *different* window's tab in the status bar moves that pane there (see
+// movePaneToWindow); anything else — no movement at all (the click was
+// already handled on press by clickTitle), or a drop that missed the tab
+// strip — is a no-op.
+func (c *Core) endTitleDrag(x, y int) {
+	drag := c.titleDrag
+	c.titleDrag = nil
+	if drag == nil || (x == c.dragDownX && y == c.dragDownY) {
+		return
+	}
+	if c.statusRows() == 0 || y != c.rows-1 {
+		return
+	}
+	wi, ok := c.tabAt(x)
+	if !ok || c.windows[wi] == drag.win {
+		return
+	}
+	c.movePaneToWindow(drag.leaf, drag.win, c.windows[wi])
 }
 
 // tabAt returns the index of the window tab strip entry column x falls

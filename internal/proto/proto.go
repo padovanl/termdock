@@ -49,14 +49,20 @@ type WindowTab struct {
 	X, W     int
 }
 
-// Overlay is a centered modal box drawn on top of everything else — today
-// just the jump picker (Ctrl-B w), but general enough for another modal
-// list later. Items is already filtered and ordered by the server;
-// Selected indexes into it. PreviewCells, if non-empty, is a small
-// snapshot of the selected item's pane content, drawn alongside the list.
+// Overlay is a centered modal box drawn on top of everything else — the
+// jump picker (Ctrl-B w) and the help screen (Ctrl-B ?). Items is already
+// filtered/ordered by the server; Selected indexes into it, and also
+// drives which row the viewport scrolls to keep visible even when
+// Selectable is false (the help screen has nothing to "select," but
+// still scrolls a long list the same way). ShowQuery hides the
+// query/filter row entirely for a screen like help that isn't
+// type-ahead filtered. PreviewCells, if non-empty, is a small snapshot
+// of the selected item's pane content, drawn alongside the list.
 type Overlay struct {
 	Title        string
+	ShowQuery    bool
 	Query        string
+	Selectable   bool
 	Items        []string
 	Selected     int
 	PreviewCells [][]Cell

@@ -56,6 +56,7 @@ func (c *Core) confirmInput() {
 			w.Name = text
 			w.renamed = true
 		}
+		c.persistStateLocked()
 	case "search":
 		c.copy.searchTerm = text
 		if text != "" {

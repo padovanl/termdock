@@ -44,6 +44,10 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 		c.handlePickerKey(key, r)
 		c.markDirty()
 		return Result{}
+	case ModeHelp:
+		c.handleHelpKey(key, r)
+		c.markDirty()
+		return Result{}
 	}
 
 	if !c.prefix {
@@ -114,7 +118,7 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 	case r == 'q':
 		c.requestQuit()
 	case r == '?':
-		c.statusMsg = helpText
+		c.enterHelp()
 	}
 	c.markDirty()
 	return res

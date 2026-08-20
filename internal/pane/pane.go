@@ -77,7 +77,7 @@ func ShellPath() string {
 // New spawns the user's interactive login shell inside a new pty sized
 // cols x rows and wraps it with a VT10x terminal emulator.
 func New(id, cols, rows int) (*Pane, error) {
-	return newPane(id, cols, rows, "")
+	return newPaneOpts(id, cols, rows, "", "")
 }
 
 // NewWithCommand is New, but runs command (via the shell's -c) instead of
@@ -85,10 +85,18 @@ func New(id, cols, rows int) (*Pane, error) {
 // commands to launch a specific program. command == "" behaves exactly
 // like New. The pane closes when the command exits, same as any other.
 func NewWithCommand(id, cols, rows int, command string) (*Pane, error) {
-	return newPane(id, cols, rows, command)
+	return newPaneOpts(id, cols, rows, command, "")
 }
 
-func newPane(id, cols, rows int, command string) (*Pane, error) {
+// NewInDir is New, but starts the shell in dir instead of the process's
+// own working directory — used to restore a session snapshot's panes
+// where they were last seen (see internal/persist and Cwd). dir == ""
+// behaves exactly like New.
+func NewInDir(id, cols, rows int, dir string) (*Pane, error) {
+	return newPaneOpts(id, cols, rows, "", dir)
+}
+
+func newPaneOpts(id, cols, rows int, command, dir string) (*Pane, error) {
 	if cols < 1 {
 		cols = 1
 	}
@@ -104,6 +112,9 @@ func newPane(id, cols, rows int, command string) (*Pane, error) {
 		cmd = exec.Command(shell, "-c", command)
 	}
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	if dir != "" {
+		cmd.Dir = dir
+	}
 
 	f, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
 	if err != nil {
@@ -123,6 +134,19 @@ func (p *Pane) Term() vt10x.Terminal { return p.term }
 // foreground of this pane (e.g. "vim"), or "" if unknown/idle-at-shell.
 func (p *Pane) ForegroundTitle() string {
 	return foregroundName(p.pty)
+}
+
+// Cwd returns this pane's shell process's current working directory
+// (Linux only; "" elsewhere), tracking plain `cd` commands the same way
+// a real terminal's "new tab in this directory" does. Used for session
+// snapshots (see internal/persist) — not the true state of whatever's
+// actually running (nothing can resurrect that after a crash), just
+// where to put you back.
+func (p *Pane) Cwd() string {
+	if p.cmd == nil || p.cmd.Process == nil {
+		return ""
+	}
+	return processCwd(p.cmd.Process.Pid)
 }
 
 // Pump blocks reading and parsing pty output, calling onUpdate after every

@@ -122,6 +122,7 @@ func (c *Core) newWindowOpts(name, command string) (*Window, error) {
 	c.afterWindowSwitch()
 	c.relayoutLocked()
 	c.startPump(p)
+	c.persistStateLocked()
 	return w, nil
 }
 
@@ -170,12 +171,15 @@ func (c *Core) selectWindowIndex(i int) {
 // stops flagging a window the moment you look at it.
 func (c *Core) afterWindowSwitch() {
 	c.win().activity = false
+	c.touchPane(c.win().active.ID)
 	c.copy = copyState{}
 	if c.mode == ModeCopy {
 		c.mode = ModeNormal
 	}
 	c.drag = nil
 	c.tabDrag = nil
+	c.contentPress = nil
+	c.titleDrag = nil
 	c.mouseDown = false
 	c.lastTitleClickID = 0
 }
@@ -211,14 +215,78 @@ func (c *Core) killWindow() {
 // removeWindow drops window idx from the list (its panes must already be
 // closed) and quits the session if that was the last one.
 func (c *Core) removeWindow(idx int) {
+	// Tracked by identity, not by re-deriving an index: idx is almost
+	// always c.activeWindow itself (killWindow always closes the window
+	// you're looking at), but movePaneToWindow can also remove a window
+	// that emptied out *without* being the active one — a naive "clamp
+	// activeWindow to the new length" would silently point it at the
+	// wrong window whenever idx falls before it.
+	active := c.windows[c.activeWindow]
 	c.windows = append(c.windows[:idx], c.windows[idx+1:]...)
 	if len(c.windows) == 0 {
 		c.requestQuit()
 		return
 	}
-	if c.activeWindow >= len(c.windows) {
+	if i := c.windowIndex(active); i >= 0 {
+		c.activeWindow = i
+	} else if c.activeWindow >= len(c.windows) {
 		c.activeWindow = len(c.windows) - 1
 	}
 	c.afterWindowSwitch()
 	c.relayoutLocked()
+	c.persistStateLocked()
+}
+
+// movePaneToWindow relocates leaf — currently part of from's layout tree
+// — into to, splitting to's active pane to make room. Only the tree
+// wiring changes; the pane's process is left completely alone, the same
+// way dragging a browser tab into another window doesn't reload the
+// page. Reports whether it actually happened: false (a no-op) if leaf's
+// pane already closed out from under a slow drag, from == to, to is
+// currently zoomed (there'd be nowhere on screen to show the split), or
+// there's no room left to split to's active pane.
+func (c *Core) movePaneToWindow(leaf *layout.Node, from, to *Window) bool {
+	if from == to {
+		return false
+	}
+	if _, ok := c.panes[leaf.ID]; !ok {
+		return false
+	}
+	if to.zoomed != nil {
+		c.statusMsg = "exit zoom in the target window before moving a pane into it"
+		return false
+	}
+
+	newLeaf, ok := layout.Split(to.active, layout.Horizontal, leaf.ID, leaf.Pane)
+	if !ok {
+		newLeaf, ok = layout.Split(to.active, layout.Vertical, leaf.ID, leaf.Pane)
+	}
+	if !ok {
+		c.statusMsg = "not enough room in that window to add the pane"
+		return false
+	}
+
+	if from.zoomed == leaf {
+		from.zoomed = nil
+	}
+	newRoot, next := layout.Remove(from.root, leaf)
+	if newRoot == nil {
+		// leaf was from's last pane; the window itself is gone. Its
+		// process already lives on in to's tree via newLeaf above, so
+		// this is purely bookkeeping, unlike killWindow's closing panes
+		// down before calling removeWindow.
+		if idx := c.windowIndex(from); idx >= 0 {
+			c.removeWindow(idx)
+		}
+	} else {
+		from.root = newRoot
+		if from.active == leaf {
+			from.active = next
+		}
+	}
+
+	to.active = newLeaf
+	c.relayoutLocked()
+	c.persistStateLocked()
+	return true
 }

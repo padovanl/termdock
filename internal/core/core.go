@@ -18,6 +18,7 @@ import (
 
 	"termdock/internal/layout"
 	"termdock/internal/pane"
+	"termdock/internal/persist"
 	"termdock/internal/proto"
 )
 
@@ -31,6 +32,7 @@ const (
 	ModeInput   // typing a line for rename or search; see input.go
 	ModeConfirm // a pending destructive action awaiting y/n; see confirmKillWindow
 	ModePicker  // type-ahead jump to any window/pane; see picker.go
+	ModeHelp    // scrollable keybinding reference; see help.go
 )
 
 const resizeStep = 2
@@ -54,6 +56,27 @@ type tabDragState struct {
 	moved bool
 }
 
+// contentPressState tracks a press-and-hold on a pane's ordinary content
+// (not its title, not a divider): x,y is the press point, in absolute
+// screen coordinates, that a text selection would be anchored at if this
+// turns into a drag (see startContentDragSelect) rather than a plain
+// click (see handleNormalMouse's released branch).
+type contentPressState struct {
+	leaf *layout.Node
+	x, y int
+}
+
+// titleDragState tracks a press-and-hold on a pane's title bar, armed
+// alongside (not instead of) the ordinary click/double-click handling
+// that already fires immediately on press — so dropping it on a window
+// tab, in the status bar, moves that pane into that window (see
+// endTitleDrag); dropping it anywhere else is simply a no-op on top of
+// whatever the press already did.
+type titleDragState struct {
+	leaf *layout.Node
+	win  *Window
+}
+
 // Core is one session's live state: its windows (each with their own pane
 // tree) and everything needed to interpret input and render a frame.
 // Safe for concurrent use.
@@ -67,7 +90,8 @@ type Core struct {
 	activeWindow int
 	nextWindowID int
 
-	panes map[int]*pane.Pane // session-wide, keyed by pane ID
+	panes          map[int]*pane.Pane // session-wide, keyed by pane ID
+	paneLastActive map[int]time.Time  // for the jump picker's MRU ordering; see touchPane
 
 	mode      Mode
 	prefix    bool
@@ -76,12 +100,15 @@ type Core struct {
 	shellName string
 	hostname  string
 
-	copy      copyState
-	input     inputState
-	picker    pickerState
-	drag      *dragState
-	tabDrag   *tabDragState
-	lastPaste string // most recent copy-mode yank, for Ctrl-B ]
+	copy         copyState
+	input        inputState
+	picker       pickerState
+	help         helpState
+	drag         *dragState
+	tabDrag      *tabDragState
+	contentPress *contentPressState
+	titleDrag    *titleDragState
+	lastPaste    string // most recent copy-mode yank, for Ctrl-B ]
 
 	mouseDown              bool
 	mouseDownX, mouseDownY int
@@ -120,6 +147,10 @@ func New(sessionName string, cols, rows int) (*Core, error) {
 		rows:        rows,
 		dirty:       make(chan struct{}, 1),
 		exitCh:      make(chan struct{}),
+	}
+	if snap, ok := persist.Load(sessionName); ok && c.restoreFromSnapshot(snap) {
+		c.relayoutLocked()
+		return c, nil
 	}
 	if err := c.newWindow(); err != nil {
 		return nil, err
@@ -194,8 +225,13 @@ func (c *Core) Resize(cols, rows int) {
 	c.markDirty()
 }
 
-// Shutdown kills every pane in every window. Call once, when the server
-// process is about to exit.
+// Shutdown kills every pane in every window and deletes this session's
+// persisted snapshot, if any — reaching Shutdown at all means the
+// session is ending on purpose (Ctrl-B q, its last pane exiting, or
+// kill-session), so there's nothing to recover next time this name is
+// used. Call once, when the server process is about to exit; a crash or
+// a killed process never reaches this, which is what leaves a snapshot
+// behind to actually recover from.
 func (c *Core) Shutdown() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -206,6 +242,7 @@ func (c *Core) Shutdown() {
 	for _, p := range c.panes {
 		p.Close()
 	}
+	persist.Delete(c.SessionName)
 }
 
 // Result reports side effects of one HandleClientMsg call that the server
@@ -263,6 +300,7 @@ func (c *Core) doSplitIn(w *Window, st layout.SplitType, command string) (int, e
 	w.active = newLeaf
 	c.relayoutLocked()
 	c.startPump(p)
+	c.persistStateLocked()
 	return id, nil
 }
 
@@ -272,6 +310,7 @@ func (c *Core) killActive() {
 	if p, ok := c.panes[n.ID]; ok {
 		p.Close()
 		delete(c.panes, n.ID)
+		delete(c.paneLastActive, n.ID)
 	}
 	c.detachLeafIn(w, n)
 }
@@ -286,6 +325,7 @@ func (c *Core) handlePaneExit(id int) {
 	w, n := c.findWindowAndLeaf(id)
 	p.Close()
 	delete(c.panes, id)
+	delete(c.paneLastActive, id)
 	if w != nil && n != nil {
 		c.detachLeafIn(w, n)
 	}
@@ -317,6 +357,7 @@ func (c *Core) detachLeafIn(w *Window, n *layout.Node) {
 		w.active = next
 	}
 	c.relayoutLocked()
+	c.persistStateLocked()
 }
 
 func (c *Core) toggleZoom() {
@@ -390,7 +431,20 @@ func (c *Core) setActive(n *layout.Node) {
 		w.zoomed = n
 	}
 	w.active = n
+	c.touchPane(n.ID)
 	c.relayoutLocked()
+}
+
+// touchPane stamps id as just having become the one the user's looking
+// at, for the jump picker's most-recently-used ordering (see
+// refilterPicker) — the pane you just left ranks highest next time you
+// open it with an empty query, the same "press it again to go back"
+// feel as Alt-Tab.
+func (c *Core) touchPane(id int) {
+	if c.paneLastActive == nil {
+		c.paneLastActive = map[int]time.Time{}
+	}
+	c.paneLastActive[id] = time.Now()
 }
 
 func (c *Core) focusAt(x, y int) {

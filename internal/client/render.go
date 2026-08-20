@@ -228,13 +228,14 @@ func drawPaneTitle(screen tcell.Screen, r proto.Rect, title string, style tcell.
 	}
 }
 
-// drawOverlay paints the jump picker (or any future modal list) as a
-// centered floating box on top of everything already drawn: a title,
-// the live query with a block cursor, and a scrollable, selection-
-// highlighted item list — termdock's answer to tmux's choose-tree, but
-// type-ahead filterable instead of a static list you page through. When
-// the selected item has a live preview, a second box is drawn alongside
-// it (see drawPreviewBox).
+// drawOverlay paints the jump picker or the help screen (or any future
+// modal list) as a centered floating box on top of everything already
+// drawn: a title, optionally the live query with a block cursor
+// (ov.ShowQuery — off for a static list like help), and a scrollable
+// item list, selection-highlighted when ov.Selectable — termdock's
+// answer to tmux's choose-tree, but type-ahead filterable instead of a
+// static list you page through. When the selected item has a live
+// preview, a second box is drawn alongside it (see drawPreviewBox).
 func drawOverlay(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	ov := f.Overlay
 
@@ -252,7 +253,10 @@ func drawOverlay(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	}
 	w := innerW + 2 // + left/right border
 
-	const headerRows = 3 // title, query, separator
+	headerRows := 1 // title
+	if ov.ShowQuery {
+		headerRows = 3 // + query + separator
+	}
 	listRows := len(ov.Items)
 	if maxList := f.Rows - headerRows - 3; listRows > maxList {
 		listRows = maxList
@@ -301,13 +305,15 @@ func drawOverlay(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 
 	innerX, maxX := x0+1, x0+1+innerW
 	overlayText(screen, innerX, y0+1, maxX, dim, " "+ov.Title)
-	overlayText(screen, innerX, y0+2, maxX, bg.Bold(true), " > "+ov.Query+"_")
-	for x := innerX; x < maxX; x++ {
-		screen.SetContent(x, y0+3, '─', nil, dim)
+	if ov.ShowQuery {
+		overlayText(screen, innerX, y0+2, maxX, bg.Bold(true), " > "+ov.Query+"_")
+		for x := innerX; x < maxX; x++ {
+			screen.SetContent(x, y0+3, '─', nil, dim)
+		}
 	}
 
 	if len(ov.Items) == 0 {
-		overlayText(screen, innerX, y0+4, maxX, dim, " no matches")
+		overlayText(screen, innerX, y0+headerRows+1, maxX, dim, " no matches")
 		return
 	}
 
@@ -316,7 +322,7 @@ func drawOverlay(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 		idx := start + i
 		row := y0 + headerRows + 1 + i
 		style := bg
-		if idx == ov.Selected {
+		if ov.Selectable && idx == ov.Selected {
 			style = tcell.StyleDefault.Background(cfg.PaneActiveBG).Foreground(tcell.ColorBlack).Bold(true)
 			for x := innerX; x < maxX; x++ {
 				screen.SetContent(x, row, ' ', nil, style)

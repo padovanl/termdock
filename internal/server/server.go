@@ -120,6 +120,13 @@ func (s *Session) broadcastLoop() {
 	// enough it's not worth debouncing.
 	clock := time.NewTicker(15 * time.Second)
 	defer clock.Stop()
+	// Session-structure changes (split, close, rename, ...) already
+	// trigger an immediate snapshot; this periodic one exists only to
+	// catch a pane's plain `cd` drifting its working directory away from
+	// what was last saved, which isn't a layout change and so wouldn't
+	// otherwise be noticed. See internal/persist.
+	persistTick := time.NewTicker(30 * time.Second)
+	defer persistTick.Stop()
 	for {
 		select {
 		case <-s.core.Dirty():
@@ -127,6 +134,8 @@ func (s *Session) broadcastLoop() {
 			s.broadcast()
 		case <-clock.C:
 			s.broadcast()
+		case <-persistTick.C:
+			s.core.PersistState()
 		case <-s.core.Exited():
 			return
 		}

@@ -45,6 +45,9 @@ func (c *Core) Frame() proto.Frame {
 	f.Windows = c.windowTabs()
 	f.StatusText, f.StatusRight, f.StatusStyle = c.statusLine()
 	f.Overlay = c.pickerOverlay()
+	if f.Overlay == nil {
+		f.Overlay = c.helpOverlay()
+	}
 	return f
 }
 
@@ -170,6 +173,9 @@ func (c *Core) statusLine() (text, right, style string) {
 	case c.mode == ModePicker:
 		style = "mode"
 		hint = "type to filter, ↑↓/Tab select, enter jump, esc cancel"
+	case c.mode == ModeHelp:
+		style = "mode"
+		hint = "↑↓/jk/PgUp/PgDn scroll, any other key closes"
 	case c.prefix:
 		style = "prefix"
 		hint = "PREFIX > " + helpText

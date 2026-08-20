@@ -72,7 +72,7 @@ active pane.
 | `]` | paste the most recently copied (yanked) text into the active pane |
 | `d` | **detach**: disconnect from the session, which keeps running in the background |
 | `q` | quit termdock (closes the whole session and every window) |
-| `?` | show the full key list in the status bar (until the next command) |
+| `?` | open a scrollable keybinding reference (any key closes it) |
 | `Ctrl-B` | double-press: sends a literal `Ctrl-B` to the active pane |
 
 If a shell exits (e.g. with `exit`), its pane closes on its own; when a
@@ -87,9 +87,13 @@ list on the left as a strip of colored tabs, e.g. ` 0:bash  1:vim!
 2:htop* `: the accent color marks the one you're looking at, orange marks
 one that produced output while you weren't (`*`/`!` are still there in
 the text too, in case colors aren't your thing). Click a tab to switch to
-it, the same as a browser tab. A window's name is automatically the
-foreground command of its active pane, the same as pane titles, until you
-rename it with `Ctrl-B ,`.
+it, the same as a browser tab, and drag a tab sideways to reorder the
+strip. A window's name is automatically the foreground command of its
+active pane, the same as pane titles, until you rename it with `Ctrl-B
+,`. Drag a pane's *title bar* onto a different window's tab to move that
+pane there instead — the pane's process is untouched, only which
+window's layout it belongs to changes, the same way dragging a browser
+tab out into another window doesn't reload the page.
 
 ### Jump picker
 
@@ -103,7 +107,18 @@ through a list by eye. `↑`/`↓`/`Tab` move the selection, `Enter` jumps
 straight to it — switching windows and focusing that exact pane in one
 step — `Esc` cancels. The selected entry also gets a live preview box
 next to the list, a small peek at that pane's actual content that updates
-as you move the selection — no need to jump blind.
+as you move the selection — no need to jump blind. With an empty query
+(the moment it opens, or after clearing it) the list is ordered
+most-recently-used first instead, so `Ctrl-B w` then `Enter` is a fast
+"jump back to whatever I was just looking at," Alt-Tab style.
+
+### Help
+
+`Ctrl-B ?` opens a scrollable reference listing every keybinding —
+`↑`/`↓`/`j`/`k`/`PgUp`/`PgDn` scroll, any other key closes it. It's the
+same floating box the jump picker uses, just without the type-ahead
+filter, so a long list stays readable instead of getting crammed into
+(and clipped off of) a single status bar line.
 
 ### Copy-mode (scrollback and copying)
 
@@ -124,8 +139,13 @@ Enter with `Ctrl-B [`. From there:
 ### Mouse
 
 - Click a pane: gives it focus.
+- Click-drag on a pane's content: selects text and copies it on release —
+  no need to enter copy-mode first, the same as any ordinary terminal.
+  (A plain click with no drag still just focuses the pane.)
 - Double-click a pane's title bar: zooms it (same as `Ctrl-B z`); double-click
   again to unzoom.
+- Drag a pane's title bar onto a different window's tab: moves that pane
+  into that window (see [Windows](#windows)).
 - Drag the border between two panes, side by side or stacked: resizes
   them.
 - Click a window tab in the status bar: switches to it. Drag it sideways
@@ -150,8 +170,9 @@ below) so it's obvious which pane has focus.
 The left side is minimal at rest (`Ctrl-B ?`) so there's room for the
 right side: hostname and clock, tmux-style. Press the prefix and the left
 side expands to the full key list for as long as you're mid-command;
-`Ctrl-B ?` pins that same list in place until your next command, for
-when you just want to read it.
+`Ctrl-B ?` opens the same list as a proper scrollable screen instead (see
+[Help](#help)), for when you want to actually read it rather than catch
+it in passing.
 
 ## Scripting a session
 
@@ -197,6 +218,28 @@ bar is the first thing to go on a single-row terminal. Nothing crashes at
 any size; existing splits just get harder to see the smaller you go,
 exactly like a real multiplexer.
 
+### Session persistence
+
+A tmux session doesn't survive the server crashing or the machine
+rebooting on its own — that's what plugins like tmux-resurrect are for.
+termdock does this natively: every structural change (split, close,
+rename, move) — and, in the background, every 30s besides, to catch a
+pane's plain `cd` drifting where a structural-change-only save wouldn't
+notice — writes a snapshot of the session's window/pane layout and each
+pane's working directory to
+`$XDG_STATE_HOME/termdock/SESSION.json` (falling back to
+`~/.local/state/termdock/`). If the daemon for a session with that name
+isn't already running when you `termdock new` it, and a snapshot exists,
+it's restored: the same split layout and window names, a fresh shell
+relaunched in each pane's last known directory. What's running inside
+each pane (a build mid-compile, a REPL, `vim`'s undo history) is *not*
+recovered — nothing can resurrect actual process state after a crash,
+only put you back where you were about to be. A session that ends on
+purpose (`Ctrl-B q`, its last pane exiting normally, `termdock
+kill-session`) deletes its own snapshot on the way out, so it doesn't
+resurrect itself the next time that name is reused; only an unclean end
+leaves one behind to recover from.
+
 ## Configuration
 
 Optional config file at `$XDG_CONFIG_HOME/termdock/termdock.conf`
@@ -241,6 +284,8 @@ attach and can differ between two clients looking at the same session.
   server.
 - `internal/proto` — the messages exchanged between client and server
   over the socket.
+- `internal/persist` — the on-disk session-snapshot format and file I/O
+  for crash/reboot recovery (see [Session persistence](#session-persistence)).
 - `internal/server` — the daemon: owns a session, accepts clients over a
   unix socket, broadcasts a frame whenever something changes.
 - `internal/client` — the UI: connects to the server, draws with

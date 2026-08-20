@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -122,8 +123,8 @@ func (c *Core) confirmPicker() {
 			w := c.windows[it.windowIdx]
 			if leaf := findLeafByID(w.root, it.paneID); leaf != nil {
 				c.activeWindow = it.windowIdx
+				w.active = leaf // before afterWindowSwitch, so its touchPane call stamps the pane we're jumping *to*
 				c.afterWindowSwitch()
-				w.active = leaf
 			}
 		}
 	}
@@ -132,23 +133,33 @@ func (c *Core) confirmPicker() {
 	c.relayoutLocked()
 }
 
-// refilterPicker recomputes picker.filtered from picker.query: a fuzzy
-// (subsequence) match against every item's label, ranked by how early
-// the match starts — not a full fzf-grade scorer, but with a session's
-// worth of windows and panes (tens, not thousands) simplicity buys more
-// than a fancier ranking would.
+// refilterPicker recomputes picker.filtered from picker.query. With a
+// query, it's a fuzzy (subsequence) match against every item's label,
+// ranked by how early the match starts — not a full fzf-grade scorer,
+// but with a session's worth of windows and panes (tens, not thousands)
+// simplicity buys more than a fancier ranking would. With an empty
+// query, every item matches and they're ranked most-recently-used
+// first instead (see touchPane) — Ctrl-B w, Enter becomes a fast
+// "jump to whatever I was just looking at," Alt-Tab style, rather than
+// always landing back on window 0's first pane.
 func (c *Core) refilterPicker() {
 	query := string(c.picker.query)
 	type scored struct {
-		idx, at int
+		idx  int
+		at   int
+		used time.Time
 	}
 	var matches []scored
 	for i, it := range c.picker.items {
 		if ok, at := fuzzyMatch(query, it.label); ok {
-			matches = append(matches, scored{i, at})
+			matches = append(matches, scored{i, at, c.paneLastActive[it.paneID]})
 		}
 	}
-	sort.SliceStable(matches, func(a, b int) bool { return matches[a].at < matches[b].at })
+	if query == "" {
+		sort.SliceStable(matches, func(a, b int) bool { return matches[a].used.After(matches[b].used) })
+	} else {
+		sort.SliceStable(matches, func(a, b int) bool { return matches[a].at < matches[b].at })
+	}
 	filtered := make([]int, len(matches))
 	for i, m := range matches {
 		filtered[i] = m.idx
@@ -198,10 +209,12 @@ func (c *Core) pickerOverlay() *proto.Overlay {
 		items[i] = c.picker.items[idx].label
 	}
 	ov := &proto.Overlay{
-		Title:    "jump to window/pane — type to filter, ↑↓ select, enter jump, esc cancel",
-		Query:    string(c.picker.query),
-		Items:    items,
-		Selected: c.picker.sel,
+		Title:      "jump to window/pane — type to filter, ↑↓ select, enter jump, esc cancel",
+		ShowQuery:  true,
+		Query:      string(c.picker.query),
+		Selectable: true,
+		Items:      items,
+		Selected:   c.picker.sel,
 	}
 	if c.picker.sel < len(c.picker.filtered) {
 		it := c.picker.items[c.picker.filtered[c.picker.sel]]
