@@ -101,7 +101,9 @@ consecutively — `depl` matches `1:deploy`), so getting to a specific pane
 in a session with a dozen windows is a few keystrokes instead of hunting
 through a list by eye. `↑`/`↓`/`Tab` move the selection, `Enter` jumps
 straight to it — switching windows and focusing that exact pane in one
-step — `Esc` cancels.
+step — `Esc` cancels. The selected entry also gets a live preview box
+next to the list, a small peek at that pane's actual content that updates
+as you move the selection — no need to jump blind.
 
 ### Copy-mode (scrollback and copying)
 
@@ -126,7 +128,8 @@ Enter with `Ctrl-B [`. From there:
   again to unzoom.
 - Drag the border between two panes, side by side or stacked: resizes
   them.
-- Click a window tab in the status bar: switches to it.
+- Click a window tab in the status bar: switches to it. Drag it sideways
+  to reorder the tab strip, the same as dragging a browser tab.
 - Wheel: if the pane has scrollback, automatically enters copy-mode and
   scrolls; scrolling back to the bottom exits it automatically.
 - Drag in copy-mode: selects text and copies it on release.

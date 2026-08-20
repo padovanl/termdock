@@ -182,6 +182,11 @@ func fuzzyMatch(query, target string) (ok bool, at int) {
 	return false, 0
 }
 
+// previewCols/previewRows bound the picker's live preview pane — a peek,
+// not a full pane, so it's kept fixed and small rather than sized to
+// match whatever's selected.
+const previewCols, previewRows = 36, 8
+
 // pickerOverlay builds the client-facing snapshot of the picker, or nil
 // when it isn't open.
 func (c *Core) pickerOverlay() *proto.Overlay {
@@ -192,10 +197,52 @@ func (c *Core) pickerOverlay() *proto.Overlay {
 	for i, idx := range c.picker.filtered {
 		items[i] = c.picker.items[idx].label
 	}
-	return &proto.Overlay{
+	ov := &proto.Overlay{
 		Title:    "jump to window/pane — type to filter, ↑↓ select, enter jump, esc cancel",
 		Query:    string(c.picker.query),
 		Items:    items,
 		Selected: c.picker.sel,
 	}
+	if c.picker.sel < len(c.picker.filtered) {
+		it := c.picker.items[c.picker.filtered[c.picker.sel]]
+		ov.PreviewCells = c.buildPickerPreview(it.paneID)
+	}
+	return ov
+}
+
+// buildPickerPreview snapshots the bottom-left corner of paneID's current
+// terminal content — the most recently active rows, generally more
+// telling at a glance than whatever scrolled to the top — cropped to
+// previewCols x previewRows, or nil if the pane's gone or the picker's
+// selection is otherwise stale (see enterPicker's doc comment).
+func (c *Core) buildPickerPreview(paneID int) [][]proto.Cell {
+	p, ok := c.panes[paneID]
+	if !ok {
+		return nil
+	}
+	t := p.Term()
+	t.Lock()
+	defer t.Unlock()
+	cols, rows := t.Size()
+	w, h := minInt(previewCols, cols), minInt(previewRows, rows)
+	if w <= 0 || h <= 0 {
+		return nil
+	}
+	yOff := rows - h
+	cells := make([][]proto.Cell, h)
+	for y := 0; y < h; y++ {
+		row := make([]proto.Cell, w)
+		for x := 0; x < w; x++ {
+			row[x] = glyphToCell(t.Cell(x, yOff+y))
+		}
+		cells[y] = row
+	}
+	return cells
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

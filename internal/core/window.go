@@ -125,6 +125,27 @@ func (c *Core) newWindowOpts(name, command string) (*Window, error) {
 	return w, nil
 }
 
+// moveWindow relocates the window at index from so that it ends up at
+// index to in the resulting slice (everything between the two shifts
+// over by one to make room) — the same semantics as dragging a browser
+// tab to a new position. c.activeWindow is tracked by the identity of
+// whichever *Window it currently points to (rather than recomputed by
+// arithmetic on the two indices), which stays correct regardless of
+// whether the window being moved is the active one, is on either side of
+// it, or is it entirely unrelated.
+func (c *Core) moveWindow(from, to int) {
+	if from == to || from < 0 || from >= len(c.windows) || to < 0 || to >= len(c.windows) {
+		return
+	}
+	active := c.windows[c.activeWindow]
+	w := c.windows[from]
+	rest := append(append([]*Window{}, c.windows[:from]...), c.windows[from+1:]...)
+	windows := append(append([]*Window{}, rest[:to]...), w)
+	windows = append(windows, rest[to:]...)
+	c.windows = windows
+	c.activeWindow = c.windowIndex(active)
+}
+
 func (c *Core) switchWindow(delta int) {
 	if len(c.windows) < 2 {
 		return
@@ -154,6 +175,7 @@ func (c *Core) afterWindowSwitch() {
 		c.mode = ModeNormal
 	}
 	c.drag = nil
+	c.tabDrag = nil
 	c.mouseDown = false
 	c.lastTitleClickID = 0
 }

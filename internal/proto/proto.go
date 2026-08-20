@@ -45,18 +45,21 @@ type WindowTab struct {
 	Label    string
 	Active   bool
 	Activity bool
+	Dragging bool // currently being drag-reordered (see Core.updateTabDrag)
 	X, W     int
 }
 
 // Overlay is a centered modal box drawn on top of everything else — today
 // just the jump picker (Ctrl-B w), but general enough for another modal
 // list later. Items is already filtered and ordered by the server;
-// Selected indexes into it.
+// Selected indexes into it. PreviewCells, if non-empty, is a small
+// snapshot of the selected item's pane content, drawn alongside the list.
 type Overlay struct {
-	Title    string
-	Query    string
-	Items    []string
-	Selected int
+	Title        string
+	Query        string
+	Items        []string
+	Selected     int
+	PreviewCells [][]Cell
 }
 
 // Frame is a full snapshot of everything the client needs to paint.

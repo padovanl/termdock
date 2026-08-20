@@ -45,24 +45,7 @@ func drawPaneContent(screen tcell.Screen, p proto.PaneFrame) {
 
 	for y, row := range p.Cells {
 		for x, cell := range row {
-			style := tcell.StyleDefault.Foreground(convColor(cell.FG)).Background(convColor(cell.BG))
-			if cell.Attr&attrBold != 0 {
-				style = style.Bold(true)
-			}
-			if cell.Attr&attrUnderline != 0 {
-				style = style.Underline(true)
-			}
-			if cell.Attr&attrReverse != 0 {
-				style = style.Reverse(true)
-			}
-			if cell.Attr&attrBlink != 0 {
-				style = style.Blink(true)
-			}
-			ch := cell.Ch
-			if ch == 0 {
-				ch = ' '
-			}
-			screen.SetContent(r.X+x, r.Y+y, ch, nil, style)
+			screen.SetContent(r.X+x, r.Y+y, cellRune(cell), nil, cellStyle(cell))
 		}
 	}
 
@@ -73,6 +56,34 @@ func drawPaneContent(screen tcell.Screen, p proto.PaneFrame) {
 			screen.HideCursor()
 		}
 	}
+}
+
+// cellStyle and cellRune decode one proto.Cell into what tcell.SetContent
+// wants — shared by real pane content (drawPaneContent) and the picker's
+// preview box (drawPreviewBox), which paints a snapshot of real pane
+// content the same way.
+func cellStyle(cell proto.Cell) tcell.Style {
+	style := tcell.StyleDefault.Foreground(convColor(cell.FG)).Background(convColor(cell.BG))
+	if cell.Attr&attrBold != 0 {
+		style = style.Bold(true)
+	}
+	if cell.Attr&attrUnderline != 0 {
+		style = style.Underline(true)
+	}
+	if cell.Attr&attrReverse != 0 {
+		style = style.Reverse(true)
+	}
+	if cell.Attr&attrBlink != 0 {
+		style = style.Blink(true)
+	}
+	return style
+}
+
+func cellRune(cell proto.Cell) rune {
+	if cell.Ch == 0 {
+		return ' '
+	}
+	return cell.Ch
 }
 
 // drawBorders draws a one-cell border around every pane in f, entirely
@@ -217,17 +228,13 @@ func drawPaneTitle(screen tcell.Screen, r proto.Rect, title string, style tcell.
 	}
 }
 
-// drawStatusBar paints the status line in three pieces after a full-row
-// background fill: StatusPrefix and StatusText in the line's base style,
-// and the window tab strip in between with its own per-tab styling (see
-// tabStyle) so the active window and ones with unseen activity stand out
-// visually, not just via the "*"/"!" markers already baked into each
-// tab's Label.
 // drawOverlay paints the jump picker (or any future modal list) as a
 // centered floating box on top of everything already drawn: a title,
 // the live query with a block cursor, and a scrollable, selection-
 // highlighted item list — termdock's answer to tmux's choose-tree, but
-// type-ahead filterable instead of a static list you page through.
+// type-ahead filterable instead of a static list you page through. When
+// the selected item has a live preview, a second box is drawn alongside
+// it (see drawPreviewBox).
 func drawOverlay(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	ov := f.Overlay
 
@@ -261,30 +268,36 @@ func drawOverlay(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	if h > f.Rows {
 		h = f.Rows
 	}
-	x0 := maxi(0, (f.Cols-w)/2)
-	y0 := maxi(0, (f.Rows-h)/2)
+
+	// The preview, if any, is a second box bolted onto the right edge of
+	// the list box — figure out how much room it needs before centering
+	// the pair as one unit, so both boxes stay visually joined instead
+	// of the list sliding around independently as the selection (and so
+	// the preview's presence/size) changes.
+	previewW, previewH := 0, 0
+	if len(ov.PreviewCells) > 0 {
+		previewH = len(ov.PreviewCells) + 2
+		previewW = len(ov.PreviewCells[0]) + 2
+	}
+	totalW := w
+	if previewW > 0 {
+		totalW = w + 1 + previewW
+	}
+	if totalW > f.Cols {
+		previewW = 0 // no room for it alongside the list; drop it rather than truncate
+		totalW = w
+	}
+	totalH := maxi(h, previewH)
+
+	x0 := maxi(0, (f.Cols-totalW)/2)
+	y0 := maxi(0, (f.Rows-totalH)/2)
 
 	bg := tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(tcell.ColorSilver)
 	accent := tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(cfg.PaneActiveBG).Bold(true)
 	dim := tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(tcell.ColorGray)
 
-	for y := y0; y < y0+h; y++ {
-		for x := x0; x < x0+w; x++ {
-			screen.SetContent(x, y, ' ', nil, bg)
-		}
-	}
-	for x := x0; x < x0+w; x++ {
-		screen.SetContent(x, y0, '─', nil, accent)
-		screen.SetContent(x, y0+h-1, '─', nil, accent)
-	}
-	for y := y0; y < y0+h; y++ {
-		screen.SetContent(x0, y, '│', nil, accent)
-		screen.SetContent(x0+w-1, y, '│', nil, accent)
-	}
-	screen.SetContent(x0, y0, '┌', nil, accent)
-	screen.SetContent(x0+w-1, y0, '┐', nil, accent)
-	screen.SetContent(x0, y0+h-1, '└', nil, accent)
-	screen.SetContent(x0+w-1, y0+h-1, '┘', nil, accent)
+	fillRect(screen, x0, y0, w, h, bg)
+	drawFloatingBorder(screen, x0, y0, w, h, accent)
 
 	innerX, maxX := x0+1, x0+1+innerW
 	overlayText(screen, innerX, y0+1, maxX, dim, " "+ov.Title)
@@ -311,8 +324,59 @@ func drawOverlay(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 		}
 		overlayText(screen, innerX, row, maxX, style, " "+ov.Items[idx])
 	}
+
+	if previewW > 0 {
+		drawPreviewBox(screen, x0+w+1, y0, previewW, previewH, ov.PreviewCells, cfg)
+	}
 }
 
+// fillRect blank-fills a rectangle in the given style.
+func fillRect(screen tcell.Screen, x0, y0, w, h int, style tcell.Style) {
+	for y := y0; y < y0+h; y++ {
+		for x := x0; x < x0+w; x++ {
+			screen.SetContent(x, y, ' ', nil, style)
+		}
+	}
+}
+
+// drawFloatingBorder draws a plain rectangular box border — unlike
+// drawBorders' pane dividers, a floating overlay box never shares an edge
+// with anything else, so there's no junction-glyph logic needed here.
+func drawFloatingBorder(screen tcell.Screen, x0, y0, w, h int, style tcell.Style) {
+	for x := x0; x < x0+w; x++ {
+		screen.SetContent(x, y0, '─', nil, style)
+		screen.SetContent(x, y0+h-1, '─', nil, style)
+	}
+	for y := y0; y < y0+h; y++ {
+		screen.SetContent(x0, y, '│', nil, style)
+		screen.SetContent(x0+w-1, y, '│', nil, style)
+	}
+	screen.SetContent(x0, y0, '┌', nil, style)
+	screen.SetContent(x0+w-1, y0, '┐', nil, style)
+	screen.SetContent(x0, y0+h-1, '└', nil, style)
+	screen.SetContent(x0+w-1, y0+h-1, '┘', nil, style)
+}
+
+// drawPreviewBox paints the picker's live pane-content preview: a bordered
+// box the exact size of cells (plus border), rendered with the same cell
+// styling as a real pane (see drawPaneContent).
+func drawPreviewBox(screen tcell.Screen, x0, y0, w, h int, cells [][]proto.Cell, cfg config.Config) {
+	accent := tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(cfg.PaneActiveBG).Bold(true)
+	fillRect(screen, x0, y0, w, h, tcell.StyleDefault.Background(tcell.ColorBlack))
+	drawFloatingBorder(screen, x0, y0, w, h, accent)
+	for y, row := range cells {
+		for x, cell := range row {
+			screen.SetContent(x0+1+x, y0+1+y, cellRune(cell), nil, cellStyle(cell))
+		}
+	}
+}
+
+// drawStatusBar paints the status line in three pieces after a full-row
+// background fill: StatusPrefix and StatusText in the line's base style,
+// and the window tab strip in between with its own per-tab styling (see
+// tabStyle) so the active window and ones with unseen activity stand out
+// visually, not just via the "*"/"!" markers already baked into each
+// tab's Label.
 func drawStatusBar(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	y := f.Rows - 1
 	if y < 0 {
@@ -357,6 +421,11 @@ func drawStatusBar(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 // weren't, and a neutral one blending into the status bar otherwise.
 func tabStyle(t proto.WindowTab, cfg config.Config) tcell.Style {
 	switch {
+	case t.Dragging:
+		// Distinct from Active on purpose: "picked up and moving," not
+		// "this is where you are" — the two can coincide (dragging the
+		// current tab) or not (dragging a background one).
+		return tcell.StyleDefault.Background(tcell.ColorGray).Foreground(tcell.ColorBlack).Bold(true).Underline(true)
 	case t.Active:
 		return tcell.StyleDefault.Background(cfg.PaneActiveBG).Foreground(tcell.ColorBlack).Bold(true)
 	case t.Activity:

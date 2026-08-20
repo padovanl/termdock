@@ -240,6 +240,7 @@ func (c *Core) windowTabs() []proto.WindowTab {
 			Label:    label,
 			Active:   i == c.activeWindow,
 			Activity: w.activity,
+			Dragging: c.tabDrag != nil && c.tabDrag.win == w,
 			X:        x,
 			W:        width,
 		}

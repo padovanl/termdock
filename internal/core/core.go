@@ -45,6 +45,15 @@ type dragState struct {
 	axis layout.SplitType
 }
 
+// tabDragState tracks a press-and-hold on a status bar window tab: while
+// held, moving over a different tab live-reorders win to that position
+// (see updateTabDrag); moved distinguishes that from a stationary click,
+// which just selects win instead (see endTabDrag).
+type tabDragState struct {
+	win   *Window
+	moved bool
+}
+
 // Core is one session's live state: its windows (each with their own pane
 // tree) and everything needed to interpret input and render a frame.
 // Safe for concurrent use.
@@ -71,6 +80,7 @@ type Core struct {
 	input     inputState
 	picker    pickerState
 	drag      *dragState
+	tabDrag   *tabDragState
 	lastPaste string // most recent copy-mode yank, for Ctrl-B ]
 
 	mouseDown              bool
