@@ -34,28 +34,30 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
 | 📋 **Paste history** | a fuzzy picker over your last 20 yanks (`Ctrl-B =`) | `choose-buffer`, same idea, no fuzzy filter |
 | 🖱️ **Select text** | click-drag on any pane, anywhere, any time | needs `mouse on` + drag-to-select behavior varies by config |
 | 🖱️ **Reorder/move things** | drag a window tab to reorder it, drag a pane's title onto a tab to relocate it | `swap-window`/`join-pane`, typed out by index |
-| 💾 **Survive a crash or reboot** | automatic — layout + working directories snapshotted continuously, restored on next launch | needs the external `tmux-resurrect` plugin |
+| 💾 **Survive a crash or reboot** | automatic — layout + working directories snapshotted continuously, restored on next launch | tmux needs the external `tmux-resurrect` plugin |
 | 🔢 **Pane/window numbering** | always a clean, positional `1, 2, 3…` | numbers can leave gaps after closing one, unless `renumber-windows` is set |
 | ❓ **Keybinding help** | a real scrollable screen | crammed into (and clipped by) the status line |
 | ⚠️ **Closing a whole window** | asks `y`/`n` first | gone immediately, no confirmation |
 | 🖼️ **Panel borders** | always-on, junction-aware box drawing with the active pane highlighted | thin borders, style is you-configure-it |
 | 🎯 **Zoom feedback** | the zoomed pane's border turns magenta and gets a `[Z]` tag | no visual cue you're zoomed beyond the layout itself |
-| 🪟 **Scratch terminal** | a floating popup pane (`Ctrl-B P`) toggled over whatever you're doing, no layout change | needs a dedicated popup session and a scripted `display-popup` binding |
-| 🔗 **Open a URL/path** | fuzzy-pick any link or path visible on screen, copied straight to your clipboard (`Ctrl-B u`) | needs the external `tmux-open`/`tmux-fpp` plugins |
-| 🔔 **Background activity** | one real terminal bell (`\a`) the moment a background window's `*` first lights up, not per line | `monitor-activity`/`visual-activity` needs both set explicitly |
-| ✂️ **Break a pane out** | `Ctrl-B !` moves the active pane into its own new window | `break-pane`, same idea, same key |
-| 📊 **Status bar segments** | opt-in git branch / battery segments, no extra process | needs `#()` shell hooks in `status-right` |
-| 🔢 **Jump to a pane by number** | `Ctrl-B Q` badges every pane with a digit, press it to jump | `display-panes`, same idea, `Ctrl-B q` (termdock's `q` already means quit) |
-| 💻 **Command prompt** | `Ctrl-B :` runs the same verbs as the scripting CLI, no target needed | `command-prompt`, same key, needs an explicit target most of the time |
-| 🧱 **Preset layouts** | `Ctrl-B Space` cycles tiled / even-columns / even-rows | `next-layout`, same key, same idea |
-| 🔁 **Respawn a pane** | `Ctrl-B R` restarts the shell in place, no confirmation needed (same as `x`) | `respawn-pane`, no default binding, `-k` needed on a live pane |
-| 📝 **Log a pane to a file** | `Ctrl-B L` toggles it, no path to type, `[REC]` on the title | needs the external tmux-logging plugin or a hand-written `pipe-pane` |
-| 🎨 **Ready-made color themes** | one `theme <name>` config line (Dracula, Nord, Gruvbox, Catppuccin, Solarized, Tokyo Night) | needs the external tmux-themepack or a per-theme plugin |
+| 🪟 **Scratch terminal** | a floating popup pane (`Ctrl-B P`) toggled over whatever you're doing, no layout change | tmux needs a dedicated popup session and a scripted `display-popup` binding |
+| 🔗 **Open a URL/path** | fuzzy-pick any link or path visible on screen, copied straight to your clipboard (`Ctrl-B u`) | tmux needs the external `tmux-open`/`tmux-fpp` plugins |
+| 🔔 **Background activity** | one real terminal bell (`\a`) the moment a background window's `*` first lights up, not per line | tmux's `monitor-activity`/`visual-activity` needs both set explicitly |
+| ✂️ **Break a pane out** | `Ctrl-B !` moves the active pane into its own new window | tmux's `break-pane`, same idea, same key |
+| 📊 **Status bar segments** | opt-in git branch / battery segments, no extra process | tmux needs `#()` shell hooks in `status-right` |
+| 🔢 **Jump to a pane by number** | `Ctrl-B Q` badges every pane with a digit, press it to jump | tmux's `display-panes`, same idea, `Ctrl-B q` (termdock's `q` already means quit) |
+| 💻 **Command prompt** | `Ctrl-B :` runs the same verbs as the scripting CLI, no target needed | tmux's `command-prompt`, same key, but needs an explicit target most of the time |
+| 🧱 **Preset layouts** | `Ctrl-B Space` cycles tiled / even-columns / even-rows | tmux's `next-layout`, same key, same idea |
+| 🔁 **Respawn a pane** | `Ctrl-B R` restarts the shell in place, no confirmation needed (same as `x`) | tmux's `respawn-pane` has no default binding and needs `-k` to force a live pane |
+| 📝 **Log a pane to a file** | `Ctrl-B L` toggles it, no path to type, `[REC]` on the title | tmux needs the external tmux-logging plugin, or a hand-written `pipe-pane` |
+| 🎨 **Ready-made color themes** | built in — one `theme <name>` config line (Dracula, Nord, Gruvbox, Catppuccin, Solarized, Tokyo Night), no plugin | tmux needs the external tmux-themepack or a per-theme plugin |
 | ⏮️ **Toggle the last window** | `Ctrl-B W` flips back to whichever window you were just on | `Ctrl-B l`, same idea (termdock's own `l` is pane-left, vim-style) |
 | ⏮️ **Toggle the last pane** | `Ctrl-B ;` flips back to whichever pane you were just on in this window | `Ctrl-B ;`, same key, same idea |
-| 📈 **CPU / memory segments** | opt-in, read straight from `/proc`, no subprocess | needs the external `tmux-cpu`/`tmux-mem-cpu-load` plugins |
-| 📏 **Line-wise copy selection** | `V` in copy-mode selects whole lines, `v` switches back without losing the selection | `copy-mode`'s own line-selection, same `V`/`v` idea |
-| 🪟 **Popup running a specific tool** | `popup-command lazygit` in the config — no scripted binding needed | needs a scripted `bind ... display-popup -E lazygit` |
+| 📈 **CPU / memory segments** | built in, read straight from `/proc`, no subprocess | tmux needs the external `tmux-cpu`/`tmux-mem-cpu-load` plugins |
+| 📏 **Line-wise copy selection** | `V` in copy-mode selects whole lines, `v` switches back without losing the selection | tmux's own copy-mode line-selection, same `V`/`v` idea |
+| 🪟 **Popup running a specific tool** | `popup-command lazygit` in the config — no scripted binding needed | tmux needs a scripted `bind ... display-popup -E lazygit` |
+
+Every "tmux needs the external `tmux-whatever` plugin" above is describing **tmux**, not termdock: everything in the termdock column is built into the single `termdock` binary. There's no plugin manager, no plugin API, and nothing here — themes, status segments, logging, the popup, any of it — ever needs an external plugin, script, or program to work. The one narrow exception is the `git` status segment, which shells out to your system's own `git` binary the same way any git integration would (not a termdock plugin, just using the tool that's already there) — everything else is pure Go, self-contained.
 
 ## 🏗️ Architecture
 
@@ -587,10 +589,11 @@ overhead to every redraw.
 ### 🎨 Themes
 
 `theme <name>` sets `status-bg`/`status-fg`/`pane-active-bg` all at once
-from a bundled, accurately-sourced palette — no more hand-picking three
-hex values, the same convenience tmux users reach for
-tmux-themepack/Catppuccin-for-tmux/dracula-tmux/nord-tmux plugins for.
-Built in: `dracula`, `nord`, `gruvbox`, `catppuccin`, `solarized`,
+from a bundled, accurately-sourced palette built directly into
+termdock — no plugin, no plugin manager, nothing to install: the same
+convenience tmux users need an external plugin
+(tmux-themepack/Catppuccin-for-tmux/dracula-tmux/nord-tmux) for. Built
+in: `dracula`, `nord`, `gruvbox`, `catppuccin`, `solarized`,
 `tokyo-night` (the demo screenshot above is running `theme dracula`). A
 theme is always just a *baseline*: an explicit `status-bg`/`status-fg`/
 `pane-active-bg` line in the same config still overrides just that one
