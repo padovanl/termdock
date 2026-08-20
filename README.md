@@ -82,10 +82,14 @@ go install github.com/padovanl/termdock@latest
 ```
 
 Every [release](https://github.com/padovanl/termdock/releases) ships
-prebuilt binaries for linux/darwin × amd64/arm64, built and published
-automatically by [goreleaser](https://goreleaser.com) (see
-`.goreleaser.yml`) whenever a `vX.Y.Z` tag is pushed — `termdock
---version` reports exactly which one you're running.
+prebuilt binaries for linux/darwin × amd64/arm64, built with
+[goreleaser](https://goreleaser.com) (see `.goreleaser.yml`) —
+`termdock --version` reports exactly which one you're running.
+`.github/workflows/release.yml` is currently manual-only
+(`workflow_dispatch`, no automatic tag trigger) while the project's
+still under active development; see the comment at the top of that file
+for how to switch it back to firing on every pushed `vX.Y.Z` tag once
+you're ready to start cutting real releases.
 
 ### 🍺 Homebrew tap
 
@@ -622,8 +626,9 @@ run never touches or gets confused by your actual sessions.
 CI (`.github/workflows/ci.yml`) runs build, vet, and the full test suite
 on every push and pull request against `master`. A separate workflow
 (`.github/workflows/release.yml`) runs the test suite once more and then
-cuts a full release — see [📦 Installation](#-installation) — whenever a
-`vX.Y.Z` tag is pushed.
+cuts a full release — see [📦 Installation](#-installation) — but is
+currently manual-only while the project's under active development,
+rather than firing automatically on every pushed version tag.
 
 ## 📄 License
 

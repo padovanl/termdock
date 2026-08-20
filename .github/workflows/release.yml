@@ -1,9 +1,17 @@
 name: Release
 
+# Deliberately manual-only for now (workflow_dispatch), NOT triggered by
+# pushing a tag — active development, not ready to cut public releases
+# yet. Re-enable the automatic trigger by uncommenting the block below
+# (and removing workflow_dispatch, if you don't want both at once) once
+# you're actually ready to publish; see README.md's "Installation" /
+# "Homebrew tap" sections for the one-time tap-repo setup that needs to
+# happen before the first real release tag goes out.
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+  # push:
+  #   tags:
+  #     - "v*"
 
 permissions:
   contents: write
