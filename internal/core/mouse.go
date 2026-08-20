@@ -362,6 +362,7 @@ func (c *Core) handleCopyMouse(primary, released bool, x, y int) Result {
 		c.mouseDown = true
 		c.mouseDownX, c.mouseDownY = x, y
 		c.copy.selecting = true
+		c.copy.lineWise = false // a drag is always character-wise, even if a prior keyboard 'V' left this set
 		c.copy.anchorX, c.copy.anchorY = localX, absY
 	}
 	c.copy.curX, c.copy.curY = localX, absY

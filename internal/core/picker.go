@@ -122,9 +122,8 @@ func (c *Core) confirmPicker() {
 		if it.windowIdx < len(c.windows) {
 			w := c.windows[it.windowIdx]
 			if leaf := findLeafByID(w.root, it.paneID); leaf != nil {
-				c.activeWindow = it.windowIdx
-				w.active = leaf // before afterWindowSwitch, so its touchPane call stamps the pane we're jumping *to*
-				c.afterWindowSwitch()
+				w.active = leaf // before setActiveWindowIndex, so its afterWindowSwitch/touchPane stamps the pane we're jumping *to*
+				c.setActiveWindowIndex(it.windowIdx)
 			}
 		}
 	}

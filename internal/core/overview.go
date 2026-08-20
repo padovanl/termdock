@@ -93,9 +93,8 @@ func (c *Core) confirmOverview() {
 		if t.windowIdx < len(c.windows) {
 			w := c.windows[t.windowIdx]
 			if leaf := findLeafByID(w.root, t.paneID); leaf != nil {
-				c.activeWindow = t.windowIdx
-				w.active = leaf
-				c.afterWindowSwitch()
+				w.active = leaf // before setActiveWindowIndex, so its afterWindowSwitch/touchPane stamps the pane we're jumping *to*
+				c.setActiveWindowIndex(t.windowIdx)
 			}
 		}
 	}

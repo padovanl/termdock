@@ -171,3 +171,47 @@ func TestPopupExitClosesItAndReturnsToNormal(t *testing.T) {
 		t.Fatalf("popup pane %d exiting should also hide it and return to ModeNormal: visible=%v mode=%v", popupID, visible, mode)
 	}
 }
+
+// TestPopupUsesConfiguredCommand: with popup-command set (see
+// SetPopupCommand/config.go), the popup should run that instead of an
+// interactive shell — checked here the same way TestPopupKeysForwardToItsOwnPane
+// confirms the popup is a real, live pane: write something recognizable
+// and wait for it to show up in the popup's own buffer.
+func TestPopupUsesConfiguredCommand(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	c.popupCommand = "echo popup-command-marker; sleep 2"
+	c.togglePopup()
+	c.mu.Unlock()
+
+	waitForPopupText(t, c, "popup-command-marker")
+}
+
+// TestPopupCommandExitingClosesItAutomatically: unlike the persistent
+// scratch-shell default, a one-shot popup-command process finishing
+// should close the popup by itself — the same onExit path an
+// interactive shell's own "exit" already takes (see
+// TestPopupExitClosesItAndReturnsToNormal above), just triggered by the
+// configured command returning instead of a typed "exit".
+func TestPopupCommandExitingClosesItAutomatically(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	c.popupCommand = "true" // exits immediately, zero output
+	c.togglePopup()
+	c.mu.Unlock()
+
+	ok := waitFor(t, func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return c.popup == nil
+	})
+	if !ok {
+		t.Fatal("the popup-command process exiting should clear c.popup")
+	}
+	c.mu.Lock()
+	visible, mode := c.popupVisible, c.mode
+	c.mu.Unlock()
+	if visible || mode != ModeNormal {
+		t.Fatalf("popup-command exiting should also hide the popup and return to ModeNormal: visible=%v mode=%v", visible, mode)
+	}
+}

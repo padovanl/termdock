@@ -31,6 +31,7 @@ func Run(name, sockPath string, cfg config.Config) error {
 	}
 	c.SetPrefixKey(cfg.Prefix)
 	c.SetStatusSegments(cfg.StatusSegments)
+	c.SetPopupCommand(cfg.PopupCommand)
 	// core deliberately doesn't import server (server already imports
 	// core; Go disallows the cycle), so it can't discover sibling
 	// sessions itself — supplied here instead, for Ctrl-B S.

@@ -42,6 +42,20 @@ func TestLoadMissingFileReturnsDefaults(t *testing.T) {
 	}
 }
 
+func TestLoadParsesPopupCommand(t *testing.T) {
+	writeConfig(t, "popup-command lazygit --arg\n")
+	cfg := Load()
+	if cfg.PopupCommand != "lazygit --arg" {
+		t.Fatalf("PopupCommand = %q, want %q", cfg.PopupCommand, "lazygit --arg")
+	}
+}
+
+func TestDefaultHasEmptyPopupCommand(t *testing.T) {
+	if Default().PopupCommand != "" {
+		t.Fatalf("expected an empty PopupCommand by default, got %q", Default().PopupCommand)
+	}
+}
+
 func writeConfig(t *testing.T, contents string) {
 	t.Helper()
 	dir := t.TempDir()

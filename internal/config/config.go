@@ -13,6 +13,9 @@
 //	mouse <on|off>         enable mouse support (default on)
 //	history-limit <n>      scrollback lines kept per pane (default 10000)
 //	shell <path>           shell to launch in new panes (default $SHELL)
+//	popup-command <cmd>    command to run in the floating popup (Ctrl-B P)
+//	                       instead of an interactive shell, e.g. "lazygit"
+//	                       (default: the shell, same as a new pane)
 //	theme <name>           bundled color preset — see ThemeNames — applied
 //	                       before status-bg/status-fg/pane-active-bg below,
 //	                       so any of those three still overrides it
@@ -21,7 +24,7 @@
 //	status-fg <color>      status bar foreground (default silver)
 //	pane-active-bg <color> active pane's border/title color (default teal)
 //	status-segments <list> comma-separated optional status-bar segments,
-//	                       e.g. "git,battery" (default: none)
+//	                       e.g. "git,battery,cpu,mem" (default: none)
 //
 // Colors accept any W3C name tcell understands ("black", "teal", ...) or
 // a "#rrggbb" hex value.
@@ -44,6 +47,7 @@ type Config struct {
 	Mouse          bool
 	HistoryLimit   int
 	Shell          string
+	PopupCommand   string // command to run in the popup instead of an interactive shell; see internal/core/popup.go
 	StatusBG       tcell.Color
 	StatusFG       tcell.Color
 	PaneActiveBG   tcell.Color
@@ -120,6 +124,8 @@ func applySetting(cfg *Config, key, val string) {
 		}
 	case "shell":
 		cfg.Shell = val
+	case "popup-command":
+		cfg.PopupCommand = val
 	case "status-bg":
 		cfg.StatusBG = tcell.GetColor(val)
 	case "status-fg":

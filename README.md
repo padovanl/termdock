@@ -51,6 +51,11 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
 | 🔁 **Respawn a pane** | `Ctrl-B R` restarts the shell in place, no confirmation needed (same as `x`) | `respawn-pane`, no default binding, `-k` needed on a live pane |
 | 📝 **Log a pane to a file** | `Ctrl-B L` toggles it, no path to type, `[REC]` on the title | needs the external tmux-logging plugin or a hand-written `pipe-pane` |
 | 🎨 **Ready-made color themes** | one `theme <name>` config line (Dracula, Nord, Gruvbox, Catppuccin, Solarized, Tokyo Night) | needs the external tmux-themepack or a per-theme plugin |
+| ⏮️ **Toggle the last window** | `Ctrl-B W` flips back to whichever window you were just on | `Ctrl-B l`, same idea (termdock's own `l` is pane-left, vim-style) |
+| ⏮️ **Toggle the last pane** | `Ctrl-B ;` flips back to whichever pane you were just on in this window | `Ctrl-B ;`, same key, same idea |
+| 📈 **CPU / memory segments** | opt-in, read straight from `/proc`, no subprocess | needs the external `tmux-cpu`/`tmux-mem-cpu-load` plugins |
+| 📏 **Line-wise copy selection** | `V` in copy-mode selects whole lines, `v` switches back without losing the selection | `copy-mode`'s own line-selection, same `V`/`v` idea |
+| 🪟 **Popup running a specific tool** | `popup-command lazygit` in the config — no scripted binding needed | needs a scripted `bind ... display-popup -E lazygit` |
 
 ## 🏗️ Architecture
 
@@ -171,6 +176,8 @@ active pane.
 | `c` | create a new **window** (tab) |
 | `n` / `p` | switch to the next / previous window |
 | `w` | 🔍 **jump picker**: type to fuzzy-filter every window/pane, ↑↓/Tab to select, Enter to jump (see below) |
+| `W` | ⏮️ toggle back to the **previously active window** (see below) |
+| `;` | ⏮️ toggle back to the **previously active pane** in this window (see below) |
 | `g` | 🖼️ **overview**: a live-thumbnail grid of every pane in the session (see below) |
 | `/` | 🔎 **search**: search every pane's scrollback at once (see below) |
 | `S` | 🔄 **switch session**: fuzzy-pick another session, no detach needed (see below) |
@@ -228,6 +235,21 @@ as you move the selection — no need to jump blind. With an empty query
 most-recently-used first instead, so `Ctrl-B w` then `Enter` is a fast
 "jump back to whatever I was just looking at," Alt-Tab style.
 
+### ⏮️ Toggling back
+
+`Ctrl-B W` flips back to whichever *window* was active right before the
+one you're looking at now — tmux's own `Ctrl-B l`, moved to `W` here
+since lowercase `l` is already "move focus right" (the vim-style hjkl
+pane navigation above). `Ctrl-B ;` does the same one level down, for the
+*pane* you were just on within the current window — tmux's own binding,
+same key. Both flip back and forth like Alt-Tab: press again to return
+to where you just were. Every deliberate window switch (`n`/`p`, a
+number, the jump picker, search, the overview, a new window, break-pane)
+updates what `W` jumps back to; every deliberate pane focus change
+(`hjkl`/arrows, a click, the jump picker, quick-jump) updates what `;`
+jumps back to. Both are simple no-ops if there's nothing recorded yet,
+or the window/pane they'd jump to has since closed.
+
 ### 🖼️ Pane overview
 
 `Ctrl-B g` replaces the screen with a grid of every pane in every window
@@ -277,6 +299,16 @@ without needing to write the command out every time or wire up a binding
 yourself. `Ctrl-B P` again (or `Ctrl-B d`) closes it, clicking outside it
 also closes it, and everything else you type goes straight through to the
 shell inside it, exactly like a normal pane.
+
+Set `popup-command` in the config (see [⚙️ Configuration](#-configuration))
+to run a specific tool there instead of an interactive shell — `lazygit`,
+`btop`, `ranger`, whatever you always reach for the popup to open in the
+first place — without needing to script a `bind` around
+`display-popup -E` the way tmux does. Unlike the default persistent
+scratch shell, a `popup-command` popup closes itself the moment that
+command exits (quit lazygit, the popup's gone), the same one-shot feel
+stock tmux popups already have; toggling it back open runs the command
+fresh again.
 
 ### 🔗 Opening links and paths
 
@@ -387,7 +419,16 @@ Enter with `Ctrl-B [`. From there:
 
 - `h/j/k/l` or arrows: move the cursor; `PgUp`/`PgDn`/`Ctrl-U`/`Ctrl-D`:
   page/half-page; `g`/`G`: top/bottom of the scrollback.
-- `v`: start a selection from the cursor.
+- `v`: start a character-wise selection from the cursor — an exact span,
+  the same as click-dragging with the mouse.
+- `V`: start a line-wise selection instead — every column of every line
+  the selection spans, ignoring where exactly the cursor sits on the
+  first/last one, vim's own visual-line mode. Good for grabbing a clean
+  block of log lines without chasing column alignment. Pressing `v`
+  while a `V` selection is active (or `V` while a `v` one is) switches
+  modes in place, keeping the selection you already have, the same way
+  vim's own `v`/`V` do inside visual mode; pressing the *same* key again
+  exits the selection instead.
 - `y` or `Enter`: copy the selection and exit copy-mode. The copied text
   is pushed to the real terminal via **OSC52**, so it lands in the system
   clipboard on terminals that support it (essentially every modern one:
@@ -520,23 +561,28 @@ prefix C-a             # prefix key, any Ctrl+letter (default C-b)
 mouse on                # enable mouse support (default on)
 history-limit 10000     # scrollback lines kept per pane (default 10000)
 shell /bin/zsh           # shell for new panes (default $SHELL)
+popup-command lazygit    # what Ctrl-B P runs (default: the shell, see below)
 theme dracula            # bundled color preset (default: none, see below)
 status-bg black          # status bar background (default black)
 status-fg silver         # status bar foreground (default silver)
 pane-active-bg teal       # active pane's border/title color (default teal)
-status-segments git,battery  # extra segments in the status bar (default: none)
+status-segments git,battery,cpu,mem  # extra segments in the status bar (default: none)
 ```
 
 Colors accept any W3C name tcell understands, or `#rrggbb` hex.
-`prefix`/`history-limit`/`shell` are read by the **server**, so they take
-effect when a session is *created* (`termdock new`), not on every attach;
-`mouse`, `theme`, and the colors are read by the **client**, so they
-apply per attach and can differ between two clients looking at the same
-session. `status-segments` is a comma-separated list, read by the
-server; `git` shows the active pane's current directory's branch (Linux
-only, empty outside a repo), `battery` shows charge level and charging
-state (Linux only, empty on a machine without one) — both cached for a
-couple of seconds so they don't spawn a subprocess on every redraw.
+`prefix`/`history-limit`/`shell`/`popup-command` are read by the
+**server**, so they take effect when a session is *created* (`termdock
+new`), not on every attach; `mouse`, `theme`, and the colors are read by
+the **client**, so they apply per attach and can differ between two
+clients looking at the same session. `status-segments` is a
+comma-separated list, read by the server: `git` shows the active pane's
+current directory's branch (Linux only, empty outside a repo), `battery`
+shows charge level and charging state, `cpu`/`mem` show overall system
+usage read straight from `/proc/stat`/`/proc/meminfo` — all Linux only,
+all cached for a couple of seconds (`cpu` also needs two samples an
+interval apart to compute a delta from, so it shows nothing for the
+first few seconds after being enabled) so nothing here adds real
+overhead to every redraw.
 
 ### 🎨 Themes
 
@@ -569,12 +615,13 @@ back to the plain defaults.
 - `internal/layout` — the binary split tree (vertical/horizontal) that
   computes each pane's on-screen rectangle, and interactive resizing.
 - `internal/core` — the session's brain, with no terminal attached:
-  windows, panes, layout, copy-mode, mouse, resize-mode, the jump picker,
+  windows, panes, layout, copy-mode (character- and line-wise selection),
+  mouse, resize-mode, the jump picker, last-window/last-pane toggling,
   global search, the pane overview, paste registers, session switching,
   the popup terminal, the URL/path opener, the activity bell,
-  break-pane, status bar segments, quick-jump, the command prompt,
-  preset layouts, respawn-pane, pane logging, help screen. Runs in the
-  server.
+  break-pane, status bar segments (including CPU/memory), quick-jump,
+  the command prompt, preset layouts, respawn-pane, pane logging, help
+  screen. Runs in the server.
 - `internal/proto` — the messages exchanged between client and server
   over the socket.
 - `internal/persist` — the on-disk session-snapshot format and file I/O
@@ -602,23 +649,29 @@ explicit color always beating a theme, in either line order — see
 disambiguation — click vs. drag vs. double-click, all sharing the same
 press/release events — every picker's fuzzy filter, window/pane
 reordering and moving, the pane overview's grid math, global search,
-the popup terminal's own lifecycle and keys, the URL/path opener's
-regex matching, the activity bell's edge-triggering, break-pane, status
-segments, quick-jump's digit cap, the command prompt's every verb,
-preset layouts' equal-share math, respawn-pane, pane logging, and
-end-to-end crash-recovery), and `internal/server`, with real
-socket-level integration tests: two actual daemons for a session-switch
-to jump between, a read-only client's input and resize both confirmed
-dropped by driving a second, ordinary client and checking what it sees,
-a background window's activity confirmed to ring a bell on an attached
-client, and this round's five new keybindings driven end to end through
+the popup terminal's own lifecycle and keys (including a configured
+`popup-command` and its own process exiting on its own), the URL/path
+opener's regex matching, the activity bell's edge-triggering,
+break-pane, status segments (git/battery/CPU/memory, including CPU's
+two-samples-needed delta math), quick-jump's digit cap, the command
+prompt's every verb, preset layouts' equal-share math, respawn-pane,
+pane logging, last-window/last-pane toggling (including the dangling
+pointer a closed or moved-elsewhere target would otherwise leave — see
+`internal/core/lasttoggle_test.go`), copy-mode's character- vs.
+line-wise selection (`internal/core/copymode_test.go`), and end-to-end
+crash-recovery), and `internal/server`, with real socket-level
+integration tests: two actual daemons for a session-switch to jump
+between, a read-only client's input and resize both confirmed dropped
+by driving a second, ordinary client and checking what it sees, a
+background window's activity confirmed to ring a bell on an attached
+client, and several rounds of new keybindings driven end to end through
 one real client connection. `internal/core/interop_test.go` specifically
-checks these newer features against *each other* — logging surviving a
-break-pane, a respawn correctly *not* carrying logging over to the fresh
-process, the command prompt's verbs matching their direct keybindings
-exactly — rather than each in isolation. All of it spins up real shells
-in real ptys and real unix-socket daemons rather than mocking the
-terminal or network layer, and isolates every bit of state a run
+checks features against *each other* — logging surviving a break-pane, a
+respawn correctly *not* carrying logging over to the fresh process, the
+command prompt's verbs matching their direct keybindings exactly —
+rather than each in isolation. All of it spins up real shells in real
+ptys and real unix-socket daemons rather than mocking the terminal or
+network layer, and isolates every bit of state a run
 touches — session-snapshot I/O (`$XDG_STATE_HOME`) and session sockets
 (`$XDG_RUNTIME_DIR`) alike — to throwaway temp directories, so a test
 run never touches or gets confused by your actual sessions.

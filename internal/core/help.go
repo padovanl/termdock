@@ -31,6 +31,8 @@ var helpEntries = []helpEntry{
 	{"c", "create a new window"},
 	{"n / p", "switch to the next / previous window"},
 	{"w", "jump picker: fuzzy-jump to any window/pane"},
+	{"W", "toggle back to the previously active window"},
+	{";", "toggle back to the previously active pane in this window"},
 	{"g", "overview: a live-thumbnail grid of every pane"},
 	{"/", "search every pane's scrollback at once"},
 	{"S", "switch to another session without detaching"},

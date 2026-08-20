@@ -158,7 +158,7 @@ func (c *Core) paneTitle(idx int, p *pane.Pane) string {
 // this line exists, "Ctrl-B ?" is what the idle status bar tells you to
 // press, so it needs to actually go somewhere.
 const helpText = "v/% vsplit | s/\" hsplit | hjkl/arrows move | o/Tab cycle | z zoom | r resize | " +
-	"[ copy | ] paste | = registers | y sync | c new-win | n/p next/prev-win | w jump | g overview | " +
+	"[ copy | ] paste | = registers | y sync | c new-win | n/p next/prev-win | w jump | W last-win | ; last-pane | g overview | " +
 	"/ search | S sessions | P popup | u open link | ! break-pane | Q quick-jump | : command | " +
 	"Space layout | R respawn | L log | 0-9 win# | , rename | & kill-win | " +
 	"x close-pane | d detach | q quit | ? help"

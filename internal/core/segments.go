@@ -2,8 +2,10 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -31,6 +33,18 @@ type segmentCache struct {
 	at   time.Time
 	git  string
 	batt string
+	cpu  string
+	mem  string
+
+	// cpuSample is the raw /proc/stat reading the *cpu* segment was
+	// computed from, carried forward across refreshes (NOT reset with
+	// the rest of the cache) since a CPU percentage needs two samples
+	// to compute a delta from — see readCPUSample/cpuPercent. The very
+	// first refresh after "cpu" is enabled has nothing to diff against
+	// yet, so it shows nothing until the second one, segmentCacheTTL
+	// later.
+	cpuSample cpuSample
+	haveCPU   bool
 }
 
 // statusSegmentsText renders every enabled segment, refreshing the cache
@@ -54,16 +68,33 @@ func (c *Core) statusSegmentsText() string {
 			if c.segCache.batt != "" {
 				parts = append(parts, c.segCache.batt)
 			}
+		case "cpu":
+			if c.segCache.cpu != "" {
+				parts = append(parts, c.segCache.cpu)
+			}
+		case "mem":
+			if c.segCache.mem != "" {
+				parts = append(parts, c.segCache.mem)
+			}
 		}
 	}
 	return strings.Join(parts, " | ")
 }
 
 func (c *Core) refreshSegments() {
+	sample, ok := readCPUSample()
+	cpuText := ""
+	if ok && c.segCache.haveCPU {
+		cpuText = cpuPercent(c.segCache.cpuSample, sample)
+	}
 	c.segCache = segmentCache{
-		at:   time.Now(),
-		git:  c.currentGitBranch(),
-		batt: readBattery(),
+		at:        time.Now(),
+		git:       c.currentGitBranch(),
+		batt:      readBattery(),
+		cpu:       cpuText,
+		mem:       readMem(),
+		cpuSample: sample,
+		haveCPU:   ok,
 	}
 }
 
@@ -120,4 +151,83 @@ func readBattery() string {
 		return icon + pct + "%"
 	}
 	return ""
+}
+
+// cpuSample is one reading of /proc/stat's aggregate "cpu" line: total
+// jiffies and idle jiffies since boot. A single sample says nothing on
+// its own — CPU usage only means anything as a delta between two
+// samples over an interval (see cpuPercent), which is exactly why it's
+// carried forward in segmentCache instead of computed fresh each time.
+type cpuSample struct {
+	idle, total uint64
+}
+
+// readCPUSample reads and parses /proc/stat's first line (Linux only;
+// ok is false wherever it doesn't exist, degrading like readBattery/
+// pane.Cwd do rather than needing a platform split of their own).
+func readCPUSample() (cpuSample, bool) {
+	data, err := os.ReadFile("/proc/stat")
+	if err != nil {
+		return cpuSample{}, false
+	}
+	line, _, _ := strings.Cut(string(data), "\n")
+	fields := strings.Fields(line)
+	// "cpu user nice system idle iowait irq softirq steal guest guest_nice"
+	if len(fields) < 5 || fields[0] != "cpu" {
+		return cpuSample{}, false
+	}
+	var s cpuSample
+	for i, f := range fields[1:] {
+		v, err := strconv.ParseUint(f, 10, 64)
+		if err != nil {
+			continue
+		}
+		s.total += v
+		if i == 3 { // idle is the 4th field
+			s.idle = v
+		}
+	}
+	return s, true
+}
+
+// cpuPercent computes overall CPU usage over the interval between two
+// samples: the fraction of jiffies that weren't idle.
+func cpuPercent(prev, cur cpuSample) string {
+	dTotal := cur.total - prev.total
+	dIdle := cur.idle - prev.idle
+	if dTotal == 0 || dIdle > dTotal {
+		return "" // clock hasn't advanced, or a counter wrapped — nothing sane to report
+	}
+	pct := 100 * (dTotal - dIdle) / dTotal
+	return fmt.Sprintf("🖥️%d%%", pct)
+}
+
+// readMem reads /proc/meminfo for the fraction of memory in use —
+// MemTotal minus MemAvailable (the "how much could a new process
+// actually get" estimate the kernel itself computes, not just free
+// mem), the same figure `free -h`'s "available" column is based on.
+// Linux only, same degrade-to-"" convention as readBattery/readCPUSample.
+func readMem() string {
+	data, err := os.ReadFile("/proc/meminfo")
+	if err != nil {
+		return ""
+	}
+	var total, avail uint64
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		switch fields[0] {
+		case "MemTotal:":
+			total, _ = strconv.ParseUint(fields[1], 10, 64)
+		case "MemAvailable:":
+			avail, _ = strconv.ParseUint(fields[1], 10, 64)
+		}
+	}
+	if total == 0 || avail > total {
+		return ""
+	}
+	pct := 100 * (total - avail) / total
+	return fmt.Sprintf("🧠%d%%", pct)
 }

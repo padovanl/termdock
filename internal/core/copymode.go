@@ -21,6 +21,7 @@ type copyState struct {
 	curX, curY int // absolute cursor position
 
 	selecting        bool
+	lineWise         bool // whole-line selection (V) instead of exact character span (v); see selected/yank
 	anchorX, anchorY int
 
 	searchTerm string
@@ -51,7 +52,7 @@ func (c *Core) enterCopyMode() {
 		maxTop = 0
 	}
 	c.copy.top = maxTop
-	c.statusMsg = "COPY: hjkl/arrows move, v select, y copy, q/Esc exit"
+	c.statusMsg = "COPY: hjkl/arrows move, v select, V select lines, y copy, q/Esc exit"
 }
 
 func (c *Core) exitCopyMode() {
@@ -114,11 +115,33 @@ func (c *Core) handleCopyKey(key tcell.Key, r rune) Result {
 	switch {
 	case key == tcell.KeyEsc || r == 'q':
 		c.exitCopyMode()
+	// v/V toggle off only when already selecting in the *same* mode —
+	// pressing 'v' while a 'V' line-wise selection is active switches it
+	// to character-wise instead of exiting, matching vim's own
+	// v/V/Ctrl-V mode-switch-not-exit behavior in visual mode. Switching
+	// mode keeps the existing anchor (and whatever the cursor's moved to
+	// since) exactly as-is — only starting a *fresh* selection from
+	// scratch sets a new anchor at the current cursor.
 	case r == 'v':
-		if c.copy.selecting {
+		switch {
+		case c.copy.selecting && !c.copy.lineWise:
 			c.copy.selecting = false
-		} else {
+		case c.copy.selecting && c.copy.lineWise:
+			c.copy.lineWise = false
+		default:
 			c.copy.selecting = true
+			c.copy.lineWise = false
+			c.copy.anchorX, c.copy.anchorY = c.copy.curX, c.copy.curY
+		}
+	case r == 'V':
+		switch {
+		case c.copy.selecting && c.copy.lineWise:
+			c.copy.selecting = false
+		case c.copy.selecting && !c.copy.lineWise:
+			c.copy.lineWise = true
+		default:
+			c.copy.selecting = true
+			c.copy.lineWise = true
 			c.copy.anchorX, c.copy.anchorY = c.copy.curX, c.copy.curY
 		}
 	case r == 'y' || key == tcell.KeyEnter:
@@ -184,11 +207,13 @@ func (c *Core) yank() (string, bool) {
 	var b strings.Builder
 	for y := sy; y <= ey; y++ {
 		startX, endX := 0, cols-1
-		if y == sy {
-			startX = sx
-		}
-		if y == ey {
-			endX = ex
+		if !c.copy.lineWise {
+			if y == sy {
+				startX = sx
+			}
+			if y == ey {
+				endX = ex
+			}
 		}
 		row := make([]rune, 0, cols)
 		for x := startX; x <= endX && x < cols; x++ {
@@ -279,6 +304,9 @@ func (c *Core) selected(x, y int) bool {
 	}
 	if y < sy || y > ey {
 		return false
+	}
+	if c.copy.lineWise {
+		return true
 	}
 	if y == sy && x < sx {
 		return false

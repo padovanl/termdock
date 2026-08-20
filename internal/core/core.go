@@ -96,6 +96,7 @@ type Core struct {
 	windows      []*Window
 	activeWindow int
 	nextWindowID int
+	lastWindow   *Window // previously active window, for Ctrl-B l; see toggleLastWindow
 
 	panes          map[int]*pane.Pane // session-wide, keyed by pane ID
 	paneLastActive map[int]time.Time  // for the jump picker's MRU ordering; see touchPane
@@ -124,6 +125,7 @@ type Core struct {
 
 	popup        *pane.Pane // the floating scratch terminal (Ctrl-B P), lazily created; see popup.go
 	popupVisible bool
+	popupCommand string // command to run in the popup instead of an interactive shell; see SetPopupCommand
 
 	statusSegments []string      // enabled optional status-bar segments ("git", "battery"); see segments.go
 	segCache       segmentCache
@@ -219,6 +221,15 @@ func (c *Core) SetStatusSegments(segs []string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.statusSegments = segs
+}
+
+// SetPopupCommand overrides what Ctrl-B P runs in the floating popup —
+// "" (the default) keeps it an interactive shell, same as any other
+// pane. Call before the session has any attached clients.
+func (c *Core) SetPopupCommand(cmd string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.popupCommand = cmd
 }
 
 func (c *Core) markDirty() {
@@ -391,6 +402,9 @@ func (c *Core) detachLeafIn(w *Window, n *layout.Node) {
 	if w.zoomed == n {
 		w.zoomed = nil
 	}
+	if w.lastActive == n {
+		w.lastActive = nil // Ctrl-B ; has nothing to flip back to once it's closed
+	}
 	if c.copy.active && c.copy.paneID == n.ID {
 		c.copy = copyState{}
 		if c.mode == ModeCopy {
@@ -479,12 +493,28 @@ func (c *Core) moveFocus(dx, dy int) {
 
 func (c *Core) setActive(n *layout.Node) {
 	w := c.win()
+	if w.active != n {
+		w.lastActive = w.active // for Ctrl-B ;; see toggleLastPane
+	}
 	if w.zoomed != nil {
 		w.zoomed = n
 	}
 	w.active = n
 	c.touchPane(n.ID)
 	c.relayoutLocked()
+}
+
+// toggleLastPane jumps back to whichever pane was focused right before
+// the current one, within this window — tmux's Ctrl-B ;. A no-op if
+// there's no recorded last pane, or it's since closed or moved to
+// another window (lastActive is cleared wherever that can happen; see
+// detachLeafIn, movePaneToWindow, breakPaneToNewWindow).
+func (c *Core) toggleLastPane() {
+	w := c.win()
+	if w.lastActive == nil || w.lastActive == w.active {
+		return
+	}
+	c.setActive(w.lastActive)
 }
 
 // touchPane stamps id as just having become the one the user's looking

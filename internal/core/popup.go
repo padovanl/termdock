@@ -37,7 +37,10 @@ func (c *Core) togglePopup() {
 	if c.popup == nil {
 		w, h := c.popupSize()
 		id := pane.NextID()
-		p, err := pane.New(id, w, h)
+		// c.popupCommand == "" behaves exactly like pane.New (an
+		// interactive shell) — see NewWithCommand's own doc comment —
+		// so there's no need to branch on whether popup-command is set.
+		p, err := pane.NewWithCommand(id, w, h, c.popupCommand)
 		if err != nil {
 			c.statusMsg = "error creating popup: " + err.Error()
 			return

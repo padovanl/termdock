@@ -83,9 +83,8 @@ func (c *Core) confirmSearch() {
 		if res.windowIdx < len(c.windows) {
 			w := c.windows[res.windowIdx]
 			if leaf := findLeafByID(w.root, res.paneID); leaf != nil {
-				c.activeWindow = res.windowIdx
-				w.active = leaf
-				c.afterWindowSwitch()
+				w.active = leaf // before setActiveWindowIndex, so its afterWindowSwitch/touchPane stamps the pane we're jumping *to*
+				c.setActiveWindowIndex(res.windowIdx)
 				c.enterCopyMode() // sets c.mode = ModeCopy — must not be clobbered below
 				if _, rows, total, ok := c.copyPaneDims(); ok {
 					c.copy.curY = clampi(res.line, 0, maxi(0, total-1))

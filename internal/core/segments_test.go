@@ -82,6 +82,86 @@ func TestGitBranchSegmentInARealRepo(t *testing.T) {
 	}
 }
 
+func TestReadMemGracefullyReadsARealSystem(t *testing.T) {
+	got := readMem()
+	if got == "" {
+		t.Skip("no /proc/meminfo — not running on Linux")
+	}
+	if !strings.HasPrefix(got, "🧠") || !strings.HasSuffix(got, "%") {
+		t.Fatalf("unexpected mem segment format: %q", got)
+	}
+}
+
+func TestReadCPUSampleOnARealSystem(t *testing.T) {
+	s, ok := readCPUSample()
+	if !ok {
+		t.Skip("no /proc/stat — not running on Linux")
+	}
+	if s.total == 0 {
+		t.Fatal("expected a non-zero total jiffy count on a real system")
+	}
+	if s.idle > s.total {
+		t.Fatalf("idle (%d) shouldn't exceed total (%d)", s.idle, s.total)
+	}
+}
+
+func TestCPUPercentComputesFromDelta(t *testing.T) {
+	prev := cpuSample{idle: 100, total: 1000}
+	cur := cpuSample{idle: 150, total: 1200} // +200 total, +50 idle -> 150/200 busy = 75%
+	if got := cpuPercent(prev, cur); got != "🖥️75%" {
+		t.Fatalf("cpuPercent() = %q, want %q", got, "🖥️75%")
+	}
+}
+
+func TestCPUPercentNoDeltaIsEmpty(t *testing.T) {
+	s := cpuSample{idle: 50, total: 500}
+	if got := cpuPercent(s, s); got != "" {
+		t.Fatalf("cpuPercent with no elapsed time = %q, want \"\"", got)
+	}
+}
+
+// TestRefreshSegmentsCPUNeedsTwoSamples: the very first refresh has
+// nothing to diff against yet (see segmentCache.haveCPU), so it must
+// report no CPU reading; the second one, some real time later, should.
+func TestRefreshSegmentsCPUNeedsTwoSamples(t *testing.T) {
+	if _, ok := readCPUSample(); !ok {
+		t.Skip("no /proc/stat — not running on Linux")
+	}
+	c := newTestCore(t)
+
+	c.mu.Lock()
+	c.refreshSegments()
+	firstCPU := c.segCache.cpu
+	c.mu.Unlock()
+
+	time.Sleep(50 * time.Millisecond)
+
+	c.mu.Lock()
+	c.refreshSegments()
+	secondCPU := c.segCache.cpu
+	c.mu.Unlock()
+
+	if firstCPU != "" {
+		t.Fatalf("the first-ever refresh has nothing to diff against, expected \"\", got %q", firstCPU)
+	}
+	if secondCPU == "" {
+		t.Fatal("the second refresh should have a real delta to compute a CPU percentage from")
+	}
+}
+
+func TestStatusSegmentsTextIncludesCPUAndMem(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	c.statusSegments = []string{"cpu", "mem"}
+	c.segCache = segmentCache{at: time.Now(), cpu: "🖥️10%", mem: "🧠20%"}
+	got := c.statusSegmentsText()
+	c.mu.Unlock()
+
+	if got != "🖥️10% | 🧠20%" {
+		t.Fatalf("statusSegmentsText() = %q, want %q", got, "🖥️10% | 🧠20%")
+	}
+}
+
 func TestStatusSegmentsTextJoinsEnabledOnes(t *testing.T) {
 	c := newTestCore(t)
 	c.mu.Lock()

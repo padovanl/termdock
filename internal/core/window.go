@@ -17,6 +17,7 @@ type Window struct {
 	renamed bool // true once the user has explicitly set Name
 
 	root, active, zoomed *layout.Node
+	lastActive           *layout.Node // previously active pane in this window, for Ctrl-B ;; see toggleLastPane
 	syncPanes            bool
 
 	activity bool // output arrived while this window wasn't the active one
@@ -119,6 +120,9 @@ func (c *Core) newWindowOpts(name, command string) (*Window, error) {
 	c.nextWindowID++
 
 	c.panes[id] = p
+	if len(c.windows) > 0 {
+		c.lastWindow = c.windows[c.activeWindow] // not on the very first window a session ever gets
+	}
 	c.windows = append(c.windows, w)
 	c.activeWindow = len(c.windows) - 1
 	c.afterWindowSwitch()
@@ -154,16 +158,49 @@ func (c *Core) switchWindow(delta int) {
 		return
 	}
 	n := len(c.windows)
-	c.activeWindow = ((c.activeWindow+delta)%n + n) % n
-	c.afterWindowSwitch()
+	c.setActiveWindowIndex(((c.activeWindow+delta)%n + n) % n)
 }
 
 func (c *Core) selectWindowIndex(i int) {
-	if i < 0 || i >= len(c.windows) {
+	c.setActiveWindowIndex(i)
+}
+
+// setActiveWindowIndex is the single place every deliberate "look at a
+// different window" action funnels through — Ctrl-B n/p/0-9, the jump
+// picker, global search, the overview, new-window, break-pane — so
+// lastWindow (Ctrl-B l's target) is always the window being left,
+// recorded here rather than duplicated at each call site. Reordering
+// (moveWindow) and a forced switch after the current window closes
+// (removeWindow) are deliberately NOT routed through this: neither is
+// "you chose to look elsewhere," so neither should overwrite lastWindow.
+// Always calls afterWindowSwitch, even re-selecting the window already
+// active — several callers rely on that to refresh w.active/activity
+// after just changing which *pane* is focused within the same window.
+func (c *Core) setActiveWindowIndex(idx int) {
+	if idx < 0 || idx >= len(c.windows) {
 		return
 	}
-	c.activeWindow = i
+	if idx != c.activeWindow {
+		c.lastWindow = c.windows[c.activeWindow]
+	}
+	c.activeWindow = idx
 	c.afterWindowSwitch()
+}
+
+// toggleLastWindow jumps back to whichever window was active right
+// before the current one — tmux's Ctrl-B l — flipping between the two
+// like Alt-Tab. A no-op if there's no recorded last window, or it's
+// since been closed.
+func (c *Core) toggleLastWindow() {
+	if c.lastWindow == nil {
+		return
+	}
+	idx := c.windowIndex(c.lastWindow)
+	if idx < 0 {
+		c.lastWindow = nil
+		return
+	}
+	c.setActiveWindowIndex(idx)
 }
 
 // afterWindowSwitch clears state that's tied to whichever pane/window you
@@ -224,7 +261,11 @@ func (c *Core) removeWindow(idx int) {
 	// activeWindow to the new length" would silently point it at the
 	// wrong window whenever idx falls before it.
 	active := c.windows[c.activeWindow]
+	removed := c.windows[idx]
 	c.windows = append(c.windows[:idx], c.windows[idx+1:]...)
+	if c.lastWindow == removed {
+		c.lastWindow = nil // Ctrl-B l has nothing to flip back to once it's gone
+	}
 	if len(c.windows) == 0 {
 		c.requestQuit()
 		return
@@ -271,6 +312,9 @@ func (c *Core) movePaneToWindow(leaf *layout.Node, from, to *Window) bool {
 	if from.zoomed == leaf {
 		from.zoomed = nil
 	}
+	if from.lastActive == leaf {
+		from.lastActive = nil // Ctrl-B ; has nothing to flip back to once it's in a different window
+	}
 	newRoot, next := layout.Remove(from.root, leaf)
 	if newRoot == nil {
 		// leaf was from's last pane; the window itself is gone. Its
@@ -311,10 +355,14 @@ func (c *Core) breakPaneToNewWindow() {
 	if w.active == leaf {
 		w.active = next
 	}
+	if w.lastActive == leaf {
+		w.lastActive = nil // Ctrl-B ; has nothing to flip back to once it's in a different window
+	}
 	leaf.Parent = nil
 
 	nw := &Window{ID: c.nextWindowID, root: leaf, active: leaf}
 	c.nextWindowID++
+	c.lastWindow = w
 	c.windows = append(c.windows, nw)
 	c.activeWindow = len(c.windows) - 1
 	c.afterWindowSwitch()

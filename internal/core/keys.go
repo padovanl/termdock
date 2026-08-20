@@ -133,6 +133,15 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 		c.switchWindow(-1)
 	case r == 'w':
 		c.enterPicker()
+	case r == 'W':
+		// tmux's own last-window binding is lowercase 'l', but that's
+		// already "move focus right" here (the vim-style hjkl pane
+		// navigation above) — 'W' instead, next to 'w' (jump picker),
+		// which this is a faster one-key version of for the single most
+		// common case ("go back to the window I was just on").
+		c.toggleLastWindow()
+	case r == ';':
+		c.toggleLastPane()
 	case r >= '0' && r <= '9':
 		c.selectWindowIndex(int(r - '0'))
 	case r == ',':
