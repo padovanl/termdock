@@ -9,7 +9,7 @@ into panes, run multiple shells side by side, and keep everything running
 in the background so you can detach and reattach later, even from a
 different machine, without losing a thing.
 
-![A termdock session: three panes (an editor, a process monitor, and a git log) under a status bar showing the window tabs and a git-branch segment, in the Dracula color theme](docs/demo.svg)
+![termdock in action: splitting into panes, the live pane overview (Ctrl-B g), and the floating popup terminal (Ctrl-B P), all in the Dracula color theme with the git branch segment in the status bar](docs/demo.gif)
 
 Written from scratch in Go, with **no dependency on tmux or screen**: it
 manages pseudo-terminals (ptys) and its own VT100 emulator (with
