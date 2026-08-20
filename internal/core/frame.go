@@ -34,13 +34,15 @@ func (c *Core) Frame() proto.Frame {
 
 	w := c.win()
 	if w.zoomed != nil {
-		f.Panes = append(f.Panes, c.buildPaneFrame(w.zoomed, true, 1))
+		f.Panes = append(f.Panes, c.buildPaneFrame(w.zoomed, true, 1, true))
 	} else {
 		for i, leaf := range layout.Leaves(w.root) {
-			f.Panes = append(f.Panes, c.buildPaneFrame(leaf, leaf == w.active, i+1))
+			f.Panes = append(f.Panes, c.buildPaneFrame(leaf, leaf == w.active, i+1, false))
 		}
 	}
 
+	f.StatusPrefix = c.statusPrefix()
+	f.Windows = c.windowTabs()
 	f.StatusText, f.StatusRight, f.StatusStyle = c.statusLine()
 	return f
 }
@@ -52,17 +54,21 @@ func (c *Core) Frame() proto.Frame {
 // called 7 when there are only two panes?"). idx is what's shown in the
 // title bar and status line instead — small, stable-within-the-window,
 // and lines up with what the user can actually see and count.
-func (c *Core) buildPaneFrame(n *layout.Node, active bool, idx int) proto.PaneFrame {
+func (c *Core) buildPaneFrame(n *layout.Node, active bool, idx int, zoomed bool) proto.PaneFrame {
 	pf := proto.PaneFrame{
 		ID:     n.ID,
 		Rect:   proto.Rect(n.Rect),
 		Active: active,
+		Zoomed: zoomed,
 	}
 	p, ok := c.panes[n.ID]
 	if !ok {
 		return pf
 	}
 	pf.Title = c.paneTitle(idx, p)
+	if zoomed {
+		pf.Title += " [Z]"
+	}
 
 	if active && c.mode == ModeCopy && c.copy.paneID == n.ID {
 		return c.buildCopyFrame(n, p, pf)
@@ -169,7 +175,7 @@ func (c *Core) statusLine() (text, right, style string) {
 	if w.syncPanes {
 		sync = " [SYNC]"
 	}
-	text = fmt.Sprintf(" termdock:%s %s | active pane: %d%s | %s", c.SessionName, c.windowListText(), activePaneIndex(w), sync, hint)
+	text = fmt.Sprintf(" | active pane: %d%s | %s", activePaneIndex(w), sync, hint)
 
 	right = time.Now().Format("15:04 02-Jan-06")
 	if c.hostname != "" {
@@ -195,26 +201,42 @@ func activePaneIndex(w *Window) int {
 	return 1
 }
 
-// windowListText renders the tab bar segment of the status line, e.g.
-// "[0:bash 1:vim! 2:htop*]": "*" marks the window you're looking at, "!"
-// marks one that produced output while you weren't — tmux's
-// monitor-activity, on by default here since there's no window list UI
-// to toggle it from otherwise.
-func (c *Core) windowListText() string {
-	var b []byte
-	b = append(b, '[')
+// statusPrefix is the fixed lead-in text on the status bar's left side,
+// drawn before the window tab strip.
+func (c *Core) statusPrefix() string {
+	return fmt.Sprintf(" termdock:%s ", c.SessionName)
+}
+
+// windowTabs lays out the status bar's window tab strip, one WindowTab per
+// window with its exact display label and the column range it occupies —
+// the single source of truth for both how the client draws it (colored per
+// active/activity state) and how a click on it is hit-tested back to a
+// window index (see handleNormalMouse), so the two can never drift apart.
+// "*" marks the window you're looking at, "!" marks one that produced
+// output while you weren't — tmux's monitor-activity, on by default here
+// since there's no window list UI to toggle it from otherwise.
+func (c *Core) windowTabs() []proto.WindowTab {
+	tabs := make([]proto.WindowTab, len(c.windows))
+	x := len([]rune(c.statusPrefix()))
 	for i, w := range c.windows {
-		if i > 0 {
-			b = append(b, ' ')
-		}
-		b = append(b, fmt.Sprintf("%d:%s", i, c.windowDisplayName(w))...)
+		label := fmt.Sprintf(" %d:%s", i, c.windowDisplayName(w))
 		if w.activity {
-			b = append(b, '!')
+			label += "!"
 		}
 		if i == c.activeWindow {
-			b = append(b, '*')
+			label += "*"
 		}
+		label += " "
+		width := len([]rune(label))
+		tabs[i] = proto.WindowTab{
+			Index:    i,
+			Label:    label,
+			Active:   i == c.activeWindow,
+			Activity: w.activity,
+			X:        x,
+			W:        width,
+		}
+		x += width
 	}
-	b = append(b, ']')
-	return string(b)
+	return tabs
 }

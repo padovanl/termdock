@@ -105,6 +105,12 @@ func drawBorders(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 
 	normalStyle := tcell.StyleDefault.Foreground(tcell.ColorGray)
 	activeStyle := tcell.StyleDefault.Foreground(cfg.PaneActiveBG).Bold(true)
+	if active != nil && active.Zoomed {
+		// A visibly different accent from "just focused" — zoom hides
+		// every other pane, so it's worth a color you can't mistake for
+		// the ordinary single-pane-window case.
+		activeStyle = tcell.StyleDefault.Foreground(tcell.ColorFuchsia).Bold(true)
+	}
 
 	for cell := range cells {
 		x, y := cell[0], cell[1]
@@ -208,6 +214,12 @@ func drawPaneTitle(screen tcell.Screen, r proto.Rect, title string, style tcell.
 	}
 }
 
+// drawStatusBar paints the status line in three pieces after a full-row
+// background fill: StatusPrefix and StatusText in the line's base style,
+// and the window tab strip in between with its own per-tab styling (see
+// tabStyle) so the active window and ones with unseen activity stand out
+// visually, not just via the "*"/"!" markers already baked into each
+// tab's Label.
 func drawStatusBar(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	y := f.Rows - 1
 	if y < 0 {
@@ -220,18 +232,56 @@ func drawStatusBar(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	case "mode":
 		style = tcell.StyleDefault.Background(tcell.ColorPurple).Foreground(tcell.ColorWhite)
 	}
-	drawText(screen, 0, y, f.Cols, style, f.StatusText)
+	drawText(screen, 0, y, f.Cols, style, "") // blank-fill the row
+
+	overlayText(screen, 0, y, f.Cols, style, f.StatusPrefix)
+	suffixX := len([]rune(f.StatusPrefix))
+	for _, t := range f.Windows {
+		overlayText(screen, t.X, y, f.Cols, tabStyle(t, cfg), t.Label)
+		if end := t.X + t.W; end > suffixX {
+			suffixX = end
+		}
+	}
+	overlayText(screen, suffixX, y, f.Cols, style, f.StatusText)
 
 	rw := len([]rune(f.StatusRight))
 	if rw > 0 {
-		leftLen := len([]rune(f.StatusText))
+		leftLen := suffixX + len([]rune(f.StatusText))
 		if leftLen > f.Cols {
-			leftLen = f.Cols // StatusText was itself clipped to the screen width
+			leftLen = f.Cols // the left side was itself clipped to the screen width
 		}
 		x := f.Cols - rw
 		if x > leftLen { // don't clobber the left side on a narrow terminal
-			drawText(screen, x, y, rw, style, f.StatusRight)
+			overlayText(screen, x, y, f.Cols, style, f.StatusRight)
 		}
+	}
+}
+
+// tabStyle picks a window tab's background: the accent color for the one
+// you're looking at, a warm color for one that produced output while you
+// weren't, and a neutral one blending into the status bar otherwise.
+func tabStyle(t proto.WindowTab, cfg config.Config) tcell.Style {
+	switch {
+	case t.Active:
+		return tcell.StyleDefault.Background(cfg.PaneActiveBG).Foreground(tcell.ColorBlack).Bold(true)
+	case t.Activity:
+		return tcell.StyleDefault.Background(tcell.ColorDarkOrange).Foreground(tcell.ColorBlack)
+	default:
+		return tcell.StyleDefault.Foreground(tcell.ColorSilver)
+	}
+}
+
+// overlayText draws text starting at column x without first blanking the
+// row (unlike drawText), clipped to the screen's width.
+func overlayText(screen tcell.Screen, x, y, cols int, style tcell.Style, text string) {
+	for _, r := range text {
+		if x >= cols {
+			return
+		}
+		if x >= 0 {
+			screen.SetContent(x, y, r, nil, style)
+		}
+		x++
 	}
 }
 

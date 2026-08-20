@@ -59,6 +59,9 @@ func (c *Core) handleNormalMouse(primary, released bool, x, y int) {
 		c.relayoutLocked()
 		return
 	}
+	if c.statusRows() > 0 && y == c.rows-1 && c.clickWindowTab(x) {
+		return
+	}
 	if c.win().zoomed == nil {
 		if node := layout.HitDivider(c.win().root, x, y); node != nil {
 			c.drag = &dragState{node: node, axis: node.Split}
@@ -66,6 +69,22 @@ func (c *Core) handleNormalMouse(primary, released bool, x, y int) {
 		}
 	}
 	c.focusAt(x, y)
+}
+
+// clickWindowTab switches to the window whose tab strip entry column x
+// falls under, if any — a click on the status bar's window list works the
+// same way clicking a browser tab does. Reports whether x actually hit a
+// tab, so the caller can fall through to its other status-bar-row
+// handling (there is none today, but a click that missed every tab
+// shouldn't be mistaken for one that hit the first pane).
+func (c *Core) clickWindowTab(x int) bool {
+	for _, t := range c.windowTabs() {
+		if x >= t.X && x < t.X+t.W {
+			c.selectWindowIndex(t.Index)
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Core) handleCopyMouse(primary, released bool, x, y int) Result {

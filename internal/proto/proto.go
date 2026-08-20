@@ -27,22 +27,39 @@ type PaneFrame struct {
 	Rect          Rect
 	Title         string
 	Active        bool
+	Zoomed        bool // this pane currently fills the whole window (prefix z)
 	CursorX       int
 	CursorY       int
 	CursorVisible bool
 	Cells         [][]Cell // Rect's content rows x cols
 }
 
+// WindowTab is one entry in the status bar's window tab strip, already
+// laid out by the server: Label is the exact text to draw (padding
+// included) and X/W is the column range it occupies on the status bar
+// row, so the client can just paint it and the server can hit-test a
+// click against the same numbers with no duplicated layout logic on
+// either side.
+type WindowTab struct {
+	Index    int
+	Label    string
+	Active   bool
+	Activity bool
+	X, W     int
+}
+
 // Frame is a full snapshot of everything the client needs to paint.
 // The server sends one whenever session state changes.
 type Frame struct {
-	Cols, Rows  int
-	Panes       []PaneFrame
-	StatusText  string
-	StatusRight string // right-aligned segment (hostname/clock)
-	StatusStyle string // "normal" | "prefix" | "mode"
-	ShowStatus  bool   // false on a 1-row-tall terminal: no room for it
-	SessionName string
+	Cols, Rows   int
+	Panes        []PaneFrame
+	StatusPrefix string      // " termdock:name ", drawn before the tab strip
+	Windows      []WindowTab // the window tab strip, drawn after StatusPrefix
+	StatusText   string      // trailing segment, drawn after the tab strip
+	StatusRight  string      // right-aligned segment (hostname/clock)
+	StatusStyle  string      // "normal" | "prefix" | "mode"
+	ShowStatus   bool        // false on a 1-row-tall terminal: no room for it
+	SessionName  string
 }
 
 // WindowInfo and PaneInfo answer the list-windows/list-panes CLI

@@ -58,7 +58,7 @@ active pane.
 | `s` or `"` | split the active pane **horizontally** (stacked) |
 | `←/→/↑/↓` or `h/j/k/l` | move focus to the adjacent pane |
 | `o` or `Tab` | cycle to the next pane |
-| `z` | zoom: the active pane fills the whole screen (`z` again to undo) |
+| `z` | zoom: the active pane fills the whole screen — its border turns magenta and its title gets a `[Z]` tag, so it's obvious you're zoomed (`z` again to undo) |
 | `r` | **resize-mode**: subsequent arrows/hjkl resize the pane, any other key exits |
 | `[` | enter **copy-mode** (scroll the scrollback, see below) |
 | `y` | toggle **sync-panes**: keystrokes get sent to every pane in this window at once |
@@ -82,11 +82,13 @@ closes, the session ends.
 
 Each window is a fully independent set of panes and its own split layout
 — like a browser tab, or a tmux window. The status bar shows the window
-list on the left, e.g. `[0:bash 1:vim! 2:htop*]`: `*` marks the one
-you're looking at, `!` marks one that produced output while you weren't
-(cleared the moment you switch to it). A window's name is automatically
-the foreground command of its active pane, the same as pane titles, until
-you rename it with `Ctrl-B ,`.
+list on the left as a strip of colored tabs, e.g. ` 0:bash  1:vim!
+2:htop* `: the accent color marks the one you're looking at, orange marks
+one that produced output while you weren't (`*`/`!` are still there in
+the text too, in case colors aren't your thing). Click a tab to switch to
+it, the same as a browser tab. A window's name is automatically the
+foreground command of its active pane, the same as pane titles, until you
+rename it with `Ctrl-B ,`.
 
 ### Copy-mode (scrollback and copying)
 
@@ -109,6 +111,7 @@ Enter with `Ctrl-B [`. From there:
 - Click a pane: gives it focus.
 - Drag the border between two panes, side by side or stacked: resizes
   them.
+- Click a window tab in the status bar: switches to it.
 - Wheel: if the pane has scrollback, automatically enters copy-mode and
   scrolls; scrolling back to the bottom exits it automatically.
 - Drag in copy-mode: selects text and copies it on release.
