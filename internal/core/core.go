@@ -28,10 +28,16 @@ const (
 	ModeNormal Mode = iota
 	ModeCopy
 	ModeResize
-	ModeInput // typing a line for rename or search; see input.go
+	ModeInput   // typing a line for rename or search; see input.go
+	ModeConfirm // a pending destructive action awaiting y/n; see confirmKillWindow
 )
 
 const resizeStep = 2
+
+// doubleClickWindow is how close together two clicks on the same pane's
+// title bar need to land to count as a double-click (zoom toggle) instead
+// of two independent single clicks (focus).
+const doubleClickWindow = 400 * time.Millisecond
 
 type dragState struct {
 	node *layout.Node // split node whose divider is being dragged
@@ -67,6 +73,11 @@ type Core struct {
 
 	mouseDown              bool
 	mouseDownX, mouseDownY int
+
+	dragDownX, dragDownY int // press position for the divider drag currently in c.drag, to detect a stationary click on release
+
+	lastTitleClickID int       // pane ID of the last title-bar click, for double-click detection
+	lastTitleClickAt time.Time
 
 	cols, rows int
 
@@ -297,11 +308,21 @@ func (c *Core) detachLeafIn(w *Window, n *layout.Node) {
 }
 
 func (c *Core) toggleZoom() {
+	c.toggleZoomOn(c.win().active)
+}
+
+// toggleZoomOn zooms n specifically (making it active first if it wasn't),
+// or un-zooms if n is already the zoomed pane — unlike toggleZoom, which
+// always acts on whatever's currently active, this lets a click somewhere
+// else (double-clicking a title bar) target a pane directly regardless of
+// focus.
+func (c *Core) toggleZoomOn(n *layout.Node) {
 	w := c.win()
-	if w.zoomed != nil {
+	if w.zoomed == n {
 		w.zoomed = nil
 	} else {
-		w.zoomed = w.active
+		w.active = n
+		w.zoomed = n
 	}
 	c.relayoutLocked()
 }

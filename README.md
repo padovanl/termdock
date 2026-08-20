@@ -67,7 +67,7 @@ active pane.
 | `n` / `p` | switch to the next / previous window |
 | `0`-`9` | jump straight to window N |
 | `,` | rename the current window |
-| `&` | close the current window (and every pane in it) |
+| `&` | close the current window and every pane in it (asks `y`/`n` first) |
 | `]` | paste the most recently copied (yanked) text into the active pane |
 | `d` | **detach**: disconnect from the session, which keeps running in the background |
 | `q` | quit termdock (closes the whole session and every window) |
@@ -109,6 +109,8 @@ Enter with `Ctrl-B [`. From there:
 ### Mouse
 
 - Click a pane: gives it focus.
+- Double-click a pane's title bar: zooms it (same as `Ctrl-B z`); double-click
+  again to unzoom.
 - Drag the border between two panes, side by side or stacked: resizes
   them.
 - Click a window tab in the status bar: switches to it.

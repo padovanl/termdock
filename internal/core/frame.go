@@ -163,6 +163,9 @@ func (c *Core) statusLine() (text, right, style string) {
 	case c.mode == ModeCopy || c.mode == ModeResize:
 		style = "mode"
 		hint = c.statusMsg
+	case c.mode == ModeConfirm:
+		style = "confirm"
+		hint = c.statusMsg
 	case c.prefix:
 		style = "prefix"
 		hint = "PREFIX > " + helpText

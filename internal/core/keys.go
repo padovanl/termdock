@@ -36,6 +36,10 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 		c.handleInputKey(key, r)
 		c.markDirty()
 		return Result{}
+	case ModeConfirm:
+		c.handleConfirmKey(r)
+		c.markDirty()
+		return Result{}
 	}
 
 	if !c.prefix {
@@ -96,7 +100,7 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 	case r == ',':
 		c.startInput("rename", "Rename window: ", c.windowDisplayName(c.win()), ModeNormal)
 	case r == '&':
-		c.killWindow()
+		c.confirmKillWindow()
 	case r == ']':
 		c.pasteRegister()
 	case r == 'd':
@@ -152,6 +156,17 @@ func (c *Core) forwardKey(key tcell.Key, r rune) {
 	}
 	if p, ok := c.panes[w.active.ID]; ok {
 		p.Write(b)
+	}
+}
+
+// handleConfirmKey answers a pending confirmKillWindow prompt: 'y'/'Y'
+// carries it out, anything else — including Esc — cancels with no
+// action, the safer default for a "did you mean to destroy this" prompt.
+func (c *Core) handleConfirmKey(r rune) {
+	c.mode = ModeNormal
+	c.statusMsg = ""
+	if r == 'y' || r == 'Y' {
+		c.killWindow()
 	}
 }
 

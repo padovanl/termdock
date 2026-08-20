@@ -231,6 +231,8 @@ func drawStatusBar(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 		style = tcell.StyleDefault.Background(tcell.ColorDarkGreen).Foreground(tcell.ColorWhite)
 	case "mode":
 		style = tcell.StyleDefault.Background(tcell.ColorPurple).Foreground(tcell.ColorWhite)
+	case "confirm":
+		style = tcell.StyleDefault.Background(tcell.ColorDarkRed).Foreground(tcell.ColorWhite).Bold(true)
 	}
 	drawText(screen, 0, y, f.Cols, style, "") // blank-fill the row
 

@@ -1,6 +1,8 @@
 package core
 
 import (
+	"time"
+
 	"github.com/gdamore/tcell/v2"
 
 	"termdock/internal/layout"
@@ -13,6 +15,12 @@ func (c *Core) handleMouse(m proto.ClientMsg) Result {
 
 	if len(c.windows) == 0 {
 		return Result{} // session mid-shutdown; a lingering connection raced us here
+	}
+	if c.mode == ModeConfirm {
+		// A pending "kill this window?" prompt only listens for
+		// keyboard y/n (handleConfirmKey) — a stray click shouldn't be
+		// able to act on whatever's underneath while it's up.
+		return Result{}
 	}
 
 	buttons := tcell.ButtonMask(m.MouseButtons)
@@ -44,7 +52,19 @@ func (c *Core) handleMouse(m proto.ClientMsg) Result {
 
 func (c *Core) handleNormalMouse(primary, released bool, x, y int) {
 	if released {
+		drag := c.drag
 		c.drag = nil
+		// A divider is also where a "second child" pane's title bar
+		// lives (see internal/layout.Compute), so a press there is
+		// ambiguous: it might be the start of a resize drag, or just a
+		// click on that title bar. Committing to "drag" on every press
+		// would make the title unclickable; deciding on press whether
+		// it's a click would make the divider undraggable. Waiting
+		// until release and checking whether the drag actually moved
+		// resolves it without sacrificing either.
+		if drag != nil && x == c.dragDownX && y == c.dragDownY {
+			c.clickAt(x, y)
+		}
 		return
 	}
 	if !primary {
@@ -59,16 +79,71 @@ func (c *Core) handleNormalMouse(primary, released bool, x, y int) {
 		c.relayoutLocked()
 		return
 	}
-	if c.statusRows() > 0 && y == c.rows-1 && c.clickWindowTab(x) {
-		return
-	}
 	if c.win().zoomed == nil {
 		if node := layout.HitDivider(c.win().root, x, y); node != nil {
 			c.drag = &dragState{node: node, axis: node.Split}
+			c.dragDownX, c.dragDownY = x, y
 			return
 		}
 	}
+	c.clickAt(x, y)
+}
+
+// clickAt handles a plain click (a press with no divider under it, or a
+// press-and-release on a divider with no movement in between): the status
+// bar's window tab strip, a pane's title bar — which focuses it, or on a
+// second quick click zooms/unzooms it, the same double-click convention a
+// window manager uses — or otherwise just gives the clicked pane focus.
+func (c *Core) clickAt(x, y int) {
+	if leaf := c.leafTitleAt(x, y); leaf != nil {
+		if c.registerTitleClick(leaf) {
+			c.toggleZoomOn(leaf)
+		} else {
+			c.setActive(leaf)
+		}
+		return
+	}
+	if c.statusRows() > 0 && y == c.rows-1 && c.clickWindowTab(x) {
+		return
+	}
 	c.focusAt(x, y)
+}
+
+// leafTitleAt returns the leaf whose title-bar row (its border's top
+// edge, one row above its content — see internal/layout.Node.Rect) x,y
+// falls on, or nil.
+func (c *Core) leafTitleAt(x, y int) *layout.Node {
+	w := c.win()
+	leaves := layout.Leaves(w.root)
+	if w.zoomed != nil {
+		leaves = []*layout.Node{w.zoomed}
+	}
+	for _, l := range leaves {
+		r := l.Rect
+		if y == r.Y-1 && x >= r.X-1 && x <= r.X+r.W {
+			return l
+		}
+	}
+	return nil
+}
+
+// registerTitleClick reports whether this title-bar click on n is the
+// second half of a double-click (same pane, within doubleClickWindow of
+// the last one) — and, either way, records it as "the last click" for the
+// next call to compare against.
+func (c *Core) registerTitleClick(n *layout.Node) bool {
+	now := time.Now()
+	isDouble := c.lastTitleClickID == n.ID && now.Sub(c.lastTitleClickAt) < doubleClickWindow
+	if isDouble {
+		// Consumed: a third click right after starts a fresh pair
+		// rather than being read as yet another double-click.
+		c.lastTitleClickID = 0
+		c.lastTitleClickAt = time.Time{}
+	} else {
+		c.lastTitleClickID = n.ID
+		c.lastTitleClickAt = now
+	}
+	return isDouble
 }
 
 // clickWindowTab switches to the window whose tab strip entry column x

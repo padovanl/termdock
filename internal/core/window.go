@@ -1,6 +1,8 @@
 package core
 
 import (
+	"fmt"
+
 	"termdock/internal/layout"
 	"termdock/internal/pane"
 )
@@ -153,6 +155,23 @@ func (c *Core) afterWindowSwitch() {
 	}
 	c.drag = nil
 	c.mouseDown = false
+	c.lastTitleClickID = 0
+}
+
+// confirmKillWindow asks before killWindow actually runs: closing a
+// window takes every pane in it down at once, with no undo, so — unlike
+// closing a single pane with 'x' — it's worth one extra keypress to catch
+// a stray 'x'-shaped typo. y/Y confirms, anything else (including Esc)
+// cancels; see handleConfirmKey.
+func (c *Core) confirmKillWindow() {
+	w := c.win()
+	n := len(layout.Leaves(w.root))
+	plural := "s"
+	if n == 1 {
+		plural = ""
+	}
+	c.mode = ModeConfirm
+	c.statusMsg = fmt.Sprintf("kill window %q and its %d pane%s? (y/n)", c.windowDisplayName(w), n, plural)
 }
 
 // killWindow closes every pane in the active window and removes it.
