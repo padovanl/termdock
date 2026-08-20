@@ -149,7 +149,7 @@ func (c *Core) handleCopyKey(key tcell.Key, r rune) Result {
 		c.exitCopyMode()
 		return Result{Clipboard: text, HasClipboard: ok}
 	case r == '/':
-		c.startInput("search", "Search: ", c.copy.searchTerm, ModeCopy)
+		c.startInput("search", "Search (regex or text): ", c.copy.searchTerm, ModeCopy)
 	case r == 'n':
 		c.searchNext(1)
 	case r == 'N':
@@ -234,13 +234,15 @@ func (c *Core) yank() (string, bool) {
 	return text, true
 }
 
-// searchNext looks for the next (dir=1) or previous (dir=-1) occurrence of
-// c.copy.searchTerm, wrapping around the whole scrollback+live buffer,
-// case-insensitively, starting just past the cursor. Moves the cursor and
-// scrolls it into view on a hit; leaves a "no match" status otherwise.
+// searchNext looks for the next (dir=1) or previous (dir=-1) occurrence
+// of c.copy.searchTerm (a regex if it compiles as one, a literal
+// substring otherwise — see compileSearch), wrapping around the whole
+// scrollback+live buffer, case-insensitively, starting just past the
+// cursor. Moves the cursor and scrolls it into view on a hit; leaves a
+// "no match" status otherwise.
 func (c *Core) searchNext(dir int) {
-	needle := strings.ToLower(c.copy.searchTerm)
-	if needle == "" {
+	re := compileSearch(c.copy.searchTerm)
+	if re == nil {
 		return
 	}
 	p, ok := c.panes[c.copy.paneID]
@@ -268,11 +270,11 @@ func (c *Core) searchNext(dir int) {
 			}
 			sb.WriteRune(ch)
 		}
-		idx := strings.Index(strings.ToLower(sb.String()), needle)
-		if idx < 0 {
+		loc := re.FindStringIndex(sb.String())
+		if loc == nil {
 			continue
 		}
-		c.copy.curX, c.copy.curY = idx, y
+		c.copy.curX, c.copy.curY = loc[0], y
 		c.clampTop(rows, total)
 		if c.copy.curY < c.copy.top || c.copy.curY >= c.copy.top+rows {
 			c.copy.top = clampi(y-rows/2, 0, maxi(0, total-rows))

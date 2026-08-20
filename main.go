@@ -65,6 +65,8 @@ func main() {
 		cmdSplitWindow(args[1:])
 	case "select-window":
 		cmdSelectWindow(args[1:])
+	case "select-pane":
+		cmdSelectPane(args[1:])
 	case "list-windows":
 		cmdListWindows(args[1:])
 	case "list-panes":
@@ -253,6 +255,7 @@ SESSION[:WINDOW[.PANE]], e.g. "main", "main:1", "main:1.4"):
   termdock new-window -t SESSION [-n NAME] [command...]
   termdock split-window -t TARGET [-v|-s] [command...]
   termdock select-window -t SESSION:WINDOW
+  termdock select-pane -t TARGET -L|-R|-U|-D
   termdock list-windows -t SESSION
   termdock list-panes -t SESSION[:WINDOW]
 

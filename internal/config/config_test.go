@@ -42,6 +42,47 @@ func TestLoadMissingFileReturnsDefaults(t *testing.T) {
 	}
 }
 
+func TestLoadParsesBindOverrides(t *testing.T) {
+	writeConfig(t, "bind M jump-picker\nbind Space cycle-layout\n")
+	cfg := Load()
+	want := map[rune]string{'M': "jump-picker", ' ': "cycle-layout"}
+	if len(cfg.BindOverrides) != len(want) {
+		t.Fatalf("BindOverrides = %v, want %v", cfg.BindOverrides, want)
+	}
+	for r, act := range want {
+		if cfg.BindOverrides[r] != act {
+			t.Fatalf("BindOverrides[%q] = %q, want %q", r, cfg.BindOverrides[r], act)
+		}
+	}
+}
+
+func TestLoadIgnoresMalformedBindLines(t *testing.T) {
+	writeConfig(t, "bind toolong jump-picker\nbind M\nbind\n")
+	cfg := Load()
+	if len(cfg.BindOverrides) != 0 {
+		t.Fatalf("malformed bind lines should all be ignored, got %v", cfg.BindOverrides)
+	}
+}
+
+func TestDefaultHasNoBindOverrides(t *testing.T) {
+	if len(Default().BindOverrides) != 0 {
+		t.Fatalf("expected no bind overrides by default, got %v", Default().BindOverrides)
+	}
+}
+
+func TestLoadParsesFocusEvents(t *testing.T) {
+	writeConfig(t, "focus-events on\n")
+	if cfg := Load(); !cfg.FocusEvents {
+		t.Fatal("expected FocusEvents = true")
+	}
+}
+
+func TestDefaultHasFocusEventsOff(t *testing.T) {
+	if Default().FocusEvents {
+		t.Fatal("expected FocusEvents off by default")
+	}
+}
+
 func TestLoadParsesPopupCommand(t *testing.T) {
 	writeConfig(t, "popup-command lazygit --arg\n")
 	cfg := Load()

@@ -177,3 +177,26 @@ func TestCopyModeSelectedRespectsLineWise(t *testing.T) {
 		t.Fatal("line-wise selection should still respect the row range")
 	}
 }
+
+// TestCopyModeSearchRegexPattern checks copy-mode's own "/" search
+// (searchNext) accepts a regex pattern the same way global search does
+// — both go through the shared compileSearch.
+func TestCopyModeSearchRegexPattern(t *testing.T) {
+	c := newTestCore(t)
+	paneID := c.win().active.ID
+	writeAndWaitEcho(t, c, paneID, "echo status-code-500")
+	y := findAbsRow(t, c, paneID, "status-code-500")
+
+	c.mu.Lock()
+	c.enterCopyMode()
+	c.copy.curY = 0 // start above the match so searchNext has to scan forward to find it
+	c.copy.searchTerm = `code-\d+`
+	c.searchNext(1)
+	curY := c.copy.curY
+	statusMsg := c.statusMsg
+	c.mu.Unlock()
+
+	if curY != y {
+		t.Fatalf("regex search should have landed on row %d (the match), got %d; statusMsg=%q", y, curY, statusMsg)
+	}
+}

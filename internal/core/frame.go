@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/padovanl/termdock/internal/layout"
@@ -153,15 +154,62 @@ func (c *Core) paneTitle(idx int, p *pane.Pane) string {
 	return fmt.Sprintf("%d:%s", idx, c.shellName)
 }
 
-// helpText is the full keybinding cheat-sheet, shown both transiently
-// while the prefix key is held and persistently after Ctrl-B ? — until
-// this line exists, "Ctrl-B ?" is what the idle status bar tells you to
-// press, so it needs to actually go somewhere.
-const helpText = "v/% vsplit | s/\" hsplit | hjkl/arrows move | o/Tab cycle | z zoom | r resize | " +
-	"[ copy | ] paste | = registers | y sync | c new-win | n/p next/prev-win | w jump | W last-win | ; last-pane | g overview | " +
-	"/ search | S sessions | P popup | u open link | ! break-pane | Q quick-jump | : command | " +
-	"Space layout | R respawn | L log | 0-9 win# | , rename | & kill-win | " +
-	"x close-pane | d detach | q quit | ? help"
+// cheatSheet is the terse keybinding cheat-sheet shown transiently
+// while the prefix key is held — "Ctrl-B ?" is what the idle status
+// bar tells you to press instead, for the full, one-line-per-binding
+// reference (see help.go). Built from the session's actual current
+// bindings (defaults, overridden per-key by config's "bind" setting)
+// rather than a hardcoded string, so a rebound key shows up correctly
+// here too instead of the cheat-sheet quietly lying about what a key
+// does. hjkl/arrows and o/Tab are shown grouped only when all of a
+// group's keys are still on their defaults — a partial rebind (say,
+// just 'h' moved elsewhere) falls back to listing each surviving
+// binding on its own instead of a group label that would no longer be
+// accurate.
+func (c *Core) cheatSheet() string {
+	var parts []string
+	if movementIsDefault(c.bindings) {
+		parts = append(parts, "hjkl/arrows move")
+	} else {
+		for _, act := range []action{actFocusLeft, actFocusDown, actFocusUp, actFocusRight} {
+			for _, r := range keysForAction(c.bindings, act) {
+				parts = append(parts, keyLabel(r)+" "+actionShort[act])
+			}
+		}
+	}
+	if cycleIsDefault(c.bindings) {
+		parts = append(parts, "o/Tab cycle")
+	} else {
+		for _, r := range keysForAction(c.bindings, actCycleFocus) {
+			parts = append(parts, keyLabel(r)+" cycle")
+		}
+	}
+	for _, act := range actionOrder {
+		switch act {
+		case actFocusLeft, actFocusRight, actFocusUp, actFocusDown, actCycleFocus:
+			continue // handled above, grouped when possible
+		}
+		keys := keysForAction(c.bindings, act)
+		if len(keys) == 0 {
+			continue
+		}
+		labels := make([]string, len(keys))
+		for i, r := range keys {
+			labels[i] = keyLabel(r)
+		}
+		parts = append(parts, strings.Join(labels, "/")+" "+actionShort[act])
+	}
+	parts = append(parts, "0-9 win#")
+	return strings.Join(parts, " | ")
+}
+
+func movementIsDefault(b map[rune]action) bool {
+	return b['h'] == actFocusLeft && b['j'] == actFocusDown && b['k'] == actFocusUp && b['l'] == actFocusRight
+}
+
+func cycleIsDefault(b map[rune]action) bool {
+	return b['o'] == actCycleFocus
+}
 
 func (c *Core) statusLine() (text, right, style string) {
 	// Minimal at rest — like tmux's default status line, not a permanent
@@ -195,7 +243,7 @@ func (c *Core) statusLine() (text, right, style string) {
 		hint = "type to filter, ↑↓ select, enter switch, esc cancel"
 	case c.mode == ModeSearch:
 		style = "mode"
-		hint = "type to search every pane's scrollback, ↑↓ select, enter jump, esc cancel"
+		hint = "type to search every pane's scrollback (regex or text), ↑↓ select, enter jump, esc cancel"
 	case c.mode == ModeOverview:
 		style = "mode"
 		hint = "arrows/hjkl move, click or enter jump, esc cancel"
@@ -210,7 +258,7 @@ func (c *Core) statusLine() (text, right, style string) {
 		hint = "press a pane's number to jump there, any other key cancels"
 	case c.prefix:
 		style = "prefix"
-		hint = "PREFIX > " + helpText
+		hint = "PREFIX > " + c.cheatSheet()
 	case c.statusMsg != "":
 		hint = c.statusMsg
 	}

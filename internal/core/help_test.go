@@ -14,8 +14,9 @@ func TestHelpScrollClampsAndAnyKeyCloses(t *testing.T) {
 	if c.mode != ModeHelp {
 		t.Fatalf("enterHelp should set ModeHelp, got %v", c.mode)
 	}
-	if ov := c.helpOverlay(); ov == nil || len(ov.Items) != len(helpEntries) {
-		t.Fatalf("helpOverlay should list all %d entries, got %v", len(helpEntries), ov)
+	numEntries := len(c.help.entries)
+	if ov := c.helpOverlay(); ov == nil || len(ov.Items) != numEntries {
+		t.Fatalf("helpOverlay should list all %d entries, got %v", numEntries, ov)
 	}
 
 	// Scrolling up from 0 must clamp at 0, not go negative.
@@ -25,14 +26,14 @@ func TestHelpScrollClampsAndAnyKeyCloses(t *testing.T) {
 	}
 	// PgDn should advance, clamped eventually at the last entry.
 	c.handleHelpKey(tcell.KeyPgDn, 0)
-	if want := minInt(10, len(helpEntries)-1); c.help.scroll != want {
+	if want := minInt(10, numEntries-1); c.help.scroll != want {
 		t.Errorf("scroll after one PgDn = %d, want %d", c.help.scroll, want)
 	}
-	for i := 0; i < len(helpEntries)+5; i++ {
+	for i := 0; i < numEntries+5; i++ {
 		c.handleHelpKey(tcell.KeyDown, 0)
 	}
-	if c.help.scroll != len(helpEntries)-1 {
-		t.Errorf("scroll should clamp at the last entry (%d), got %d", len(helpEntries)-1, c.help.scroll)
+	if c.help.scroll != numEntries-1 {
+		t.Errorf("scroll should clamp at the last entry (%d), got %d", numEntries-1, c.help.scroll)
 	}
 	if c.mode != ModeHelp {
 		t.Fatalf("scrolling must not close the help screen, mode=%v", c.mode)

@@ -78,6 +78,39 @@ func (c *Core) CLISelectWindow(windowIdx int, windowName string) error {
 	return nil
 }
 
+// CLISelectPane moves the target window's focus one step in a spatial
+// direction ("L"/"R"/"U"/"D") — the piece external tooling (a
+// vim-tmux-navigator-style plugin, say) needs to move pane focus by
+// direction without an interactive client attached, the same way
+// CLISelectWindow already lets a script pick a window by index/name.
+// Not an error if there's simply nothing in that direction (a no-op,
+// same as tmux's own select-pane -D at the edge of a layout) — only an
+// unknown window or an unrecognized direction letter is.
+func (c *Core) CLISelectPane(windowIdx int, windowName string, direction string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	w, ok := c.resolveWindow(windowIdx, windowName)
+	if !ok {
+		return errors.New("no such window")
+	}
+	var dx, dy int
+	switch direction {
+	case "L":
+		dx = -1
+	case "R":
+		dx = 1
+	case "U":
+		dy = -1
+	case "D":
+		dy = 1
+	default:
+		return errors.New("direction must be one of L, R, U, D")
+	}
+	c.moveFocusIn(w, dx, dy)
+	c.markDirty()
+	return nil
+}
+
 // CLIListWindows summarizes every window in the session.
 func (c *Core) CLIListWindows() []proto.WindowInfo {
 	c.mu.Lock()

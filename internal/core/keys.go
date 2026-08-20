@@ -94,30 +94,62 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 	switch {
 	case key == c.prefixKey:
 		c.forwardKey(key, r) // double prefix-key press: send it through literally
-	case r == 'v' || r == '%':
+	// Arrow keys and Tab are always-available alternates for their
+	// default rune bindings (hjkl, o) regardless of any "bind"
+	// override — see bindings.go's package doc for why rebinding is
+	// scoped to runes only.
+	case key == tcell.KeyLeft:
+		res = c.dispatchAction(actFocusLeft)
+	case key == tcell.KeyRight:
+		res = c.dispatchAction(actFocusRight)
+	case key == tcell.KeyUp:
+		res = c.dispatchAction(actFocusUp)
+	case key == tcell.KeyDown:
+		res = c.dispatchAction(actFocusDown)
+	case key == tcell.KeyTab:
+		res = c.dispatchAction(actCycleFocus)
+	case r >= '0' && r <= '9':
+		c.selectWindowIndex(int(r - '0'))
+	default:
+		if act, ok := c.bindings[r]; ok {
+			res = c.dispatchAction(act)
+		}
+	}
+	c.markDirty()
+	return res
+}
+
+// dispatchAction runs act — the single place every prefix-key command
+// is actually invoked from, whether reached via its default rune, a
+// config "bind" override, or one of the fixed arrow/Tab alternates
+// above. c.mu is already held (handleKey's caller).
+func (c *Core) dispatchAction(act action) Result {
+	var res Result
+	switch act {
+	case actVSplit:
 		c.doSplit(layout.Vertical)
-	case r == 's' || r == '"':
+	case actHSplit:
 		c.doSplit(layout.Horizontal)
-	case key == tcell.KeyLeft || r == 'h':
+	case actFocusLeft:
 		c.moveFocus(-1, 0)
-	case key == tcell.KeyRight || r == 'l':
+	case actFocusRight:
 		c.moveFocus(1, 0)
-	case key == tcell.KeyUp || r == 'k':
+	case actFocusUp:
 		c.moveFocus(0, -1)
-	case key == tcell.KeyDown || r == 'j':
+	case actFocusDown:
 		c.moveFocus(0, 1)
-	case r == 'o' || key == tcell.KeyTab:
+	case actCycleFocus:
 		c.cycleFocus()
-	case r == 'x':
+	case actClosePane:
 		c.killActive()
-	case r == 'z':
+	case actZoom:
 		c.toggleZoom()
-	case r == 'r':
+	case actResizeMode:
 		c.mode = ModeResize
 		c.statusMsg = "RESIZE: arrows/hjkl to resize, any other key to exit"
-	case r == '[':
+	case actCopyMode:
 		c.enterCopyMode()
-	case r == 'y':
+	case actSyncPanes:
 		w := c.win()
 		w.syncPanes = !w.syncPanes
 		if w.syncPanes {
@@ -125,63 +157,55 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 		} else {
 			c.statusMsg = "synchronized input to all panes: OFF"
 		}
-	case r == 'c':
+	case actNewWindow:
 		c.newWindow()
-	case r == 'n':
+	case actNextWindow:
 		c.switchWindow(1)
-	case r == 'p':
+	case actPrevWindow:
 		c.switchWindow(-1)
-	case r == 'w':
+	case actJumpPicker:
 		c.enterPicker()
-	case r == 'W':
-		// tmux's own last-window binding is lowercase 'l', but that's
-		// already "move focus right" here (the vim-style hjkl pane
-		// navigation above) — 'W' instead, next to 'w' (jump picker),
-		// which this is a faster one-key version of for the single most
-		// common case ("go back to the window I was just on").
+	case actLastWindow:
 		c.toggleLastWindow()
-	case r == ';':
+	case actLastPane:
 		c.toggleLastPane()
-	case r >= '0' && r <= '9':
-		c.selectWindowIndex(int(r - '0'))
-	case r == ',':
-		c.startInput("rename", "Rename window: ", c.windowDisplayName(c.win()), ModeNormal)
-	case r == '&':
-		c.confirmKillWindow()
-	case r == ']':
-		c.pasteRegister()
-	case r == '=':
-		c.enterRegisterPicker()
-	case r == 'S':
-		c.enterSessionPicker()
-	case r == '/':
-		c.enterGlobalSearch()
-	case r == 'g':
+	case actOverview:
 		c.enterOverview()
-	case r == 'P':
+	case actGlobalSearch:
+		c.enterGlobalSearch()
+	case actSwitchSession:
+		c.enterSessionPicker()
+	case actPopup:
 		c.togglePopup()
-	case r == 'u':
+	case actOpener:
 		c.enterOpener()
-	case r == '!':
+	case actBreakPane:
 		c.breakPaneToNewWindow()
-	case r == 'Q':
+	case actQuickJump:
 		c.enterQuickJump()
-	case r == ':':
+	case actCommandPrompt:
 		c.enterCommandPrompt()
-	case r == ' ':
+	case actCycleLayout:
 		c.cycleLayout()
-	case r == 'R':
+	case actRespawnPane:
 		c.respawnActivePane()
-	case r == 'L':
+	case actToggleLogging:
 		c.toggleLogging()
-	case r == 'd':
+	case actRenameWindow:
+		c.startInput("rename", "Rename window: ", c.windowDisplayName(c.win()), ModeNormal)
+	case actKillWindow:
+		c.confirmKillWindow()
+	case actPaste:
+		c.pasteRegister()
+	case actPastePicker:
+		c.enterRegisterPicker()
+	case actDetach:
 		res.Detach = true
-	case r == 'q':
-		c.requestQuit()
-	case r == '?':
+	case actQuit:
+		c.confirmQuit()
+	case actHelp:
 		c.enterHelp()
 	}
-	c.markDirty()
 	return res
 }
 
@@ -216,14 +240,18 @@ func (c *Core) forwardKey(key tcell.Key, r rune) {
 	}
 }
 
-// handleConfirmKey answers a pending confirmKillWindow prompt: 'y'/'Y'
-// carries it out, anything else — including Esc — cancels with no
-// action, the safer default for a "did you mean to destroy this" prompt.
+// handleConfirmKey answers a pending confirm prompt (see
+// confirmKillWindow/confirmQuit, whichever set c.pendingConfirm most
+// recently): 'y'/'Y' runs it, anything else — including Esc — cancels
+// with no action, the safer default for a "did you mean to destroy
+// this" prompt.
 func (c *Core) handleConfirmKey(r rune) {
 	c.mode = ModeNormal
 	c.statusMsg = ""
-	if r == 'y' || r == 'Y' {
-		c.killWindow()
+	fn := c.pendingConfirm
+	c.pendingConfirm = nil
+	if (r == 'y' || r == 'Y') && fn != nil {
+		fn()
 	}
 }
 

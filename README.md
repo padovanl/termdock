@@ -56,6 +56,11 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
 | 📈 **CPU / memory segments** | built in, read straight from `/proc`, no subprocess | tmux needs the external `tmux-cpu`/`tmux-mem-cpu-load` plugins |
 | 📏 **Line-wise copy selection** | `V` in copy-mode selects whole lines, `v` switches back without losing the selection | tmux's own copy-mode line-selection, same `V`/`v` idea |
 | 🪟 **Popup running a specific tool** | `popup-command lazygit` in the config — no scripted binding needed | tmux needs a scripted `bind ... display-popup -E lazygit` |
+| ⌨️ **Rebind a keybinding** | one `bind <key> <action>` config line, e.g. `bind M jump-picker` | tmux's own `bind-key`, same idea |
+| 🎯 **Pane focus events** | `focus-events on` forwards synthetic focus-in/out on every pane/window switch | tmux's own `focus-events`, same idea (plus real OS-level focus tmux also forwards — see [🚧 What's missing](#-whats-missing-on-purpose-for-now)) |
+| ➡️ **Move pane focus from a script** | `termdock select-pane -t TARGET -L/-R/-U/-D`, no client attached | tmux's own `select-pane -L/-R/-U/-D` |
+| ⚠️ **Quitting the whole session** | `Ctrl-B q` asks `y`/`n` first — closing every window and pane at once deserves the same care `&` already gets | gone immediately, no confirmation |
+| 🔎 **Regex search** | copy-mode `/` and global search both accept a regex (falls back to a literal substring if it doesn't compile) | copy-mode search is a plain substring only |
 
 Every "tmux needs the external `tmux-whatever` plugin" above is describing **tmux**, not termdock: everything in the termdock column is built into the single `termdock` binary. There's no plugin manager, no plugin API, and nothing here — themes, status segments, logging, the popup, any of it — ever needs an external plugin, script, or program to work. The one narrow exception is the `git` status segment, which shells out to your system's own `git` binary the same way any git integration would (not a termdock plugin, just using the tool that's already there) — everything else is pure Go, self-contained.
 
@@ -161,7 +166,9 @@ working in it.
 
 Every command starts with the **`Ctrl-B` prefix**, followed by a key. Any
 other key, when `Ctrl-B` wasn't just pressed, is forwarded straight to the
-active pane.
+active pane. Every one of these is the *default* — see
+[⌨️ Custom keybindings](#-custom-keybindings) below to rebind any of
+them to a different key.
 
 | Key after `Ctrl-B` | Action |
 |---|---|
@@ -196,7 +203,7 @@ active pane.
 | `&` | ⚠️ close the current window and every pane in it (asks `y`/`n` first) |
 | `x` | close the active pane |
 | `d` | **detach**: disconnect from the session, which keeps running in the background |
-| `q` | quit termdock (closes the whole session and every window) |
+| `q` | ⚠️ quit termdock — asks `y`/`n` first (closes the whole session and every window) |
 | `?` | ❓ open a scrollable keybinding reference (any key closes it) |
 | `Ctrl-B` | double-press: sends a literal `Ctrl-B` to the active pane |
 
@@ -268,8 +275,10 @@ that build running" when you've lost track across a dozen panes.
 screen — across every window, all at once. Copy-mode's own `/` (below)
 only ever looks inside the one pane you're already in; this is for "did
 I see that error somewhere, but I don't remember which pane." Type to
-search (plain case-insensitive substring, live results as you type),
-`↑`/`↓` move between matches, `Enter` jumps straight to the exact
+search — case-insensitive, live results as you type, your query tried
+as a regex first and falling back to a literal substring if it doesn't
+compile as one — `↑`/`↓` move between matches, `Enter` jumps straight to
+the exact
 matching line — switching to that window/pane and dropping you into
 copy-mode with the cursor right on it — `Esc` cancels.
 
@@ -407,6 +416,36 @@ the layout: it survives `Ctrl-B !` (break-pane) moving the pane to a new
 window, but a `Ctrl-B R` respawn — which replaces the process outright —
 starts the fresh shell with logging off, the same as any other new pane.
 
+### ⌨️ Custom keybindings
+
+Every keybinding in the [⌨️ Keys](#-keys) table above is a *default*,
+not a fixed assignment: `bind <key> <action>` in the config (see
+[⚙️ Configuration](#-configuration)) reassigns one key to a different
+action, e.g. `bind M jump-picker` moves the jump picker from `w` to
+`M` (both then trigger it, since `bind` only touches the one key you
+name — `w` keeps its old meaning unless you rebind that too). The full
+list of action names is in `internal/core/bindings.go`; the help screen
+(`Ctrl-B ?`) and the prefix-held cheat-sheet both always reflect
+whatever's currently bound, default or rebound, so neither one goes
+stale the moment you customize something. Scoped to the top-level
+`Ctrl-B`-prefixed commands only — copy-mode's own keys, the popup's, a
+picker's type-ahead, and so on aren't rebindable. Arrow keys and `Tab`
+are always-available alternates for movement/cycling regardless of any
+rebind, the same way they were before this existed.
+
+### 🎯 Focus events
+
+`focus-events on` in the config makes termdock forward a synthetic
+terminal focus-in/focus-out sequence (`\x1b[I`/`\x1b[O`) to a pane
+whenever you switch to/away from it — the same signal a real terminal
+sends on Alt-Tab, which apps like neovim's `:checktime`-on-FocusGained
+autoread react to, so switching back to a pane running an editor that
+was modified elsewhere on disk notices right away. Off by default, same
+as tmux's own `focus-events`. This covers termdock's own internal
+pane/window switching only, not your terminal emulator itself gaining
+or losing OS-level focus — see
+[🚧 What's missing](#-whats-missing-on-purpose-for-now).
+
 ### ❓ Help
 
 `Ctrl-B ?` opens a scrollable reference listing every keybinding —
@@ -437,7 +476,10 @@ Enter with `Ctrl-B [`. From there:
   iTerm2, Windows Terminal, kitty, WezTerm, recent gnome-terminal...).
 - `/`: search the scrollback (type the text, `Enter` jumps to the closest
   match searching forward). `n` / `N` repeat the last search forward /
-  backward. Matching is a plain case-insensitive substring, no regex.
+  backward. Case-insensitive; your query is tried as a regular
+  expression first (`err(or)?-\d+` works) and only falls back to a
+  literal substring match if it doesn't compile as one — same as the
+  global search below.
 - `q` or `Esc`: exit without copying.
 
 ### 🖱️ Mouse
@@ -500,6 +542,7 @@ termdock send-keys -t TARGET text... [Enter]     # type text into a pane; traili
 termdock new-window -t SESSION [-n NAME] [cmd...] # new window, optionally running cmd instead of the shell
 termdock split-window -t TARGET [-v|-s] [cmd...]  # -v side by side (default), -s stacked
 termdock select-window -t SESSION:WINDOW          # make a window the visible one
+termdock select-pane -t TARGET -L|-R|-U|-D        # move that window's focus one pane in a direction
 termdock list-windows -t SESSION
 termdock list-panes -t SESSION[:WINDOW]
 ```
@@ -515,6 +558,11 @@ termdock select-window -t main:dev
 These commands work whether or not anyone is currently attached to the
 session — they talk straight to the daemon over its socket, the same way
 `termdock ls`/`kill-session` do, and don't require (or start) a client.
+`select-pane` in particular is the piece external tooling needs to move
+focus by direction without an interactive client attached at all — the
+building block a vim-tmux-navigator-style integration (seamless `hjkl`
+between vim splits and termdock panes) would call into, the same way it
+calls tmux's own `select-pane -L/-R/-U/-D` today.
 
 ### 📐 Small terminals
 
@@ -564,6 +612,8 @@ mouse on                # enable mouse support (default on)
 history-limit 10000     # scrollback lines kept per pane (default 10000)
 shell /bin/zsh           # shell for new panes (default $SHELL)
 popup-command lazygit    # what Ctrl-B P runs (default: the shell, see below)
+focus-events on          # forward synthetic pane focus-in/out (default off)
+bind M jump-picker        # rebind one key to a different action (repeatable)
 theme dracula            # bundled color preset (default: none, see below)
 status-bg black          # status bar background (default black)
 status-fg silver         # status bar foreground (default silver)
@@ -572,19 +622,21 @@ status-segments git,battery,cpu,mem  # extra segments in the status bar (default
 ```
 
 Colors accept any W3C name tcell understands, or `#rrggbb` hex.
-`prefix`/`history-limit`/`shell`/`popup-command` are read by the
-**server**, so they take effect when a session is *created* (`termdock
-new`), not on every attach; `mouse`, `theme`, and the colors are read by
-the **client**, so they apply per attach and can differ between two
-clients looking at the same session. `status-segments` is a
-comma-separated list, read by the server: `git` shows the active pane's
-current directory's branch (Linux only, empty outside a repo), `battery`
-shows charge level and charging state, `cpu`/`mem` show overall system
-usage read straight from `/proc/stat`/`/proc/meminfo` — all Linux only,
-all cached for a couple of seconds (`cpu` also needs two samples an
+`prefix`/`history-limit`/`shell`/`popup-command`/`focus-events`/`bind`
+are read by the **server**, so they take effect when a session is
+*created* (`termdock new`), not on every attach; `mouse`, `theme`, and
+the colors are read by the **client**, so they apply per attach and can
+differ between two clients looking at the same session. `status-segments`
+is a comma-separated list, read by the server: `git` shows the active
+pane's current directory's branch (Linux only, empty outside a repo),
+`battery` shows charge level and charging state, `cpu`/`mem` show overall
+system usage read straight from `/proc/stat`/`/proc/meminfo` — all Linux
+only, all cached for a couple of seconds (`cpu` also needs two samples an
 interval apart to compute a delta from, so it shows nothing for the
 first few seconds after being enabled) so nothing here adds real
-overhead to every redraw.
+overhead to every redraw. See
+[⌨️ Custom keybindings](#-custom-keybindings) and
+[🎯 Focus events](#-focus-events) above for `bind` and `focus-events`.
 
 ### 🎨 Themes
 
@@ -609,7 +661,7 @@ back to the plain defaults.
   starting the background daemon.
 - `cli.go` — the scripting commands (`send-keys`/`new-window`/...).
 - `internal/config` — the optional config file: prefix key, mouse, colors,
-  bundled themes, scrollback size, shell.
+  bundled themes, scrollback size, shell, keybinding overrides, focus events.
 - `internal/pane` — one pane: a shell process in a pty + the VT100
   emulator that interprets its output.
 - `internal/vt10x` — the terminal emulator ([vt10x](https://github.com/hinshun/vt10x),
@@ -618,13 +670,15 @@ back to the plain defaults.
 - `internal/layout` — the binary split tree (vertical/horizontal) that
   computes each pane's on-screen rectangle, and interactive resizing.
 - `internal/core` — the session's brain, with no terminal attached:
-  windows, panes, layout, copy-mode (character- and line-wise selection),
-  mouse, resize-mode, the jump picker, last-window/last-pane toggling,
-  global search, the pane overview, paste registers, session switching,
-  the popup terminal, the URL/path opener, the activity bell,
-  break-pane, status bar segments (including CPU/memory), quick-jump,
-  the command prompt, preset layouts, respawn-pane, pane logging, help
-  screen. Runs in the server.
+  windows, panes, layout, copy-mode (character- and line-wise selection,
+  regex search), mouse, resize-mode, the jump picker,
+  last-window/last-pane toggling, global search (regex), the pane
+  overview, paste registers, session switching, the popup terminal, the
+  URL/path opener, the activity bell, break-pane, status bar segments
+  (including CPU/memory), quick-jump, the command prompt, preset
+  layouts, respawn-pane, pane logging, rebindable keybindings
+  (`bindings.go`), synthetic focus events (`focusevents.go`),
+  confirm-before-quit, help screen. Runs in the server.
 - `internal/proto` — the messages exchanged between client and server
   over the socket.
 - `internal/persist` — the on-disk session-snapshot format and file I/O
@@ -661,15 +715,24 @@ prompt's every verb, preset layouts' equal-share math, respawn-pane,
 pane logging, last-window/last-pane toggling (including the dangling
 pointer a closed or moved-elsewhere target would otherwise leave — see
 `internal/core/lasttoggle_test.go`), copy-mode's character- vs.
-line-wise selection (`internal/core/copymode_test.go`), and end-to-end
-crash-recovery), and `internal/server`, with real socket-level
-integration tests: two actual daemons for a session-switch to jump
-between, a read-only client's input and resize both confirmed dropped
-by driving a second, ordinary client and checking what it sees, a
-background window's activity confirmed to ring a bell on an attached
-client, and several rounds of new keybindings driven end to end through
-one real client connection. `internal/core/interop_test.go` specifically
-checks features against *each other* — logging surviving a break-pane, a
+line-wise selection and both search modes' regex-with-literal-fallback
+(`internal/core/copymode_test.go`, `search_test.go`, `textsearch_test.go`),
+the rebinding system (`bindings_test.go` — a rebound key routes to the
+right action, an unknown action name is ignored, the help screen/cheat-sheet
+stay accurate, arrows/Tab keep working regardless), synthetic focus
+events (`focusevents_test.go`), select-pane's direction math including
+targeting a *background* window (`cli_test.go`), and quit now asking for
+confirmation the same way kill-window already did, from every path that
+can reach it including the popup's own separate key handler
+(`quit_test.go`), and end-to-end crash-recovery), and `internal/server`, with real
+socket-level integration tests: two actual daemons for a session-switch
+to jump between, a read-only client's input and resize both confirmed
+dropped by driving a second, ordinary client and checking what it sees,
+a background window's activity confirmed to ring a bell on an attached
+client, and several rounds of new keybindings — including a config-driven
+`bind` override and `select-pane` — driven end to end through one real
+client connection. `internal/core/interop_test.go` specifically checks
+features against *each other* — logging surviving a break-pane, a
 respawn correctly *not* carrying logging over to the fresh process, the
 command prompt's verbs matching their direct keybindings exactly —
 rather than each in isolation. All of it spins up real shells in real
@@ -692,8 +755,10 @@ rather than firing automatically on every pushed version tag.
 
 ## 🚧 What's missing (on purpose, for now)
 
-Still not there, to keep the scope manageable: remapping individual key
-bindings (only the prefix key itself is configurable), regex search
-(substring only, in both copy-mode and the global search), and reflowing
-scrollback lines to a new width on resize (they keep whatever width they
-were written at).
+Still not there, to keep the scope manageable: reflowing scrollback
+lines to a new width on resize (they keep whatever width they were
+written at), and real OS-level terminal focus forwarding —
+[focus-events](#-focus-events) only covers termdock's own internal
+pane/window switching, not the client detecting your terminal emulator
+itself gaining/losing focus (Alt-Tab), which would need protocol
+changes between the client and server this round didn't take on.

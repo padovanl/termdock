@@ -109,6 +109,50 @@ func TestGlobalSearchEmptyQueryHasNoResults(t *testing.T) {
 	}
 }
 
+func TestGlobalSearchRegexPattern(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	paneID := c.win().active.ID
+	c.mu.Unlock()
+	writeAndWaitEcho(t, c, paneID, "echo error-42")
+
+	c.mu.Lock()
+	c.enterGlobalSearch()
+	for _, r := range `err(or)?-\d+` {
+		c.handleSearchKey(tcell.KeyRune, r)
+	}
+	n := len(c.search.results)
+	c.mu.Unlock()
+
+	if n == 0 {
+		t.Fatal("regex pattern err(or)?-\\d+ should have matched the printed \"error-42\" line")
+	}
+}
+
+// TestGlobalSearchInvalidRegexFallsBackToLiteralSubstring: "(broken" is
+// not valid regex syntax on its own (an unbalanced group) — compileSearch
+// must fall back to a literal, case-insensitive substring match instead
+// of erroring out or silently matching nothing.
+func TestGlobalSearchInvalidRegexFallsBackToLiteralSubstring(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	paneID := c.win().active.ID
+	c.mu.Unlock()
+	writeAndWaitEcho(t, c, paneID, "echo 'marker-(broken-text'")
+
+	c.mu.Lock()
+	c.enterGlobalSearch()
+	for _, r := range "(broken" {
+		c.handleSearchKey(tcell.KeyRune, r)
+	}
+	n := len(c.search.results)
+	c.mu.Unlock()
+
+	if n == 0 {
+		t.Fatal("an invalid regex query should fall back to a literal substring match instead of finding nothing")
+	}
+}
+
 func TestGlobalSearchEscCancels(t *testing.T) {
 	c := newTestCore(t)
 

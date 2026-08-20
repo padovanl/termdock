@@ -108,6 +108,13 @@ type Core struct {
 	shellName string
 	hostname  string
 
+	bindings map[rune]action // defaultBindings, overridden per-key by config's "bind" setting; see SetBindOverrides
+
+	pendingConfirm func() // what ModeConfirm's y/n prompt runs on 'y'; see confirmKillWindow/confirmQuit/handleConfirmKey
+
+	focusEvents   bool // config's "focus-events"; see SetFocusEvents
+	focusedPaneID int  // the pane last sent a focus-in, for updateFocusEvents
+
 	copy         copyState
 	input        inputState
 	picker       pickerState
@@ -171,6 +178,7 @@ func New(sessionName string, cols, rows int) (*Core, error) {
 		shellName:   filepath.Base(pane.ShellPath()),
 		hostname:    hostname,
 		prefixKey:   tcell.KeyCtrlB,
+		bindings:    cloneBindings(defaultBindings),
 		cols:        cols,
 		rows:        rows,
 		dirty:       make(chan struct{}, 1),
@@ -230,6 +238,31 @@ func (c *Core) SetPopupCommand(cmd string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.popupCommand = cmd
+}
+
+// SetBindOverrides applies config-driven keybinding overrides (config's
+// "bind <key> <action>" lines) on top of defaultBindings — an unknown
+// action name is ignored, the same "bad setting, keep the default"
+// leniency every other termdock.conf key already has. Call before the
+// session has any attached clients.
+func (c *Core) SetBindOverrides(overrides map[rune]string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for r, name := range overrides {
+		if act := action(name); validActions[act] {
+			c.bindings[r] = act
+		}
+	}
+}
+
+// SetFocusEvents enables synthesizing terminal focus-in/focus-out
+// escape sequences (config's "focus-events" setting) — see
+// updateFocusEvents for exactly what that covers and doesn't. Call
+// before the session has any attached clients.
+func (c *Core) SetFocusEvents(enabled bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.focusEvents = enabled
 }
 
 func (c *Core) markDirty() {
@@ -461,7 +494,17 @@ func (c *Core) cycleFocus() {
 }
 
 func (c *Core) moveFocus(dx, dy int) {
-	w := c.win()
+	c.moveFocusIn(c.win(), dx, dy)
+}
+
+// moveFocusIn moves w's focus to the nearest leaf in the spatial
+// direction (dx,dy) from its current active one, same geometry-nearest
+// logic hjkl/arrows already use — generalized to an arbitrary window
+// (not just c.win()) so CLISelectPane can move focus in a *background*
+// window from outside, the same way CLISelectWindow already targets any
+// window by index/name regardless of which one's currently visible.
+// Reports whether anything was actually found in that direction.
+func (c *Core) moveFocusIn(w *Window, dx, dy int) bool {
 	leaves := layout.Leaves(w.root)
 	cur := w.active.Rect
 	cx, cy := cur.X+cur.W/2, cur.Y+cur.H/2
@@ -486,9 +529,15 @@ func (c *Core) moveFocus(dx, dy int) {
 			best = l
 		}
 	}
-	if best != nil {
-		c.setActive(best)
+	if best == nil {
+		return false
 	}
+	if w == c.win() {
+		c.setActive(best) // the visible window: go through the normal focus path (touchPane, focus-events, relayout)
+	} else {
+		w.active = best // a background window: nothing else needs updating until a client actually looks at it
+	}
+	return true
 }
 
 func (c *Core) setActive(n *layout.Node) {
@@ -501,6 +550,7 @@ func (c *Core) setActive(n *layout.Node) {
 	}
 	w.active = n
 	c.touchPane(n.ID)
+	c.updateFocusEvents(n.ID)
 	c.relayoutLocked()
 }
 

@@ -139,9 +139,10 @@ type ServerInfo struct {
 // "hello" starts an interactive attach (the Frame-streaming loop).
 // "query" and "kill" are one-shot control messages, answered with a
 // single reply and no attach. So are the scripting commands below
-// (send-keys, new-window, split-window, select-window, list-windows,
-// list-panes) — termdock's equivalent of tmux's command interface, for
-// driving a session from a shell script rather than a live client.
+// (send-keys, new-window, split-window, select-window, select-pane,
+// list-windows, list-panes) — termdock's equivalent of tmux's command
+// interface, for driving a session from a shell script rather than a
+// live client.
 // Detaching is driven server-side (Ctrl-B d is just a "key" message);
 // the server tells the client to hang up via ServerMsg{Kind:"bye"}.
 type ClientMsg struct {
@@ -170,8 +171,9 @@ type ClientMsg struct {
 	CLIText    string // send-keys: literal text to write to the pane
 	CLIEnter   bool   // send-keys: append a carriage return after CLIText
 	CLICommand string // new-window/split-window: run this instead of the shell
-	CLIName    string // new-window: initial window name
-	CLIAxis    string // split-window: "v" (side by side) or "s" (stacked)
+	CLIName      string // new-window: initial window name
+	CLIAxis      string // split-window: "v" (side by side) or "s" (stacked)
+	CLIDirection string // select-pane: "L"/"R"/"U"/"D"
 }
 
 // ServerMsg is anything the server sends to the client.

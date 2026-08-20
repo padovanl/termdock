@@ -41,6 +41,13 @@ func TestMain(m *testing.M) {
 // blocks until its socket answers, returning the socket path and a
 // killSession func the test should defer.
 func startSession(t *testing.T, name string) (sockPath string, kill func()) {
+	return startSessionWithConfig(t, name, config.Default())
+}
+
+// startSessionWithConfig is startSession with a caller-supplied config,
+// for tests that need to exercise a config-driven server-side setting
+// (like "bind") end to end, not just the default.
+func startSessionWithConfig(t *testing.T, name string, cfg config.Config) (sockPath string, kill func()) {
 	t.Helper()
 	sock, err := SocketPath(name)
 	if err != nil {
@@ -48,7 +55,7 @@ func startSession(t *testing.T, name string) (sockPath string, kill func()) {
 	}
 	done := make(chan struct{})
 	go func() {
-		Run(name, sock, config.Default())
+		Run(name, sock, cfg)
 		close(done)
 	}()
 
@@ -319,4 +326,90 @@ func TestNewKeybindingsEndToEnd(t *testing.T) {
 	recvUntil(t, dec, 5*time.Second, func(m proto.ServerMsg) bool {
 		return m.Kind == "frame" && m.Frame != nil && len(m.Frame.Panes) == 1
 	})
+}
+
+// TestSelectPaneEndToEnd drives the select-pane scripting command (the
+// piece external tooling like a vim-tmux-navigator-style plugin needs)
+// through a real socket connection, checking the active pane in the
+// server's own frame actually moves.
+func TestSelectPaneEndToEnd(t *testing.T) {
+	sock, kill := startSession(t, "test-select-pane-e2e")
+	defer kill()
+
+	conn, _, dec := dial(t, sock, false)
+	defer conn.Close()
+
+	if reply := oneShot(t, sock, proto.ClientMsg{Kind: "split-window", CLIAxis: "v"}); reply.CLIError != "" {
+		t.Fatalf("split-window: %s", reply.CLIError)
+	}
+	frame := recvUntil(t, dec, 5*time.Second, func(m proto.ServerMsg) bool {
+		return m.Kind == "frame" && m.Frame != nil && len(m.Frame.Panes) == 2
+	})
+	var activeBefore int
+	for _, p := range frame.Frame.Panes {
+		if p.Active {
+			activeBefore = p.ID
+		}
+	}
+
+	if reply := oneShot(t, sock, proto.ClientMsg{Kind: "select-pane", CLIDirection: "L"}); reply.CLIError != "" {
+		t.Fatalf("select-pane -L: %s", reply.CLIError)
+	}
+
+	recvUntil(t, dec, 5*time.Second, func(m proto.ServerMsg) bool {
+		if m.Kind != "frame" || m.Frame == nil {
+			return false
+		}
+		for _, p := range m.Frame.Panes {
+			if p.Active {
+				return p.ID != activeBefore
+			}
+		}
+		return false
+	})
+}
+
+// TestBindOverrideEndToEnd starts a session with "bind M jump-picker"
+// applied (the same path config.Load()/SetBindOverrides take from a
+// real termdock.conf) and checks that pressing Ctrl-B M — not the
+// default Ctrl-B w — is what opens the jump picker for a real attached
+// client.
+func TestBindOverrideEndToEnd(t *testing.T) {
+	cfg := config.Default()
+	cfg.BindOverrides = map[rune]string{'M': "jump-picker"}
+	sock, kill := startSessionWithConfig(t, "test-bind-override-e2e", cfg)
+	defer kill()
+
+	conn, enc, dec := dial(t, sock, false)
+	defer conn.Close()
+
+	sendKey(t, enc, tcell.KeyCtrlB, 0)
+	sendKey(t, enc, tcell.KeyRune, 'M')
+
+	recvUntil(t, dec, 5*time.Second, func(m proto.ServerMsg) bool {
+		return m.Kind == "frame" && m.Frame != nil && m.Frame.Overlay != nil &&
+			strings.Contains(m.Frame.Overlay.Title, "jump")
+	})
+}
+
+// TestQuitAsksForConfirmationEndToEnd checks Ctrl-B q no longer ends
+// the session immediately (see confirmQuit) by confirming the daemon is
+// still answering Probe right after sending it — a session that quit
+// outright would have shut its socket down.
+func TestQuitAsksForConfirmationEndToEnd(t *testing.T) {
+	sock, kill := startSession(t, "test-quit-confirm-e2e")
+	defer kill()
+
+	conn, enc, dec := dial(t, sock, false)
+	defer conn.Close()
+
+	sendKey(t, enc, tcell.KeyCtrlB, 0)
+	sendKey(t, enc, tcell.KeyRune, 'q')
+
+	recvUntil(t, dec, 5*time.Second, func(m proto.ServerMsg) bool {
+		return m.Kind == "frame" && m.Frame != nil && strings.Contains(m.Frame.StatusText, "quit")
+	})
+	if _, ok := Probe(sock); !ok {
+		t.Fatal("the session should still be running — Ctrl-B q should ask first, not quit immediately")
+	}
 }

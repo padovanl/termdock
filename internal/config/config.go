@@ -16,6 +16,14 @@
 //	popup-command <cmd>    command to run in the floating popup (Ctrl-B P)
 //	                       instead of an interactive shell, e.g. "lazygit"
 //	                       (default: the shell, same as a new pane)
+//	focus-events <on|off>  forward synthetic terminal focus-in/focus-out
+//	                       to a pane when you switch to/away from it
+//	                       (default off) — see internal/core/focusevents.go
+//	bind <key> <action>    rebind one prefix-key command to a different
+//	                       key, e.g. "bind M jump-picker" — repeatable,
+//	                       one key per line; <key> is a single character
+//	                       or "Space"; see internal/core/bindings.go for
+//	                       the full list of action names
 //	theme <name>           bundled color preset — see ThemeNames — applied
 //	                       before status-bg/status-fg/pane-active-bg below,
 //	                       so any of those three still overrides it
@@ -48,6 +56,8 @@ type Config struct {
 	HistoryLimit   int
 	Shell          string
 	PopupCommand   string // command to run in the popup instead of an interactive shell; see internal/core/popup.go
+	FocusEvents    bool   // forward synthetic pane focus-in/out; see internal/core/focusevents.go
+	BindOverrides  map[rune]string // "bind" lines: key -> action name; see internal/core/bindings.go
 	StatusBG       tcell.Color
 	StatusFG       tcell.Color
 	PaneActiveBG   tcell.Color
@@ -99,6 +109,10 @@ func Load() Config {
 			themeName = val
 			continue
 		}
+		if key == "bind" {
+			applyBindLine(&cfg, fields[1:])
+			continue
+		}
 		applySetting(&cfg, key, val)
 		if key == "status-bg" || key == "status-fg" || key == "pane-active-bg" {
 			overridden[key] = true
@@ -118,6 +132,8 @@ func applySetting(cfg *Config, key, val string) {
 		}
 	case "mouse":
 		cfg.Mouse = val == "on" || val == "true" || val == "yes"
+	case "focus-events":
+		cfg.FocusEvents = val == "on" || val == "true" || val == "yes"
 	case "history-limit":
 		if n, err := strconv.Atoi(val); err == nil && n > 0 {
 			cfg.HistoryLimit = n
@@ -140,6 +156,43 @@ func applySetting(cfg *Config, key, val string) {
 			}
 		}
 	}
+}
+
+// applyBindLine handles one "bind <key> <action>" line — fields is
+// everything after "bind" itself. Silently ignored (same leniency as
+// every other bad setting) if it isn't exactly a 2-token "<key>
+// <action>" pair, or <key> isn't a single character or "Space"; the
+// action name itself isn't validated here (core doesn't get imported by
+// this package — see BindOverrides' doc comment), only when
+// core.Core.SetBindOverrides applies it.
+func applyBindLine(cfg *Config, fields []string) {
+	if len(fields) != 2 {
+		return
+	}
+	r, ok := parseBindKey(fields[0])
+	if !ok {
+		return
+	}
+	if cfg.BindOverrides == nil {
+		cfg.BindOverrides = map[rune]string{}
+	}
+	cfg.BindOverrides[r] = fields[1]
+}
+
+// parseBindKey understands a single character, or "Space" (a literal
+// space can't survive being split as a whitespace-delimited config
+// token, so it needs a name instead — the same reason termdock.conf's
+// key/value format doesn't have a way to spell a space as a bare
+// character anywhere else either).
+func parseBindKey(s string) (rune, bool) {
+	if s == "Space" {
+		return ' ', true
+	}
+	r := []rune(s)
+	if len(r) != 1 {
+		return 0, false
+	}
+	return r[0], true
 }
 
 // parseKeyChord understands "C-<letter>" (the only form the prefix key

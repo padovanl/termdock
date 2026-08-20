@@ -132,7 +132,12 @@ func (c *Core) handlePopupKey(key tcell.Key, r rune) Result {
 	case r == 'd':
 		res.Detach = true
 	case r == 'q':
-		c.requestQuit()
+		// Same confirmation dispatchAction's actQuit case asks for —
+		// quitting from the popup is exactly as destructive (every
+		// window and pane in the session, not just the popup) and
+		// shouldn't have a quieter, confirmation-free back door just
+		// because the popup happened to be focused.
+		c.confirmQuit()
 	}
 	return res
 }

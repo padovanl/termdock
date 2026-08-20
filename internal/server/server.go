@@ -32,6 +32,8 @@ func Run(name, sockPath string, cfg config.Config) error {
 	c.SetPrefixKey(cfg.Prefix)
 	c.SetStatusSegments(cfg.StatusSegments)
 	c.SetPopupCommand(cfg.PopupCommand)
+	c.SetFocusEvents(cfg.FocusEvents)
+	c.SetBindOverrides(cfg.BindOverrides)
 	// core deliberately doesn't import server (server already imports
 	// core; Go disallows the cycle), so it can't discover sibling
 	// sessions itself — supplied here instead, for Ctrl-B S.
@@ -242,6 +244,12 @@ func (s *Session) handleConn(conn net.Conn, stop func()) {
 
 	case "select-window":
 		err := s.core.CLISelectWindow(hello.WindowIdx, hello.WindowName)
+		enc.Encode(cliReply(err))
+		conn.Close()
+		return
+
+	case "select-pane":
+		err := s.core.CLISelectPane(hello.WindowIdx, hello.WindowName, hello.CLIDirection)
 		enc.Encode(cliReply(err))
 		conn.Close()
 		return

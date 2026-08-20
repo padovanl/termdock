@@ -89,6 +89,31 @@ func cmdSelectWindow(args []string) {
 	}
 }
 
+func cmdSelectPane(args []string) {
+	target, rest := extractTarget(args)
+	if target == "" || len(rest) != 1 {
+		fatal("usage: termdock select-pane -t TARGET -L|-R|-U|-D")
+	}
+	dir := ""
+	switch rest[0] {
+	case "-L":
+		dir = "L"
+	case "-R":
+		dir = "R"
+	case "-U":
+		dir = "U"
+	case "-D":
+		dir = "D"
+	default:
+		fatal("usage: termdock select-pane -t TARGET -L|-R|-U|-D")
+	}
+	session, winIdx, winName, _ := parseTarget(target)
+	reply := dialCLI(session, proto.ClientMsg{Kind: "select-pane", WindowIdx: winIdx, WindowName: winName, CLIDirection: dir})
+	if reply.CLIError != "" {
+		fatal(reply.CLIError)
+	}
+}
+
 func cmdListWindows(args []string) {
 	target, _ := extractTarget(args)
 	if target == "" {

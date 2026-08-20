@@ -211,6 +211,7 @@ func (c *Core) toggleLastWindow() {
 func (c *Core) afterWindowSwitch() {
 	c.win().activity = false
 	c.touchPane(c.win().active.ID)
+	c.updateFocusEvents(c.win().active.ID)
 	c.copy = copyState{}
 	if c.mode == ModeCopy {
 		c.mode = ModeNormal
@@ -237,6 +238,28 @@ func (c *Core) confirmKillWindow() {
 	}
 	c.mode = ModeConfirm
 	c.statusMsg = fmt.Sprintf("kill window %q and its %d pane%s? (y/n)", c.windowDisplayName(w), n, plural)
+	c.pendingConfirm = c.killWindow
+}
+
+// confirmQuit asks before requestQuit actually runs: quitting closes
+// every window and every pane in the whole session at once, with no
+// undo — strictly more destructive than confirmKillWindow's single
+// window, so it gets the same y/n treatment rather than the immediate,
+// no-confirmation "x close-pane" convention.
+func (c *Core) confirmQuit() {
+	windowN := len(c.windows)
+	windowPlural := "s"
+	if windowN == 1 {
+		windowPlural = ""
+	}
+	paneN := len(c.panes)
+	panePlural := "s"
+	if paneN == 1 {
+		panePlural = ""
+	}
+	c.mode = ModeConfirm
+	c.statusMsg = fmt.Sprintf("quit termdock? this closes %d window%s and %d pane%s (y/n)", windowN, windowPlural, paneN, panePlural)
+	c.pendingConfirm = c.requestQuit
 }
 
 // killWindow closes every pane in the active window and removes it.

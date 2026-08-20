@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
@@ -103,9 +104,9 @@ func (c *Core) confirmSearch() {
 }
 
 func (c *Core) refilterSearch() {
-	query := strings.ToLower(string(c.search.query))
+	re := compileSearch(string(c.search.query))
 	var results []searchResult
-	if query != "" {
+	if re != nil {
 		for wi, w := range c.windows {
 			if len(results) >= maxSearchResults {
 				break
@@ -118,7 +119,7 @@ func (c *Core) refilterSearch() {
 				if !ok {
 					continue
 				}
-				results = append(results, searchPane(wi, l.ID, p, query, maxSearchResults-len(results))...)
+				results = append(results, searchPane(wi, l.ID, p, re, maxSearchResults-len(results))...)
 			}
 		}
 	}
@@ -126,7 +127,7 @@ func (c *Core) refilterSearch() {
 	c.search.sel = clampi(c.search.sel, 0, maxi(0, len(results)-1))
 }
 
-func searchPane(windowIdx, paneID int, p *pane.Pane, query string, limit int) []searchResult {
+func searchPane(windowIdx, paneID int, p *pane.Pane, re *regexp.Regexp, limit int) []searchResult {
 	t := p.Term()
 	t.Lock()
 	defer t.Unlock()
@@ -149,7 +150,7 @@ func searchPane(windowIdx, paneID int, p *pane.Pane, query string, limit int) []
 		if line == "" {
 			continue
 		}
-		if strings.Contains(strings.ToLower(line), query) {
+		if re.MatchString(line) {
 			out = append(out, searchResult{windowIdx: windowIdx, paneID: paneID, line: y, text: line})
 		}
 	}
@@ -172,7 +173,7 @@ func (c *Core) searchOverlay() *proto.Overlay {
 		}
 		items[i] = fmt.Sprintf("%d:%s › %s", res.windowIdx, wname, text)
 	}
-	title := "search every pane's scrollback — type to search, ↑↓ select, enter jump, esc cancel"
+	title := "search every pane's scrollback (regex or text) — type to search, ↑↓ select, enter jump, esc cancel"
 	if len(items) == maxSearchResults {
 		title += fmt.Sprintf(" (showing first %d matches)", maxSearchResults)
 	}

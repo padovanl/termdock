@@ -116,6 +116,29 @@ func TestPopupPrefixDetachAndQuitStillWork(t *testing.T) {
 	}
 }
 
+// TestPopupQuitAsksForConfirmationTooNow guards against the popup's own
+// narrow key handler becoming a confirmation-free back door for 'q' now
+// that the normal dispatch path (dispatchAction's actQuit) asks first —
+// see confirmQuit.
+func TestPopupQuitAsksForConfirmationTooNow(t *testing.T) {
+	c := newTestCore(t)
+
+	c.mu.Lock()
+	c.togglePopup()
+	c.handlePopupKey(tcell.Key(c.prefixKey), 0)
+	c.handlePopupKey(tcell.KeyRune, 'q')
+	mode := c.mode
+	closed := c.closed
+	c.mu.Unlock()
+
+	if closed {
+		t.Fatal("Ctrl-B q from the popup should ask for confirmation, not quit immediately")
+	}
+	if mode != ModeConfirm {
+		t.Fatalf("mode after Ctrl-B q from the popup = %v, want ModeConfirm", mode)
+	}
+}
+
 func TestPopupClickOutsideCloses(t *testing.T) {
 	c := newTestCore(t)
 
