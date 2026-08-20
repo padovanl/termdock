@@ -1,8 +1,8 @@
 package core
 
 import (
-	"termdock/internal/layout"
-	"termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/layout"
+	"github.com/padovanl/termdock/internal/proto"
 
 	"github.com/gdamore/tcell/v2"
 )

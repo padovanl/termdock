@@ -5,8 +5,8 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdock/internal/layout"
-	"termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/layout"
+	"github.com/padovanl/termdock/internal/proto"
 )
 
 // The pane overview (Ctrl-B g) is a "mission control" grid: every pane in

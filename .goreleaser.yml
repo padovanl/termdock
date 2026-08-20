@@ -1,0 +1,77 @@
+version: 2
+
+project_name: termdock
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: termdock
+    main: .
+    binary: termdock
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - id: termdock
+    formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^test:"
+      - "^chore:"
+
+# Publishes a Homebrew formula to a separate tap repository on every
+# release — `brew install <owner>/termdock/termdock` once it exists. The
+# tap repo (named exactly "homebrew-termdock", Homebrew's own naming
+# requirement) has to be created once by hand and isn't something
+# goreleaser (or anything running inside *this* repo) can do for you;
+# see the "Homebrew tap" section in README.md for the one-time setup and
+# the HOMEBREW_TAP_GITHUB_TOKEN secret this step needs to push to it.
+#
+# `brews:` is deprecated in favor of `homebrew_casks:` as of goreleaser
+# v2 (`goreleaser check` flags it) — deliberately NOT migrated here:
+# casks are macOS-only, while termdock also targets Linux (see the
+# `goos:` list above), and a formula under `brews:` still installs
+# correctly via Homebrew on both. `brews:` itself still works today,
+# just with a deprecation notice; revisit this if goreleaser ever drops
+# it outright.
+brews:
+  - name: termdock
+    homepage: "https://github.com/padovanl/termdock"
+    description: "A terminal multiplexer in the tmux/screen tradition, written from scratch in Go."
+    license: MIT
+    repository:
+      owner: padovanl
+      name: homebrew-termdock
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    commit_author:
+      name: goreleaser-bot
+      email: goreleaser@users.noreply.github.com
+    install: |
+      bin.install "termdock"
+    test: |
+      system "#{bin}/termdock", "--version"
+
+release:
+  github:
+    owner: padovanl
+    name: termdock

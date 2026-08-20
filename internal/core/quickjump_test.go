@@ -3,7 +3,7 @@ package core
 import (
 	"testing"
 
-	"termdock/internal/layout"
+	"github.com/padovanl/termdock/internal/layout"
 
 	"github.com/gdamore/tcell/v2"
 )

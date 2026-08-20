@@ -3,7 +3,7 @@ package core
 import (
 	"testing"
 
-	"termdock/internal/layout"
+	"github.com/padovanl/termdock/internal/layout"
 )
 
 // This file specifically exercises interactions BETWEEN this round's new

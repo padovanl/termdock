@@ -10,8 +10,8 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdock/internal/config"
-	"termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/config"
+	"github.com/padovanl/termdock/internal/proto"
 )
 
 // TestMain isolates every session this package's tests spin up to

@@ -5,8 +5,8 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdock/internal/layout"
-	"termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/layout"
+	"github.com/padovanl/termdock/internal/proto"
 )
 
 func (c *Core) handleMouse(m proto.ClientMsg) Result {

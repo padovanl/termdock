@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"termdock/internal/persist"
+	"github.com/padovanl/termdock/internal/persist"
 )
 
 // toggleLogging starts or stops mirroring the active pane's raw output

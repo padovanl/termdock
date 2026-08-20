@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
-	"termdock/internal/config"
-	"termdock/internal/core"
-	"termdock/internal/layout"
-	"termdock/internal/pane"
-	"termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/config"
+	"github.com/padovanl/termdock/internal/core"
+	"github.com/padovanl/termdock/internal/layout"
+	"github.com/padovanl/termdock/internal/pane"
+	"github.com/padovanl/termdock/internal/proto"
 )
 
 // Run starts the daemon for a session and blocks until it shuts down

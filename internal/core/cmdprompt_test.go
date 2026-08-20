@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"termdock/internal/layout"
+	"github.com/padovanl/termdock/internal/layout"
 )
 
 // waitForPaneText polls paneID's own terminal buffer for text — the

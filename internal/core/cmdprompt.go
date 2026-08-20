@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"termdock/internal/layout"
+	"github.com/padovanl/termdock/internal/layout"
 )
 
 // enterCommandPrompt opens a ":"-prefixed command line, bound to

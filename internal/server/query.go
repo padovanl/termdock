@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/proto"
 )
 
 const probeTimeout = 300 * time.Millisecond

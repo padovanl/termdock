@@ -3,8 +3,8 @@ package core
 import (
 	"testing"
 
-	"termdock/internal/layout"
-	"termdock/internal/persist"
+	"github.com/padovanl/termdock/internal/layout"
+	"github.com/padovanl/termdock/internal/persist"
 )
 
 func TestSessionSurvivesRestartViaSnapshot(t *testing.T) {

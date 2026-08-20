@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"termdock/internal/layout"
-	"termdock/internal/pane"
-	"termdock/internal/proto"
-	"termdock/internal/vt10x"
+	"github.com/padovanl/termdock/internal/layout"
+	"github.com/padovanl/termdock/internal/pane"
+	"github.com/padovanl/termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/vt10x"
 )
 
 // Frame snapshots everything an attached client needs to paint: it never

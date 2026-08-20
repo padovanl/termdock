@@ -1,9 +1,9 @@
 package core
 
 import (
-	"termdock/internal/layout"
-	"termdock/internal/pane"
-	"termdock/internal/persist"
+	"github.com/padovanl/termdock/internal/layout"
+	"github.com/padovanl/termdock/internal/pane"
+	"github.com/padovanl/termdock/internal/persist"
 )
 
 // persistStateLocked best-effort snapshots the session's current

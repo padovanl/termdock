@@ -1,9 +1,15 @@
 # 🐳 termdock
 
+[![CI](https://github.com/padovanl/termdock/actions/workflows/ci.yml/badge.svg)](https://github.com/padovanl/termdock/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Go Reference](https://img.shields.io/badge/go-1.21%2B-00ADD8?logo=go)](go.mod)
+
 A terminal multiplexer in the tmux/screen tradition — split your terminal
 into panes, run multiple shells side by side, and keep everything running
 in the background so you can detach and reattach later, even from a
 different machine, without losing a thing.
+
+![A termdock session: three panes (an editor, a process monitor, and a git log) under a status bar showing the window tabs and a git-branch segment, in the Dracula color theme](docs/demo.svg)
 
 Written from scratch in Go, with **no dependency on tmux or screen**: it
 manages pseudo-terminals (ptys) and its own VT100 emulator (with
@@ -44,6 +50,7 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
 | 🧱 **Preset layouts** | `Ctrl-B Space` cycles tiled / even-columns / even-rows | `next-layout`, same key, same idea |
 | 🔁 **Respawn a pane** | `Ctrl-B R` restarts the shell in place, no confirmation needed (same as `x`) | `respawn-pane`, no default binding, `-k` needed on a live pane |
 | 📝 **Log a pane to a file** | `Ctrl-B L` toggles it, no path to type, `[REC]` on the title | needs the external tmux-logging plugin or a hand-written `pipe-pane` |
+| 🎨 **Ready-made color themes** | one `theme <name>` config line (Dracula, Nord, Gruvbox, Catppuccin, Solarized, Tokyo Night) | needs the external tmux-themepack or a per-theme plugin |
 
 ## 🏗️ Architecture
 
@@ -59,6 +66,47 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
   panes: they stay alive on the server, ready for a new attach.
 
 This is what makes detach/reattach possible.
+
+## 📦 Installation
+
+```sh
+# Homebrew (macOS or Linux)
+brew install padovanl/termdock/termdock
+
+# prebuilt binary — download the tar.gz for your OS/arch from
+# https://github.com/padovanl/termdock/releases and put the termdock
+# binary somewhere on your $PATH
+
+# from source, with Go 1.21+ already installed
+go install github.com/padovanl/termdock@latest
+```
+
+Every [release](https://github.com/padovanl/termdock/releases) ships
+prebuilt binaries for linux/darwin × amd64/arm64, built and published
+automatically by [goreleaser](https://goreleaser.com) (see
+`.goreleaser.yml`) whenever a `vX.Y.Z` tag is pushed — `termdock
+--version` reports exactly which one you're running.
+
+### 🍺 Homebrew tap
+
+`brew install padovanl/termdock/termdock` needs a `homebrew-termdock`
+tap repository to exist under the same GitHub account — Homebrew's own
+naming convention for taps — which goreleaser then pushes an updated
+formula to on every release (see `.goreleaser.yml`'s `brews:` section
+and `.github/workflows/release.yml`). Neither goreleaser nor anything
+running inside *this* repo can create that repo for you; the one-time
+setup is:
+
+1. Create an empty GitHub repo named exactly `homebrew-termdock` under
+   the `padovanl` account.
+2. Generate a fine-grained GitHub personal access token with
+   `contents: write` scoped to just that one repo.
+3. Add it as a secret named `HOMEBREW_TAP_GITHUB_TOKEN` on *this* repo
+   (Settings → Secrets and variables → Actions).
+
+Until both exist, `.github/workflows/release.yml`'s Homebrew publish
+step fails the release run — drop the `brews:` section from
+`.goreleaser.yml` first if you'd rather cut a release without a tap.
 
 ## 🔨 Build
 
@@ -468,6 +516,7 @@ prefix C-a             # prefix key, any Ctrl+letter (default C-b)
 mouse on                # enable mouse support (default on)
 history-limit 10000     # scrollback lines kept per pane (default 10000)
 shell /bin/zsh           # shell for new panes (default $SHELL)
+theme dracula            # bundled color preset (default: none, see below)
 status-bg black          # status bar background (default black)
 status-fg silver         # status bar foreground (default silver)
 pane-active-bg teal       # active pane's border/title color (default teal)
@@ -477,13 +526,29 @@ status-segments git,battery  # extra segments in the status bar (default: none)
 Colors accept any W3C name tcell understands, or `#rrggbb` hex.
 `prefix`/`history-limit`/`shell` are read by the **server**, so they take
 effect when a session is *created* (`termdock new`), not on every attach;
-`mouse` and the colors are read by the **client**, so they apply per
-attach and can differ between two clients looking at the same session.
-`status-segments` is a comma-separated list, read by the server; `git`
-shows the active pane's current directory's branch (Linux only, empty
-outside a repo), `battery` shows charge level and charging state (Linux
-only, empty on a machine without one) — both cached for a couple of
-seconds so they don't spawn a subprocess on every redraw.
+`mouse`, `theme`, and the colors are read by the **client**, so they
+apply per attach and can differ between two clients looking at the same
+session. `status-segments` is a comma-separated list, read by the
+server; `git` shows the active pane's current directory's branch (Linux
+only, empty outside a repo), `battery` shows charge level and charging
+state (Linux only, empty on a machine without one) — both cached for a
+couple of seconds so they don't spawn a subprocess on every redraw.
+
+### 🎨 Themes
+
+`theme <name>` sets `status-bg`/`status-fg`/`pane-active-bg` all at once
+from a bundled, accurately-sourced palette — no more hand-picking three
+hex values, the same convenience tmux users reach for
+tmux-themepack/Catppuccin-for-tmux/dracula-tmux/nord-tmux plugins for.
+Built in: `dracula`, `nord`, `gruvbox`, `catppuccin`, `solarized`,
+`tokyo-night` (the demo screenshot above is running `theme dracula`). A
+theme is always just a *baseline*: an explicit `status-bg`/`status-fg`/
+`pane-active-bg` line in the same config still overrides just that one
+color, regardless of whether it comes before or after the `theme` line —
+so `theme nord` plus a single `pane-active-bg` tweak works exactly like
+you'd expect. An unknown theme name is silently ignored, the same
+leniency every other setting in `termdock.conf` already has, falling
+back to the plain defaults.
 
 ## 📁 Code layout
 
@@ -491,7 +556,7 @@ seconds so they don't spawn a subprocess on every redraw.
   starting the background daemon.
 - `cli.go` — the scripting commands (`send-keys`/`new-window`/...).
 - `internal/config` — the optional config file: prefix key, mouse, colors,
-  scrollback size, shell.
+  bundled themes, scrollback size, shell.
 - `internal/pane` — one pane: a shell process in a pty + the VT100
   emulator that interprets its output.
 - `internal/vt10x` — the terminal emulator ([vt10x](https://github.com/hinshun/vt10x),
@@ -527,7 +592,9 @@ Every package with logic worth pinning down has one: layout geometry and
 the split-tree edge cases, the client's box-drawing/overlay/grid
 rendering, pane process handling (including logging's raw pty tee — see
 `internal/pane/pane_test.go`), the snapshot format, the config file
-parser, the session brain in `internal/core` (mouse gesture
+parser (including every bundled theme applying correctly and an
+explicit color always beating a theme, in either line order — see
+`internal/config/config_test.go`), the session brain in `internal/core` (mouse gesture
 disambiguation — click vs. drag vs. double-click, all sharing the same
 press/release events — every picker's fuzzy filter, window/pane
 reordering and moving, the pane overview's grid math, global search,
@@ -553,7 +620,14 @@ touches — session-snapshot I/O (`$XDG_STATE_HOME`) and session sockets
 run never touches or gets confused by your actual sessions.
 
 CI (`.github/workflows/ci.yml`) runs build, vet, and the full test suite
-on every push and pull request against `master`.
+on every push and pull request against `master`. A separate workflow
+(`.github/workflows/release.yml`) runs the test suite once more and then
+cuts a full release — see [📦 Installation](#-installation) — whenever a
+`vX.Y.Z` tag is pushed.
+
+## 📄 License
+
+[MIT](LICENSE) — see the LICENSE file.
 
 ## 🚧 What's missing (on purpose, for now)
 

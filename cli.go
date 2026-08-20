@@ -16,8 +16,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"termdock/internal/proto"
-	"termdock/internal/server"
+	"github.com/padovanl/termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/server"
 )
 
 func cmdSendKeys(args []string) {

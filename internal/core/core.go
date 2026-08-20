@@ -16,10 +16,10 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdock/internal/layout"
-	"termdock/internal/pane"
-	"termdock/internal/persist"
-	"termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/layout"
+	"github.com/padovanl/termdock/internal/pane"
+	"github.com/padovanl/termdock/internal/persist"
+	"github.com/padovanl/termdock/internal/proto"
 )
 
 // Mode is the session's current input mode.

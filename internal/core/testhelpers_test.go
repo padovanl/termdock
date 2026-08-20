@@ -7,8 +7,8 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdock/internal/pane"
-	"termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/pane"
+	"github.com/padovanl/termdock/internal/proto"
 )
 
 // TestMain points internal/persist's $XDG_STATE_HOME at a throwaway

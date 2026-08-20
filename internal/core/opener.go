@@ -7,7 +7,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/proto"
 )
 
 // The opener (Ctrl-B u) is termdock's answer to tmux-open/extrakto —

@@ -3,8 +3,8 @@ package core
 import (
 	"fmt"
 
-	"termdock/internal/layout"
-	"termdock/internal/pane"
+	"github.com/padovanl/termdock/internal/layout"
+	"github.com/padovanl/termdock/internal/pane"
 )
 
 // Window is one tab: its own independent pane layout. Panes themselves

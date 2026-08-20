@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Test
+        run: go test ./...
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Needed to push the updated formula to the padovanl/homebrew-termdock
+          # tap repo (see .goreleaser.yml's brews: section and README.md's
+          # "Homebrew tap" section) — a fine-grained PAT with contents:write
+          # on that one repo, added as a secret on *this* repo. Until both the
+          # tap repo and this secret exist, the whole release run fails at
+          # the Homebrew publish step — set both up (see README.md) before
+          # pushing the first version tag, or drop the brews: section from
+          # .goreleaser.yml if you don't want a tap yet.
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}

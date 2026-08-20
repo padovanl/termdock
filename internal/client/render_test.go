@@ -5,8 +5,8 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdock/internal/config"
-	"termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/config"
+	"github.com/padovanl/termdock/internal/proto"
 )
 
 func simScreen(t *testing.T, cols, rows int) tcell.SimulationScreen {

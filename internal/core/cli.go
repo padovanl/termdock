@@ -3,9 +3,9 @@ package core
 import (
 	"errors"
 
-	"termdock/internal/layout"
-	"termdock/internal/pane"
-	"termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/layout"
+	"github.com/padovanl/termdock/internal/pane"
+	"github.com/padovanl/termdock/internal/proto"
 )
 
 // This file implements termdock's scripting surface — the equivalent of

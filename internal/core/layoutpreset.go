@@ -3,7 +3,7 @@ package core
 import (
 	"math"
 
-	"termdock/internal/layout"
+	"github.com/padovanl/termdock/internal/layout"
 )
 
 // layoutPreset names the arrangements Ctrl-B Space cycles through —

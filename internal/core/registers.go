@@ -7,7 +7,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/proto"
 )
 
 // Named/numbered paste registers (Ctrl-B =) — tmux calls the equivalent

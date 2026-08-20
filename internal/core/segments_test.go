@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"termdock/internal/pane"
+	"github.com/padovanl/termdock/internal/pane"
 )
 
 func TestStatusSegmentsEmptyWhenDisabled(t *testing.T) {

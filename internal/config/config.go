@@ -13,6 +13,10 @@
 //	mouse <on|off>         enable mouse support (default on)
 //	history-limit <n>      scrollback lines kept per pane (default 10000)
 //	shell <path>           shell to launch in new panes (default $SHELL)
+//	theme <name>           bundled color preset — see ThemeNames — applied
+//	                       before status-bg/status-fg/pane-active-bg below,
+//	                       so any of those three still overrides it
+//	                       regardless of which comes first in the file
 //	status-bg <color>      status bar background (default black)
 //	status-fg <color>      status bar foreground (default silver)
 //	pane-active-bg <color> active pane's border/title color (default teal)
@@ -74,6 +78,8 @@ func Load() Config {
 	}
 	defer f.Close()
 
+	themeName := ""
+	overridden := map[string]bool{} // color keys the file set explicitly, so a theme (applied below) can't clobber them
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -85,7 +91,17 @@ func Load() Config {
 			continue
 		}
 		key, val := fields[0], strings.Join(fields[1:], " ")
+		if key == "theme" {
+			themeName = val
+			continue
+		}
 		applySetting(&cfg, key, val)
+		if key == "status-bg" || key == "status-fg" || key == "pane-active-bg" {
+			overridden[key] = true
+		}
+	}
+	if themeName != "" {
+		applyTheme(&cfg, themeName, overridden)
 	}
 	return cfg
 }

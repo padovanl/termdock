@@ -5,7 +5,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/proto"
 )
 
 // The help screen (Ctrl-B ?) is a scrollable reference for every

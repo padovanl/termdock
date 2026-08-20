@@ -1,6 +1,6 @@
 package core
 
-import "termdock/internal/pane"
+import "github.com/padovanl/termdock/internal/pane"
 
 // respawnActivePane kills whatever's running in the active pane (if
 // still alive) and starts a fresh shell in its place — tmux's

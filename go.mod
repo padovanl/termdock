@@ -1,4 +1,4 @@
-module termdock
+module github.com/padovanl/termdock
 
 go 1.24.13
 

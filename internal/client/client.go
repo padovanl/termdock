@@ -17,9 +17,9 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdock/internal/config"
-	"termdock/internal/proto"
-	"termdock/internal/server"
+	"github.com/padovanl/termdock/internal/config"
+	"github.com/padovanl/termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/server"
 )
 
 // Run attaches to the session listening on sockPath and drives it until

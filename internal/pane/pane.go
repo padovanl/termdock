@@ -11,7 +11,7 @@ import (
 
 	"github.com/creack/pty"
 
-	"termdock/internal/vt10x"
+	"github.com/padovanl/termdock/internal/vt10x"
 )
 
 // These mirror vt10x's unexported glyph attribute bits (see its state.go).

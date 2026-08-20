@@ -8,8 +8,8 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdock/internal/layout"
-	"termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/layout"
+	"github.com/padovanl/termdock/internal/proto"
 )
 
 // The jump picker (Ctrl-B w) is termdock's answer to tmux's choose-tree:

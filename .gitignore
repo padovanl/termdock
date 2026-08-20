@@ -1,3 +1,4 @@
 /termdock
 *.log
 /.claude/
+/dist/

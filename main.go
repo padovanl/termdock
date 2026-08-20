@@ -15,12 +15,17 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"termdock/internal/client"
-	"termdock/internal/config"
-	"termdock/internal/server"
+	"github.com/padovanl/termdock/internal/client"
+	"github.com/padovanl/termdock/internal/config"
+	"github.com/padovanl/termdock/internal/server"
 )
 
 const defaultSession = "main"
+
+// version is overwritten at build time via
+// -ldflags "-X main.version=vX.Y.Z" (see .goreleaser.yml); a plain
+// "go build"/"go install" leaves it at "dev".
+var version = "dev"
 
 func main() {
 	args := os.Args[1:]
@@ -66,6 +71,8 @@ func main() {
 		cmdListPanes(args[1:])
 	case "-h", "--help", "help":
 		printUsage()
+	case "-v", "--version", "version":
+		fmt.Println("termdock version " + version)
 	default:
 		fmt.Fprintf(os.Stderr, "termdock: unknown command %q\n\n", args[0])
 		printUsage()
@@ -238,6 +245,7 @@ Usage:
                                   -r attaches read-only, as an observer
   termdock ls                  list active sessions
   termdock kill-session -t NAME  terminate a session
+  termdock --version            print the version and exit
 
 Scripting (drive a session without attaching to it; TARGET is
 SESSION[:WINDOW[.PANE]], e.g. "main", "main:1", "main:1.4"):

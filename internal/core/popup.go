@@ -3,8 +3,8 @@ package core
 import (
 	"github.com/gdamore/tcell/v2"
 
-	"termdock/internal/pane"
-	"termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/pane"
+	"github.com/padovanl/termdock/internal/proto"
 )
 
 // The floating scratch terminal (Ctrl-B P) — tmux added display-popup in

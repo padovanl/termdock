@@ -5,7 +5,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/proto"
 )
 
 // Switching sessions (Ctrl-B S) without detaching first: tmux needs

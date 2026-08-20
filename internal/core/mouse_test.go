@@ -3,7 +3,7 @@ package core
 import (
 	"testing"
 
-	"termdock/internal/layout"
+	"github.com/padovanl/termdock/internal/layout"
 )
 
 func TestClickWindowTabSwitchesWindow(t *testing.T) {

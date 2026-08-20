@@ -6,9 +6,9 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdock/internal/layout"
-	"termdock/internal/pane"
-	"termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/layout"
+	"github.com/padovanl/termdock/internal/pane"
+	"github.com/padovanl/termdock/internal/proto"
 )
 
 // Global scrollback search (Ctrl-B /): tmux has no equivalent at all —

@@ -5,7 +5,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdock/internal/vt10x"
+	"github.com/padovanl/termdock/internal/vt10x"
 )
 
 // copyState tracks scrollback/selection for whichever pane is in copy
