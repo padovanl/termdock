@@ -1,15 +1,33 @@
-# termdock
+# 🐳 termdock
 
-A tmux-style terminal multiplexer: run multiple shells in the same
-terminal, split it into panes, and keep sessions running in the
-background — you can detach and reattach later, even from a different
-terminal, without losing anything running inside.
+A terminal multiplexer in the tmux/screen tradition — split your terminal
+into panes, run multiple shells side by side, and keep everything running
+in the background so you can detach and reattach later, even from a
+different machine, without losing a thing.
 
-Written in Go, with no dependency on tmux/screen: it manages
-pseudo-terminals (ptys) and a VT100 emulator (with scrollback) for each
-pane directly.
+Written from scratch in Go, with **no dependency on tmux or screen**: it
+manages pseudo-terminals (ptys) and its own VT100 emulator (with
+scrollback) for every pane directly.
 
-## Architecture
+It also does a handful of things tmux doesn't, by default, at all — 🔍 a
+fuzzy jump picker, 🖱️ click-and-drag everywhere, and 💾 crash/reboot
+recovery among them. See [✨ What makes it different](#-what-makes-it-different-from-tmux).
+
+## ✨ What makes it different from tmux
+
+| | termdock | tmux |
+|---|---|---|
+| 🔍 **Jump to a window/pane** | one type-ahead, fuzzy-filtered list of every pane, ranked most-recently-used | separate `choose-window` / `choose-pane`, paged with j/k, no fuzzy filter |
+| 🖱️ **Select text** | click-drag on any pane, anywhere, any time | needs `mouse on` + drag-to-select behavior varies by config |
+| 🖱️ **Reorder/move things** | drag a window tab to reorder it, drag a pane's title onto a tab to relocate it | `swap-window`/`join-pane`, typed out by index |
+| 💾 **Survive a crash or reboot** | automatic — layout + working directories snapshotted continuously, restored on next launch | needs the external `tmux-resurrect` plugin |
+| 🔢 **Pane/window numbering** | always a clean, positional `1, 2, 3…` | numbers can leave gaps after closing one, unless `renumber-windows` is set |
+| ❓ **Keybinding help** | a real scrollable screen | crammed into (and clipped by) the status line |
+| ⚠️ **Closing a whole window** | asks `y`/`n` first | gone immediately, no confirmation |
+| 🖼️ **Panel borders** | always-on, junction-aware box drawing with the active pane highlighted | thin borders, style is you-configure-it |
+| 🎯 **Zoom feedback** | the zoomed pane's border turns magenta and gets a `[Z]` tag | no visual cue you're zoomed beyond the layout itself |
+
+## 🏗️ Architecture
 
 `termdock` is split into a **server** and a **client**, like tmux:
 
@@ -24,7 +42,7 @@ pane directly.
 
 This is what makes detach/reattach possible.
 
-## Build
+## 🔨 Build
 
 ```sh
 go build -o termdock .
@@ -32,7 +50,7 @@ go build -o termdock .
 
 Requires Go 1.21+ and a POSIX system (Linux/macOS/WSL).
 
-## Usage
+## 🚀 Usage
 
 ```sh
 termdock                        # attach to (or create) the default "main" session
@@ -44,9 +62,10 @@ termdock kill-session -t NAME   # terminate a session (and all its panes)
 
 Sessions survive the terminal closing: you can disconnect over SSH, close
 the window, or press `Ctrl-B d`, and find everything exactly as you left
-it with a plain `termdock attach`.
+it with a plain `termdock attach`. They survive the *daemon* dying too —
+see [💾 Session persistence](#-session-persistence).
 
-## Keys
+## ⌨️ Keys
 
 Every command starts with the **`Ctrl-B` prefix**, followed by a key. Any
 other key, when `Ctrl-B` wasn't just pressed, is forwarded straight to the
@@ -58,28 +77,28 @@ active pane.
 | `s` or `"` | split the active pane **horizontally** (stacked) |
 | `←/→/↑/↓` or `h/j/k/l` | move focus to the adjacent pane |
 | `o` or `Tab` | cycle to the next pane |
-| `z` | zoom: the active pane fills the whole screen — its border turns magenta and its title gets a `[Z]` tag, so it's obvious you're zoomed (`z` again to undo) |
+| `z` | 🎯 zoom: the active pane fills the whole screen — its border turns magenta and its title gets a `[Z]` tag, so it's obvious you're zoomed (`z` again to undo) |
 | `r` | **resize-mode**: subsequent arrows/hjkl resize the pane, any other key exits |
 | `[` | enter **copy-mode** (scroll the scrollback, see below) |
 | `y` | toggle **sync-panes**: keystrokes get sent to every pane in this window at once |
 | `x` | close the active pane |
 | `c` | create a new **window** (tab) |
 | `n` / `p` | switch to the next / previous window |
-| `w` | **jump picker**: type to fuzzy-filter every window/pane, ↑↓/Tab to select, Enter to jump (see below) |
+| `w` | 🔍 **jump picker**: type to fuzzy-filter every window/pane, ↑↓/Tab to select, Enter to jump (see below) |
 | `0`-`9` | jump straight to window N |
 | `,` | rename the current window |
-| `&` | close the current window and every pane in it (asks `y`/`n` first) |
+| `&` | ⚠️ close the current window and every pane in it (asks `y`/`n` first) |
 | `]` | paste the most recently copied (yanked) text into the active pane |
 | `d` | **detach**: disconnect from the session, which keeps running in the background |
 | `q` | quit termdock (closes the whole session and every window) |
-| `?` | open a scrollable keybinding reference (any key closes it) |
+| `?` | ❓ open a scrollable keybinding reference (any key closes it) |
 | `Ctrl-B` | double-press: sends a literal `Ctrl-B` to the active pane |
 
 If a shell exits (e.g. with `exit`), its pane closes on its own; when a
 window's last pane closes, the window itself closes; once the last window
 closes, the session ends.
 
-### Windows
+### 🪟 Windows
 
 Each window is a fully independent set of panes and its own split layout
 — like a browser tab, or a tmux window. The status bar shows the window
@@ -87,15 +106,15 @@ list on the left as a strip of colored tabs, e.g. ` 0:bash  1:vim!
 2:htop* `: the accent color marks the one you're looking at, orange marks
 one that produced output while you weren't (`*`/`!` are still there in
 the text too, in case colors aren't your thing). Click a tab to switch to
-it, the same as a browser tab, and drag a tab sideways to reorder the
+it, the same as a browser tab, and 🖱️ drag a tab sideways to reorder the
 strip. A window's name is automatically the foreground command of its
 active pane, the same as pane titles, until you rename it with `Ctrl-B
-,`. Drag a pane's *title bar* onto a different window's tab to move that
-pane there instead — the pane's process is untouched, only which
+,`. 🖱️ Drag a pane's *title bar* onto a different window's tab to move
+that pane there instead — the pane's process is untouched, only which
 window's layout it belongs to changes, the same way dragging a browser
 tab out into another window doesn't reload the page.
 
-### Jump picker
+### 🔍 Jump picker
 
 `Ctrl-B w` opens a type-ahead picker listing every pane in every window of
 the session — tmux splits this across `choose-window` and `choose-pane`,
@@ -112,7 +131,7 @@ as you move the selection — no need to jump blind. With an empty query
 most-recently-used first instead, so `Ctrl-B w` then `Enter` is a fast
 "jump back to whatever I was just looking at," Alt-Tab style.
 
-### Help
+### ❓ Help
 
 `Ctrl-B ?` opens a scrollable reference listing every keybinding —
 `↑`/`↓`/`j`/`k`/`PgUp`/`PgDn` scroll, any other key closes it. It's the
@@ -120,7 +139,7 @@ same floating box the jump picker uses, just without the type-ahead
 filter, so a long list stays readable instead of getting crammed into
 (and clipped off of) a single status bar line.
 
-### Copy-mode (scrollback and copying)
+### 📋 Copy-mode (scrollback and copying)
 
 Enter with `Ctrl-B [`. From there:
 
@@ -136,16 +155,16 @@ Enter with `Ctrl-B [`. From there:
   backward. Matching is a plain case-insensitive substring, no regex.
 - `q` or `Esc`: exit without copying.
 
-### Mouse
+### 🖱️ Mouse
 
 - Click a pane: gives it focus.
 - Click-drag on a pane's content: selects text and copies it on release —
   no need to enter copy-mode first, the same as any ordinary terminal.
   (A plain click with no drag still just focuses the pane.)
-- Double-click a pane's title bar: zooms it (same as `Ctrl-B z`); double-click
-  again to unzoom.
+- Double-click a pane's title bar: 🎯 zooms it (same as `Ctrl-B z`);
+  double-click again to unzoom.
 - Drag a pane's title bar onto a different window's tab: moves that pane
-  into that window (see [Windows](#windows)).
+  into that window (see [🪟 Windows](#-windows)).
 - Drag the border between two panes, side by side or stacked: resizes
   them.
 - Click a window tab in the status bar: switches to it. Drag it sideways
@@ -154,7 +173,7 @@ Enter with `Ctrl-B [`. From there:
   scrolls; scrolling back to the bottom exits it automatically.
 - Drag in copy-mode: selects text and copies it on release.
 
-### Pane titles and borders
+### 🎨 Pane titles and borders
 
 Every pane is framed by a thin border, with its title embedded in the top
 edge (e.g. `2:vim`) — the number is the pane's position within its window
@@ -163,18 +182,20 @@ predictable as you split and close panes. The title shows the foreground
 command, not just the shell name, so you can tell what's running where at
 a glance. (Linux only; elsewhere it always shows the shell name.) The
 active pane's border is drawn in the accent color (`pane-active-bg`
-below) so it's obvious which pane has focus.
+below) so it's obvious which pane has focus. Every border, junction, and
+corner is auto-tiled from the actual pane layout — there's no such thing
+as a two-pane seam that doesn't line up.
 
-### Status bar
+### 📊 Status bar
 
 The left side is minimal at rest (`Ctrl-B ?`) so there's room for the
 right side: hostname and clock, tmux-style. Press the prefix and the left
 side expands to the full key list for as long as you're mid-command;
 `Ctrl-B ?` opens the same list as a proper scrollable screen instead (see
-[Help](#help)), for when you want to actually read it rather than catch
-it in passing.
+[❓ Help](#-help)), for when you want to actually read it rather than
+catch it in passing.
 
-## Scripting a session
+## 📜 Scripting a session
 
 Beyond the interactive keys, termdock has a small command-line interface
 for driving a session from outside — a setup script that opens a project
@@ -207,7 +228,7 @@ These commands work whether or not anyone is currently attached to the
 session — they talk straight to the daemon over its socket, the same way
 `termdock ls`/`kill-session` do, and don't require (or start) a client.
 
-### Small terminals
+### 📐 Small terminals
 
 The layout degrades gracefully instead of breaking, the same way tmux
 keeps shrinking panes rather than refusing to redraw: panes shrink
@@ -218,7 +239,7 @@ bar is the first thing to go on a single-row terminal. Nothing crashes at
 any size; existing splits just get harder to see the smaller you go,
 exactly like a real multiplexer.
 
-### Session persistence
+### 💾 Session persistence
 
 A tmux session doesn't survive the server crashing or the machine
 rebooting on its own — that's what plugins like tmux-resurrect are for.
@@ -240,7 +261,7 @@ kill-session`) deletes its own snapshot on the way out, so it doesn't
 resurrect itself the next time that name is reused; only an unclean end
 leaves one behind to recover from.
 
-## Configuration
+## ⚙️ Configuration
 
 Optional config file at `$XDG_CONFIG_HOME/termdock/termdock.conf`
 (falling back to `~/.config/termdock/termdock.conf`), or wherever
@@ -265,7 +286,7 @@ effect when a session is *created* (`termdock new`), not on every attach;
 `mouse` and the colors are read by the **client**, so they apply per
 attach and can differ between two clients looking at the same session.
 
-## Code layout
+## 📁 Code layout
 
 - `main.go` — CLI: subcommands (`new`/`attach`/`ls`/`kill-session`) and
   starting the background daemon.
@@ -280,18 +301,42 @@ attach and can differ between two clients looking at the same session.
 - `internal/layout` — the binary split tree (vertical/horizontal) that
   computes each pane's on-screen rectangle, and interactive resizing.
 - `internal/core` — the session's brain, with no terminal attached:
-  windows, panes, layout, copy-mode, mouse, resize-mode. Runs in the
-  server.
+  windows, panes, layout, copy-mode, mouse, resize-mode, the jump
+  picker, help screen. Runs in the server.
 - `internal/proto` — the messages exchanged between client and server
   over the socket.
 - `internal/persist` — the on-disk session-snapshot format and file I/O
-  for crash/reboot recovery (see [Session persistence](#session-persistence)).
+  for crash/reboot recovery (see [💾 Session persistence](#-session-persistence)).
 - `internal/server` — the daemon: owns a session, accepts clients over a
   unix socket, broadcasts a frame whenever something changes.
 - `internal/client` — the UI: connects to the server, draws with
   [tcell](https://github.com/gdamore/tcell), forwards keys and mouse.
 
-## What's missing (on purpose, for now)
+## 🧪 Testing
+
+```sh
+go build ./...   # everything compiles
+go vet ./...     # static checks
+go test ./...    # the actual test suite
+```
+
+Every package with logic worth pinning down has one: layout geometry and
+the split-tree edge cases, the client's box-drawing/overlay rendering,
+pane process handling, the snapshot format, and — the bulk of it — the
+session brain in `internal/core`: mouse gesture disambiguation (click vs.
+drag vs. double-click, all sharing the same press/release events), the
+jump picker's fuzzy filter and MRU ordering, window/pane reordering and
+moving, and end-to-end crash-recovery (save a session, construct a fresh
+one from the same name, check it rebuilds with live panes). They spin up
+real shells in real ptys rather than mocking the terminal layer, and
+isolate session-snapshot I/O to a throwaway temp directory
+(`$XDG_STATE_HOME`) for the run so they never touch — or get confused
+by — your actual `~/.local/state/termdock`.
+
+CI (`.github/workflows/ci.yml`) runs build, vet, and the full test suite
+on every push and pull request against `master`.
+
+## 🚧 What's missing (on purpose, for now)
 
 Still not there, to keep the scope manageable: remapping individual key
 bindings (only the prefix key itself is configurable), regex search
