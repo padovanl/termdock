@@ -167,11 +167,7 @@ func (c *Core) searchOverlay() *proto.Overlay {
 		if res.windowIdx < len(c.windows) {
 			wname = c.windowDisplayName(c.windows[res.windowIdx])
 		}
-		text := res.text
-		if len(text) > 60 {
-			text = text[:60] + "…"
-		}
-		items[i] = fmt.Sprintf("%d:%s › %s", res.windowIdx, wname, text)
+		items[i] = fmt.Sprintf("%d:%s › %s", res.windowIdx, wname, truncateRunes(res.text, 60))
 	}
 	title := "search every pane's scrollback (regex or text) — type to search, ↑↓ select, enter jump, esc cancel"
 	if len(items) == maxSearchResults {

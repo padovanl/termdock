@@ -44,6 +44,15 @@ func draw(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	if f.Overlay != nil {
 		drawOverlay(screen, f, cfg)
 	}
+	// An overlay or the overview covers the pane area completely and
+	// draws whatever cursor it wants as an ordinary character (the
+	// picker's "_", say). tcell keeps the real one wherever it was last
+	// placed, though, and screen.Clear() doesn't move it — so without
+	// this it stays parked over the pane underneath, blinking through the
+	// middle of the help box or the overview grid.
+	if f.Overlay != nil || f.Overview != nil {
+		screen.HideCursor()
+	}
 	screen.Show()
 }
 
@@ -391,7 +400,19 @@ func drawOverlay(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 		return
 	}
 
-	start := clampi(ov.Selected-listRows+1, 0, maxi(0, len(ov.Items)-listRows))
+	// A selectable list scrolls only as far as it must to keep the
+	// highlighted row on screen; a non-selectable one (help) has no
+	// highlight at all, so its Selected is the scroll offset itself and
+	// becomes the first visible row directly — see proto.Overlay.
+	// Running that offset through the keep-the-selection-visible math is
+	// what used to make the help screen look like it didn't scroll until
+	// the offset had passed a whole screenful.
+	maxStart := maxi(0, len(ov.Items)-listRows)
+	start := ov.Selected
+	if ov.Selectable {
+		start = ov.Selected - listRows + 1
+	}
+	start = clampi(start, 0, maxStart)
 	for i := 0; i < listRows && start+i < len(ov.Items); i++ {
 		idx := start + i
 		row := y0 + headerRows + 1 + i

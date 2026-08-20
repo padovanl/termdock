@@ -137,9 +137,17 @@ func (c *Core) buildCopyFrame(n *layout.Node, p *pane.Pane, pf proto.PaneFrame) 
 		cells[y] = row
 	}
 	pf.Cells = cells
-	pf.CursorVisible = true
+	// The copy cursor doesn't have to be on screen: the wheel scrolls the
+	// viewport and deliberately leaves the cursor where it was, so it can
+	// easily sit above or below what's currently shown. Drawing it anyway
+	// put the terminal's real cursor outside this pane's rect — over a
+	// neighboring pane, or on the status bar — so it's simply hidden while
+	// it's out of view, the same as any editor scrolled away from its
+	// caret.
+	row := c.copy.curY - c.copy.top
+	pf.CursorVisible = row >= 0 && row < cr.H
 	pf.CursorX = cr.X + clampi(c.copy.curX, 0, maxi(0, cr.W-1))
-	pf.CursorY = cr.Y + (c.copy.curY - c.copy.top)
+	pf.CursorY = cr.Y + row
 	return pf
 }
 

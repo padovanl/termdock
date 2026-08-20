@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
@@ -147,6 +148,9 @@ func (c *Core) handleCopyKey(key tcell.Key, r rune) Result {
 	case r == 'y' || key == tcell.KeyEnter:
 		text, ok := c.yank()
 		c.exitCopyMode()
+		if ok {
+			c.statusMsg = "copied " + copiedSummary(text)
+		}
 		return Result{Clipboard: text, HasClipboard: ok}
 	case r == '/':
 		c.startInput("search", "Search (regex or text): ", c.copy.searchTerm, ModeCopy)
@@ -231,7 +235,37 @@ func (c *Core) yank() (string, bool) {
 	}
 	text := b.String()
 	c.pushRegister(text)
-	return text, true
+	// An all-blank selection yields "" — reporting that as a successful
+	// yank would have the client push an *empty* OSC52 to the real
+	// terminal, which most of them read as "clear the clipboard": a stray
+	// drag over empty space would silently throw away whatever you'd
+	// copied before it.
+	return text, text != ""
+}
+
+// copiedSummary describes a yank for the status bar — enough to confirm
+// something landed on the clipboard without echoing the whole thing back
+// over the pane you just copied it from.
+func copiedSummary(text string) string {
+	lines := strings.Count(text, "\n") + 1
+	if lines > 1 {
+		return fmt.Sprintf("%d lines", lines)
+	}
+	return fmt.Sprintf("%q", truncateRunes(text, 40))
+}
+
+// truncateRunes shortens s to at most n *characters*, appending an
+// ellipsis if anything was dropped. Slicing a string by byte index
+// instead — which is what the register and search-result labels used to
+// do — can cut a multi-byte character in half, and the half-character
+// left behind renders as a replacement glyph: any accented letter or box
+// drawing near the cut turns the label into mojibake.
+func truncateRunes(s string, n int) string {
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
+	}
+	return string(runes[:n]) + "…"
 }
 
 // searchNext looks for the next (dir=1) or previous (dir=-1) occurrence

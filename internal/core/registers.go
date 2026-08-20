@@ -137,9 +137,7 @@ func registerLabel(text string) string {
 			}
 		}
 	}
-	if len(first) > 60 {
-		first = first[:60] + "…"
-	}
+	first = truncateRunes(first, 60)
 	if len(lines) > 1 {
 		suffix := "s"
 		if len(lines) == 2 {

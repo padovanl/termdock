@@ -96,6 +96,21 @@ func mouseMsg(x, y int) proto.ClientMsg {
 	return proto.ClientMsg{Kind: "mouse", MouseX: x, MouseY: y, MouseButtons: int32(tcell.Button1)}
 }
 
+// wheelMsg is a scroll event at the top-left corner — on an overlay,
+// where the pointer happens to be doesn't matter.
+func wheelMsg(button tcell.ButtonMask) proto.ClientMsg {
+	return proto.ClientMsg{Kind: "mouse", MouseX: 0, MouseY: 0, MouseButtons: int32(button)}
+}
+
+func findPaneFrame(panes []proto.PaneFrame, id int) *proto.PaneFrame {
+	for i := range panes {
+		if panes[i].ID == id {
+			return &panes[i]
+		}
+	}
+	return nil
+}
+
 // setupNamedWindows creates a Core whose windows are named exactly names,
 // in order — window 0 (already created by New) is renamed to names[0],
 // then one newWindowOpts call per remaining name.

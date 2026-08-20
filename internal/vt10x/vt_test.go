@@ -62,3 +62,29 @@ func TestNewline(t *testing.T) {
 		t.Fatal(st.cur.X, st.cur.Y, attr.FG, attr.BG)
 	}
 }
+
+// TestCellOutOfRangeIsEmptyNotAPanic: callers read the grid through
+// absolute row indices that outlive the snapshot they were computed
+// from — a resize changes the row count, and scrollback passing its
+// limit drops lines off the front, shifting every index above it. An
+// out-of-range read used to be an index panic, which in termdock's
+// single-process server takes every pane in every session down with it.
+func TestCellOutOfRangeIsEmptyNotAPanic(t *testing.T) {
+	term := New(WithSize(20, 5))
+	term.Write([]byte("hi"))
+	term.Lock()
+	defer term.Unlock()
+
+	cols, rows := term.Size()
+	for _, p := range [][2]int{
+		{0, rows}, {0, rows + 100}, {0, -1},
+		{cols, 0}, {cols + 100, 0}, {-1, 0},
+	} {
+		if g := term.Cell(p[0], p[1]); g != (Glyph{}) {
+			t.Errorf("Cell(%d, %d) = %+v, want the zero Glyph", p[0], p[1], g)
+		}
+	}
+	if g := term.Cell(0, 0); g.Char != 'h' {
+		t.Errorf("an in-range read must still work, Cell(0,0).Char = %q", g.Char)
+	}
+}

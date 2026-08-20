@@ -51,10 +51,14 @@ type WindowTab struct {
 
 // Overlay is a centered modal box drawn on top of everything else — the
 // jump picker (Ctrl-B w) and the help screen (Ctrl-B ?). Items is already
-// filtered/ordered by the server; Selected indexes into it, and also
-// drives which row the viewport scrolls to keep visible even when
-// Selectable is false (the help screen has nothing to "select," but
-// still scrolls a long list the same way). ShowQuery hides the
+// filtered/ordered by the server; Selected indexes into it. What Selected
+// means depends on Selectable: with it on, Selected is the highlighted
+// row and the viewport scrolls only as far as it must to keep that row
+// visible; with it off (the help screen, which has nothing to "select")
+// Selected *is* the scroll offset — the first item to show. Running a
+// plain scroll offset through the keep-the-selection-visible math instead
+// is what used to make the help screen look like it didn't scroll at all
+// until the offset had passed a whole screenful. ShowQuery hides the
 // query/filter row entirely for a screen like help that isn't
 // type-ahead filtered. PreviewCells, if non-empty, is a small snapshot
 // of the selected item's pane content, drawn alongside the list.

@@ -1,6 +1,8 @@
 package client
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
@@ -161,4 +163,95 @@ func TestDrawOverlayNoMatchesDoesNotPanic(t *testing.T) {
 		},
 	}
 	drawNoPanic(t, f, 80, 24)
+}
+
+// screenText renders the simulation screen's contents as one string per
+// row, for asserting on what a user would actually see.
+func screenText(screen tcell.SimulationScreen) []string {
+	cells, w, h := screen.GetContents()
+	rows := make([]string, h)
+	for y := 0; y < h; y++ {
+		line := make([]rune, w)
+		for x := 0; x < w; x++ {
+			runes := cells[y*w+x].Runes
+			if len(runes) == 0 {
+				line[x] = ' '
+				continue
+			}
+			line[x] = runes[0]
+		}
+		rows[y] = string(line)
+	}
+	return rows
+}
+
+func screenContains(screen tcell.SimulationScreen, want string) bool {
+	for _, row := range screenText(screen) {
+		if strings.Contains(row, want) {
+			return true
+		}
+	}
+	return false
+}
+
+// TestNonSelectableOverlayScrollsByOffset is the client half of the help
+// screen not scrolling on a short terminal: Selected was run through the
+// picker's keep-the-selection-visible math even for a list with no
+// selection, so a scroll offset anywhere inside the first screenful
+// resolved back to "start at 0" and the view never moved.
+func TestNonSelectableOverlayScrollsByOffset(t *testing.T) {
+	items := make([]string, 20)
+	for i := range items {
+		items[i] = fmt.Sprintf("entry-%02d", i)
+	}
+	// 12 rows leaves room for 8 list rows: an offset of 5 is well inside
+	// that first screenful, which is exactly the case that used to look
+	// like nothing happened.
+	const cols, rows = 40, 12
+	screen := simScreen(t, cols, rows)
+	draw(screen, proto.Frame{
+		Cols: cols, Rows: rows,
+		Overlay: &proto.Overlay{
+			Title:      "keybindings",
+			Selectable: false,
+			Items:      items,
+			Selected:   5,
+		},
+	}, config.Default())
+
+	if !screenContains(screen, "entry-05") {
+		t.Errorf("the scroll offset should put entry-05 on screen; got:\n%s", strings.Join(screenText(screen), "\n"))
+	}
+	if screenContains(screen, "entry-00") {
+		t.Errorf("scrolled down by 5, entry-00 should be off screen; got:\n%s", strings.Join(screenText(screen), "\n"))
+	}
+}
+
+// TestSelectableOverlayStillKeepsSelectionVisible guards the other half:
+// a picker must still scroll only as far as it needs to keep the
+// highlighted row on screen, not treat its selection as an offset.
+func TestSelectableOverlayStillKeepsSelectionVisible(t *testing.T) {
+	items := make([]string, 20)
+	for i := range items {
+		items[i] = fmt.Sprintf("entry-%02d", i)
+	}
+	const cols, rows = 40, 12
+	screen := simScreen(t, cols, rows)
+	draw(screen, proto.Frame{
+		Cols: cols, Rows: rows,
+		Overlay: &proto.Overlay{
+			Title:      "jump",
+			ShowQuery:  true,
+			Selectable: true,
+			Items:      items,
+			Selected:   3,
+		},
+	}, config.Default())
+
+	if !screenContains(screen, "entry-03") {
+		t.Errorf("the selected entry must be visible; got:\n%s", strings.Join(screenText(screen), "\n"))
+	}
+	if !screenContains(screen, "entry-00") {
+		t.Errorf("selection 3 fits on the first page, so the list should not have scrolled; got:\n%s", strings.Join(screenText(screen), "\n"))
+	}
 }

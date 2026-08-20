@@ -85,6 +85,69 @@ func TestGracefulShutdownDeletesSnapshot(t *testing.T) {
 	}
 }
 
+// TestQuitDeletesSnapshot is the regression test for the loudest bug of
+// the lot: quitting a two-pane session and starting one with the same
+// name again brought the two panes back instead of the fresh single pane
+// a new session should have. Ctrl-B q runs requestQuit, which marks the
+// session closed and *then* lets the server's Exited() watcher call
+// Shutdown — and Shutdown used to return early on exactly that flag,
+// skipping the snapshot delete that is its whole reason for existing.
+func TestQuitDeletesSnapshot(t *testing.T) {
+	name := "test-quit-deletes-" + t.Name()
+
+	c, err := New(name, 80, 24)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	c.mu.Lock()
+	c.doSplit(layout.Vertical)
+	c.confirmQuit()
+	c.handleConfirmKey('y') // requestQuit: closes every pane, marks the session closed
+	c.mu.Unlock()
+
+	c.Shutdown() // what the server does once Exited() fires
+
+	if _, ok := persist.Load(name); ok {
+		t.Fatal("a confirmed quit must not leave a snapshot behind — the next session of this name would silently restore the layout just quit out of")
+	}
+
+	c2, err := New(name, 80, 24)
+	if err != nil {
+		t.Fatalf("New (after quit): %v", err)
+	}
+	defer closeAllPanes(c2)
+	if n := len(layout.Leaves(c2.windows[0].root)); n != 1 {
+		t.Fatalf("a session started after quitting should open with 1 pane, got %d", n)
+	}
+}
+
+// TestNoSnapshotWrittenAfterClose covers the other half of that fix.
+// Closing panes makes their pump goroutines run handlePaneExit, which
+// ends up back in persistStateLocked — so without a guard, a late exit
+// can write the snapshot straight back out after Shutdown deleted it.
+func TestNoSnapshotWrittenAfterClose(t *testing.T) {
+	name := "test-late-persist-" + t.Name()
+
+	c, err := New(name, 80, 24)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	c.mu.Lock()
+	c.doSplit(layout.Vertical)
+	c.mu.Unlock()
+
+	c.Shutdown()
+
+	c.mu.Lock()
+	c.persistStateLocked() // stands in for a pump goroutine getting here late
+	c.mu.Unlock()
+	c.PersistState() // and for the server's periodic snapshot racing shutdown
+
+	if _, ok := persist.Load(name); ok {
+		t.Fatal("nothing should be able to write a snapshot once the session is closed")
+	}
+}
+
 func TestFreshSessionWhenNoSnapshot(t *testing.T) {
 	c := newTestCore(t)
 

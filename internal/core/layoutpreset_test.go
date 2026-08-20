@@ -147,3 +147,41 @@ func TestBuildTiledMakesARoughlySquareGrid(t *testing.T) {
 		}
 	}
 }
+
+// TestCycleLayoutKeepsLastPaneToggleValid: cycling a layout throws the
+// whole split tree away and builds a fresh one around the same panes, so
+// every *Node in the old tree is stale afterwards. w.active was already
+// re-resolved by pane ID; w.lastActive wasn't — leaving Ctrl-B ; holding
+// a node that is no longer part of any tree, and pressing it made that
+// detached node the window's active pane. Focus then pointed at
+// something layout.Leaves can't see: nothing rendered as focused, and
+// the arrow keys had nothing to move from.
+func TestCycleLayoutKeepsLastPaneToggleValid(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.doSplit(layout.Vertical)
+	c.doSplit(layout.Horizontal) // three panes, so the presets actually differ
+	w := c.win()
+	leaves := layout.Leaves(w.root)
+	c.setActive(leaves[0])
+	c.setActive(leaves[2]) // lastActive is now leaves[0]
+	if w.lastActive != leaves[0] {
+		t.Fatalf("test setup: lastActive = %p, want %p", w.lastActive, leaves[0])
+	}
+	wantLastID := w.lastActive.ID
+
+	c.cycleLayout()
+
+	if w.lastActive != nil && findLeafByID(w.root, w.lastActive.ID) != w.lastActive {
+		t.Fatal("lastActive points at a node that is no longer in the window's tree")
+	}
+	c.toggleLastPane()
+	if findLeafByID(w.root, w.active.ID) != w.active {
+		t.Fatal("the active pane must be a live node in the window's own tree")
+	}
+	if w.active.ID != wantLastID {
+		t.Errorf("Ctrl-B ; after a layout change should still flip back to pane %d, landed on %d", wantLastID, w.active.ID)
+	}
+}

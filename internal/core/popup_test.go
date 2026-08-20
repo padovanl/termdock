@@ -238,3 +238,37 @@ func TestPopupCommandExitingClosesItAutomatically(t *testing.T) {
 		t.Fatalf("popup-command exiting should also hide the popup and return to ModeNormal: visible=%v mode=%v", visible, mode)
 	}
 }
+
+// TestPopupKeysFollowRebinding: the popup's own narrow prefix handler
+// used to compare against the literal 'P'/'d'/'q' instead of consulting
+// c.bindings, so a config "bind" line reassigning one of those keys
+// changed what it did everywhere except here. The sharp case is 'q':
+// binding it to something harmless left the popup still quitting the
+// whole session on it, a confirmation the user thought they'd moved away.
+func TestPopupKeysFollowRebinding(t *testing.T) {
+	c := newTestCore(t)
+	// 'q' now means detach, and quit has moved to 'K'.
+	c.SetBindOverrides(map[rune]string{'q': "detach", 'K': "quit"})
+
+	c.mu.Lock()
+	c.togglePopup()
+
+	c.handlePopupKey(tcell.Key(c.prefixKey), 0)
+	reassigned := c.handlePopupKey(tcell.KeyRune, 'q')
+	modeAfterQ := c.mode
+
+	c.handlePopupKey(tcell.Key(c.prefixKey), 0)
+	c.handlePopupKey(tcell.KeyRune, 'K')
+	modeAfterK := c.mode
+	c.mu.Unlock()
+
+	if !reassigned.Detach {
+		t.Error("'q' was rebound to detach, so it should detach from the popup too")
+	}
+	if modeAfterQ == ModeConfirm {
+		t.Error("'q' no longer means quit, so it must not raise the quit confirmation from the popup")
+	}
+	if modeAfterK != ModeConfirm {
+		t.Errorf("the rebound quit key should reach confirmQuit from the popup, mode=%v", modeAfterK)
+	}
+}

@@ -29,19 +29,44 @@ func (c *Core) enterHelp() {
 }
 
 func (c *Core) handleHelpKey(key tcell.Key, r rune) {
-	n := len(c.help.entries)
+	page := c.helpListRows()
 	switch {
 	case key == tcell.KeyUp || r == 'k':
-		c.help.scroll = maxi(0, c.help.scroll-1)
+		c.scrollHelp(-1)
 	case key == tcell.KeyDown || r == 'j':
-		c.help.scroll = minInt(n-1, c.help.scroll+1)
+		c.scrollHelp(1)
 	case key == tcell.KeyPgUp:
-		c.help.scroll = maxi(0, c.help.scroll-10)
+		c.scrollHelp(-page)
 	case key == tcell.KeyPgDn:
-		c.help.scroll = minInt(n-1, c.help.scroll+10)
+		c.scrollHelp(page)
+	case key == tcell.KeyHome:
+		c.help.scroll = 0
+	case key == tcell.KeyEnd:
+		c.help.scroll = c.maxHelpScroll()
 	default:
 		c.mode = ModeNormal
 	}
+}
+
+// helpListRows mirrors the height the client gives the overlay's item
+// list (see drawOverlay in internal/client/render.go: one title row plus
+// the box's two borders, inside a screen that keeps one row spare) so
+// PgUp/PgDn move by a real screenful and scrolling can be clamped to a
+// position that actually exists.
+func (c *Core) helpListRows() int {
+	return maxi(1, c.rows-4)
+}
+
+// maxHelpScroll is the largest useful first-visible-entry index: past it
+// the list would just show blank rows below the last entry, and — worse —
+// scrolling back up would then spend several keypresses doing nothing
+// visible before the view finally moved.
+func (c *Core) maxHelpScroll() int {
+	return maxi(0, len(c.help.entries)-c.helpListRows())
+}
+
+func (c *Core) scrollHelp(delta int) {
+	c.help.scroll = clampi(c.help.scroll+delta, 0, c.maxHelpScroll())
 }
 
 // helpOverlay builds the client-facing snapshot of the help screen, or
@@ -62,8 +87,11 @@ func (c *Core) helpOverlay() *proto.Overlay {
 		items[i] = fmt.Sprintf("%-*s  %s", maxKey, e.key, e.desc)
 	}
 	return &proto.Overlay{
-		Title:    "keybindings (after Ctrl-B) — any key closes, ↑↓/jk/PgUp/PgDn scroll",
-		Items:    items,
+		Title: "keybindings (after Ctrl-B) — any key closes, ↑↓/jk/PgUp/PgDn/wheel scroll",
+		Items: items,
+		// Selectable is off, so Selected carries the scroll offset (the
+		// first entry to show) rather than a highlighted row — see
+		// proto.Overlay.Selected.
 		Selected: c.help.scroll,
 	}
 }

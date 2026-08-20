@@ -449,7 +449,9 @@ or losing OS-level focus — see
 ### ❓ Help
 
 `Ctrl-B ?` opens a scrollable reference listing every keybinding —
-`↑`/`↓`/`j`/`k`/`PgUp`/`PgDn` scroll, any other key closes it. It's the
+`↑`/`↓`/`j`/`k`/`PgUp`/`PgDn`, `Home`/`End` and the mouse wheel scroll it,
+any other key closes it. `PgUp`/`PgDn` move by a real screenful, whatever
+your terminal's height happens to be. It's the
 same floating box the jump picker uses, just without the type-ahead
 filter, so a long list stays readable instead of getting crammed into
 (and clipped off of) a single status bar line.
@@ -487,7 +489,11 @@ Enter with `Ctrl-B [`. From there:
 - Click a pane: gives it focus.
 - Click-drag on a pane's content: selects text and copies it on release —
   no need to enter copy-mode first, the same as any ordinary terminal.
-  (A plain click with no drag still just focuses the pane.)
+  Releasing also *leaves* copy-mode, exactly like pressing `y`, so the
+  pane goes straight back to taking your typing. The status bar confirms
+  what was copied. (A plain click with no drag still just focuses the
+  pane; a drag over blank space copies nothing and leaves your clipboard
+  alone.)
 - Double-click a pane's title bar: 🎯 zooms it (same as `Ctrl-B z`);
   double-click again to unzoom.
 - Drag a pane's title bar onto a different window's tab: moves that pane

@@ -330,12 +330,20 @@ func (c *Core) Resize(cols, rows int) {
 func (c *Core) Shutdown() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.closed {
-		return
-	}
+	// Closing the panes is the part that must not run twice; deleting the
+	// snapshot has to happen either way. Both of the ordinary ways a
+	// session ends on purpose — Ctrl-B q and the last pane exiting — go
+	// through requestQuit, which marks the session closed *before* the
+	// server's Exited() watcher gets here, so returning early on that flag
+	// meant the snapshot survived a deliberate quit: starting a session
+	// with the same name again silently restored the very layout that was
+	// just quit out of, instead of the fresh single pane it should have.
+	alreadyClosed := c.closed
 	c.closed = true
-	for _, p := range c.panes {
-		p.Close()
+	if !alreadyClosed {
+		for _, p := range c.panes {
+			p.Close()
+		}
 	}
 	persist.Delete(c.SessionName)
 }

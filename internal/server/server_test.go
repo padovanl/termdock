@@ -413,3 +413,62 @@ func TestQuitAsksForConfirmationEndToEnd(t *testing.T) {
 		t.Fatal("the session should still be running — Ctrl-B q should ask first, not quit immediately")
 	}
 }
+
+// TestQuitDoesNotRestoreTheLayoutNextTime is the end-to-end version of
+// the bug that started this round: quit a session with two panes, start
+// one with the same name again, and the two panes came back instead of
+// the single fresh pane a new session should have. requestQuit marks the
+// session closed and the server's Exited() watcher then calls Shutdown —
+// which used to return early on exactly that flag, skipping the snapshot
+// delete that is its entire purpose. Covered here rather than only in
+// core because the wiring between the two is the part that broke.
+func TestQuitDoesNotRestoreTheLayoutNextTime(t *testing.T) {
+	const name = "test-quit-no-restore-e2e"
+	sock, kill := startSession(t, name)
+	defer kill()
+
+	conn, enc, _ := dial(t, sock, false)
+
+	sendKey(t, enc, tcell.KeyCtrlB, 0)
+	sendKey(t, enc, tcell.KeyRune, 'v') // split: two panes now
+	if !waitForPaneCount(sock, 2) {
+		t.Fatal("the split never took effect")
+	}
+
+	sendKey(t, enc, tcell.KeyCtrlB, 0)
+	sendKey(t, enc, tcell.KeyRune, 'q')
+	sendKey(t, enc, tcell.KeyRune, 'y') // confirm
+	conn.Close()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, ok := Probe(sock); !ok {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if _, ok := Probe(sock); ok {
+		t.Fatal("the session should be gone after a confirmed quit")
+	}
+
+	_, kill2 := startSession(t, name)
+	defer kill2()
+	info, ok := Probe(sock)
+	if !ok {
+		t.Fatal("the restarted session should be up")
+	}
+	if info.PaneCount != 1 {
+		t.Fatalf("a session started after quitting should have 1 pane, got %d — the quit left its snapshot behind", info.PaneCount)
+	}
+}
+
+func waitForPaneCount(sock string, want int) bool {
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if info, ok := Probe(sock); ok && info.PaneCount == want {
+			return true
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return false
+}

@@ -16,16 +16,31 @@ func (c *Core) handleMouse(m proto.ClientMsg) Result {
 	if len(c.windows) == 0 {
 		return Result{} // session mid-shutdown; a lingering connection raced us here
 	}
+	buttons := tcell.ButtonMask(m.MouseButtons)
+	x, y := m.MouseX, m.MouseY
+
 	switch c.mode {
-	case ModeConfirm, ModePicker, ModeHelp, ModeRegisters, ModeSessions, ModeSearch, ModeOpener, ModeQuickJump:
+	case ModeConfirm, ModePicker, ModeRegisters, ModeSessions, ModeSearch, ModeOpener, ModeQuickJump:
 		// These are keyboard-only type-ahead/prompt modes — a stray
 		// click shouldn't be able to act on whatever's underneath while
 		// any of them are up.
 		return Result{}
+	case ModeHelp:
+		// Same rule for clicks, but the help screen is a long scrollable
+		// list and the wheel is the first thing anyone reaches for on
+		// one — especially on a short terminal, which is exactly where
+		// the list doesn't fit and scrolling matters most.
+		switch {
+		case buttons&tcell.WheelUp != 0:
+			c.scrollHelp(-3)
+		case buttons&tcell.WheelDown != 0:
+			c.scrollHelp(3)
+		default:
+			return Result{}
+		}
+		c.markDirty()
+		return Result{}
 	}
-
-	buttons := tcell.ButtonMask(m.MouseButtons)
-	x, y := m.MouseX, m.MouseY
 
 	// Wheel-scrolling only makes sense over the normal pane layout or
 	// while already scrolled back in copy-mode; with the popup or
@@ -339,6 +354,18 @@ func (c *Core) handleCopyMouse(primary, released bool, x, y int) Result {
 			moved := x != c.mouseDownX || y != c.mouseDownY
 			if moved {
 				text, ok := c.yank()
+				// Releasing the drag ends copy-mode, exactly like the
+				// keyboard's y/Enter (and like tmux, whose default
+				// MouseDragEnd1Pane binding is copy-pipe-and-*cancel*).
+				// Staying in copy-mode instead left the pane frozen at
+				// whatever row the view was scrolled to, with typing going
+				// to the copy cursor rather than the shell — so the first
+				// mouse copy appeared to work and everything after it
+				// looked broken until you happened to press q or Esc.
+				c.exitCopyMode()
+				if ok {
+					c.statusMsg = "copied " + copiedSummary(text)
+				}
 				return Result{Clipboard: text, HasClipboard: ok}
 			}
 			c.copy.selecting = false

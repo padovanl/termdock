@@ -124,14 +124,20 @@ func (c *Core) handlePopupKey(key tcell.Key, r rune) Result {
 	c.prefix = false
 	c.statusMsg = ""
 	var res Result
-	switch {
-	case key == c.prefixKey:
+	if key == c.prefixKey {
 		c.writeToPopup(key, r) // double prefix-key press: send it through literally
-	case r == 'P':
+		return res
+	}
+	// Resolved through c.bindings rather than against literal 'P'/'d'/'q'
+	// so a config "bind" override reaches the popup too — hardcoding the
+	// defaults here meant rebinding quit moved it everywhere *except*
+	// this one handler, leaving the old key still quitting from the popup.
+	switch c.bindings[r] {
+	case actPopup:
 		c.togglePopup()
-	case r == 'd':
+	case actDetach:
 		res.Detach = true
-	case r == 'q':
+	case actQuit:
 		// Same confirmation dispatchAction's actQuit case asks for —
 		// quitting from the popup is exactly as destructive (every
 		// window and pane in the session, not just the popup) and

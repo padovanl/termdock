@@ -55,6 +55,16 @@ func (c *Core) cycleLayout() {
 		refs[i] = leafRef{l.ID, l.Pane}
 	}
 	activeID := w.active.ID
+	// Every *Node in the old tree is discarded below, so anything else
+	// holding one has to be re-resolved by pane ID afterwards — including
+	// Ctrl-B ;'s target. Left alone, it kept pointing into the old tree,
+	// and pressing ; made a node that belongs to no tree the window's
+	// active pane: nothing rendered as focused and the arrow keys had
+	// nothing to move from.
+	lastActiveID := -1
+	if w.lastActive != nil {
+		lastActiveID = w.lastActive.ID
+	}
 
 	w.layoutPreset = (w.layoutPreset + 1) % numLayoutPresets
 	var root *layout.Node
@@ -71,6 +81,10 @@ func (c *Core) cycleLayout() {
 	w.active = findLeafByID(root, activeID)
 	if w.active == nil {
 		w.active = layout.FirstLeaf(root)
+	}
+	w.lastActive = nil
+	if lastActiveID >= 0 {
+		w.lastActive = findLeafByID(root, lastActiveID)
 	}
 	c.relayoutLocked()
 	c.persistStateLocked()

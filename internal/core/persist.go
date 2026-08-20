@@ -15,6 +15,15 @@ import (
 // which aren't a layout change and so don't otherwise trigger a save.
 // Assumes c.mu is already held, same convention as relayoutLocked.
 func (c *Core) persistStateLocked() {
+	if c.closed {
+		// The session is on its way out and Shutdown has deleted (or is
+		// about to delete) its snapshot. Closing panes makes their pump
+		// goroutines run handlePaneExit, which lands right back here — so
+		// without this a late exit could write the snapshot straight back
+		// out after the delete, resurrecting exactly the layout the user
+		// just quit out of.
+		return
+	}
 	snap := persist.Snapshot{SessionName: c.SessionName}
 	for _, w := range c.windows {
 		snap.Windows = append(snap.Windows, persist.Window{

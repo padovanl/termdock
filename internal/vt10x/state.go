@@ -153,7 +153,16 @@ func (t *State) Unlock() {
 
 // Cell returns the glyph containing the character code, foreground color, and
 // background color at position (x, y) relative to the top left of the terminal.
+// Out-of-range coordinates return the zero Glyph rather than panicking,
+// matching HistoryCell: callers read the grid through absolute row indices
+// that can go stale between one lock and the next (a resize changes the row
+// count; scrollback passing its limit drops lines off the front, shifting
+// every index above it), and an out-of-range read there used to take the
+// whole server process down — every pane in every session with it.
 func (t *State) Cell(x, y int) Glyph {
+	if y < 0 || y >= len(t.lines) || x < 0 || x >= len(t.lines[y]) {
+		return Glyph{}
+	}
 	cell := t.lines[y][x]
 	fg, ok := t.colorOverride[cell.FG]
 	if ok {
