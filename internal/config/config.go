@@ -16,6 +16,8 @@
 //	status-bg <color>      status bar background (default black)
 //	status-fg <color>      status bar foreground (default silver)
 //	pane-active-bg <color> active pane's border/title color (default teal)
+//	status-segments <list> comma-separated optional status-bar segments,
+//	                       e.g. "git,battery" (default: none)
 //
 // Colors accept any W3C name tcell understands ("black", "teal", ...) or
 // a "#rrggbb" hex value.
@@ -34,13 +36,14 @@ import (
 // Config is every setting termdock reads from the config file, already
 // merged with defaults.
 type Config struct {
-	Prefix       tcell.Key
-	Mouse        bool
-	HistoryLimit int
-	Shell        string
-	StatusBG     tcell.Color
-	StatusFG     tcell.Color
-	PaneActiveBG tcell.Color
+	Prefix         tcell.Key
+	Mouse          bool
+	HistoryLimit   int
+	Shell          string
+	StatusBG       tcell.Color
+	StatusFG       tcell.Color
+	PaneActiveBG   tcell.Color
+	StatusSegments []string // optional status-bar segments; see internal/core/segments.go
 }
 
 // Default returns the built-in settings, used for anything the config
@@ -107,6 +110,13 @@ func applySetting(cfg *Config, key, val string) {
 		cfg.StatusFG = tcell.GetColor(val)
 	case "pane-active-bg":
 		cfg.PaneActiveBG = tcell.GetColor(val)
+	case "status-segments":
+		cfg.StatusSegments = nil
+		for _, s := range strings.Split(val, ",") {
+			if s = strings.TrimSpace(s); s != "" {
+				cfg.StatusSegments = append(cfg.StatusSegments, s)
+			}
+		}
 	}
 }
 

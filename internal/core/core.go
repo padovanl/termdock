@@ -31,12 +31,14 @@ const (
 	ModeResize
 	ModeInput   // typing a line for rename or search; see input.go
 	ModeConfirm // a pending destructive action awaiting y/n; see confirmKillWindow
-	ModePicker      // type-ahead jump to any window/pane; see picker.go
-	ModeHelp        // scrollable keybinding reference; see help.go
-	ModeSessions    // type-ahead switch to another session; see sessions.go
-	ModeSearch      // type-ahead search every pane's scrollback; see search.go
-	ModeOverview    // live-thumbnail grid of every pane; see overview.go
-	ModeRegisters   // type-ahead pick which yank to paste; see registers.go
+	ModePicker    // type-ahead jump to any window/pane; see picker.go
+	ModeHelp      // scrollable keybinding reference; see help.go
+	ModeSessions  // type-ahead switch to another session; see sessions.go
+	ModeSearch    // type-ahead search every pane's scrollback; see search.go
+	ModeOverview  // live-thumbnail grid of every pane; see overview.go
+	ModeRegisters // type-ahead pick which yank to paste; see registers.go
+	ModePopup     // the floating scratch terminal is focused; see popup.go
+	ModeOpener    // type-ahead pick a URL/path spotted on screen; see opener.go
 )
 
 const resizeStep = 2
@@ -111,12 +113,21 @@ type Core struct {
 	sessions     sessionPickerState
 	search       globalSearchState
 	overview     overviewState
+	opener       openerState
 	help         helpState
 	drag         *dragState
 	tabDrag      *tabDragState
 	contentPress *contentPressState
 	titleDrag    *titleDragState
 	registers    []registerEntry // yanks, most recent first, for Ctrl-B ] and Ctrl-B = (see registers.go)
+
+	popup        *pane.Pane // the floating scratch terminal (Ctrl-B P), lazily created; see popup.go
+	popupVisible bool
+
+	statusSegments []string      // enabled optional status-bar segments ("git", "battery"); see segments.go
+	segCache       segmentCache
+
+	bellCh chan struct{} // non-blocking signal for a background window's *new* activity; see Bell
 
 	// ListSessions, if set (by the server, which knows about sibling
 	// daemons — core deliberately doesn't import internal/server, so it
@@ -161,6 +172,7 @@ func New(sessionName string, cols, rows int) (*Core, error) {
 		rows:        rows,
 		dirty:       make(chan struct{}, 1),
 		exitCh:      make(chan struct{}),
+		bellCh:      make(chan struct{}, 1),
 	}
 	if snap, ok := persist.Load(sessionName); ok && c.restoreFromSnapshot(snap) {
 		c.relayoutLocked()
@@ -186,6 +198,28 @@ func (c *Core) Dirty() <-chan struct{} { return c.dirty }
 // Exited fires once the session has no windows left and should shut down.
 func (c *Core) Exited() <-chan struct{} { return c.exitCh }
 
+// Bell fires whenever a background window produces output for the first
+// time since you last looked at it — see paneOutput and ringBell — so
+// the server can pass a real terminal bell on to attached clients rather
+// than relying solely on the passive "!" marker in the tab strip.
+func (c *Core) Bell() <-chan struct{} { return c.bellCh }
+
+func (c *Core) ringBell() {
+	select {
+	case c.bellCh <- struct{}{}:
+	default:
+	}
+}
+
+// SetStatusSegments enables optional status-bar segments ("git",
+// "battery" — see segments.go), off by default. Call before the session
+// has any attached clients.
+func (c *Core) SetStatusSegments(segs []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.statusSegments = segs
+}
+
 func (c *Core) markDirty() {
 	select {
 	case c.dirty <- struct{}{}:
@@ -205,8 +239,9 @@ func (c *Core) startPump(p *pane.Pane) {
 // background window in the status bar.
 func (c *Core) paneOutput(id int) {
 	c.mu.Lock()
-	if w, _ := c.findWindowAndLeaf(id); w != nil && c.windowIndex(w) != c.activeWindow {
+	if w, _ := c.findWindowAndLeaf(id); w != nil && c.windowIndex(w) != c.activeWindow && !w.activity {
 		w.activity = true
+		c.ringBell() // only on the false->true edge, not every line a background window prints
 	}
 	c.mu.Unlock()
 	c.markDirty()
@@ -236,6 +271,7 @@ func (c *Core) Resize(cols, rows int) {
 	}
 	c.cols, c.rows = cols, rows
 	c.relayoutLocked()
+	c.resizePopupLocked()
 	c.markDirty()
 }
 

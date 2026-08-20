@@ -155,3 +155,47 @@ func TestKillWindowRequiresConfirmation(t *testing.T) {
 		t.Fatalf("'y' should kill the window: had %d, want %d, got %d", windowsBefore, windowsBefore-1, windowsAfterConfirm)
 	}
 }
+
+func TestBreakPaneToNewWindow(t *testing.T) {
+	c := newTestCore(t)
+
+	c.mu.Lock()
+	c.doSplit(layout.Vertical) // 2 panes; right one active
+	leaf := c.win().active
+	leafID := leaf.ID
+	src := c.win()
+	windowsBefore := len(c.windows)
+
+	c.breakPaneToNewWindow()
+	windowsAfter := len(c.windows)
+	newWin := c.windows[c.activeWindow]
+	srcLeavesAfter := len(layout.Leaves(src.root))
+	c.mu.Unlock()
+
+	if windowsAfter != windowsBefore+1 {
+		t.Fatalf("expected 1 new window, had %d now %d", windowsBefore, windowsAfter)
+	}
+	if newWin.root != leaf || newWin.root.ID != leafID {
+		t.Fatalf("the broken-out pane should be the new window's only, root, pane")
+	}
+	if leaf.Parent != nil {
+		t.Fatal("the broken-out leaf should be a tree root now (nil Parent)")
+	}
+	if srcLeavesAfter != 1 {
+		t.Fatalf("source window should have 1 pane left, has %d", srcLeavesAfter)
+	}
+}
+
+func TestBreakPaneAloneInWindowIsANoop(t *testing.T) {
+	c := newTestCore(t)
+
+	c.mu.Lock()
+	windowsBefore := len(c.windows)
+	c.breakPaneToNewWindow() // the single default pane has no siblings
+	windowsAfter := len(c.windows)
+	c.mu.Unlock()
+
+	if windowsAfter != windowsBefore {
+		t.Fatalf("breaking the only pane in a window should be a no-op, had %d now %d", windowsBefore, windowsAfter)
+	}
+}

@@ -3,9 +3,11 @@ package core
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 
+	"termdock/internal/pane"
 	"termdock/internal/proto"
 )
 
@@ -49,10 +51,45 @@ func newTestCore(t *testing.T) *Core {
 	return c
 }
 
+// closeAllPanes snapshots the panes to close while holding c.mu, then
+// closes them outside the lock. It must not iterate c.panes unlocked: a
+// pane's shell exiting on its own drives Pump -> handlePaneExit ->
+// detachLeafIn -> ... -> c.mu.Lock() concurrently, off a pump goroutine,
+// which can mutate c.panes at the same moment a cleanup func here ranges
+// over it — an intermittent "concurrent map iteration and map write"
+// crash caught by running the suite repeatedly. Closing happens outside
+// the lock so it can't deadlock with handlePaneExit's own locking.
 func closeAllPanes(c *Core) {
+	c.mu.Lock()
+	panes := make([]*pane.Pane, 0, len(c.panes))
 	for _, p := range c.panes {
+		panes = append(panes, p)
+	}
+	popup := c.popup
+	c.mu.Unlock()
+
+	for _, p := range panes {
 		p.Close()
 	}
+	if popup != nil {
+		popup.Close()
+	}
+}
+
+// waitFor polls cond (which must not itself try to acquire c.mu — call
+// it only from outside a locked section) until it's true or a few
+// seconds pass, for asserting on state that changes asynchronously off a
+// pane's pump goroutine (e.g. its shell exiting).
+func waitFor(t *testing.T, cond func() bool) bool {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return true
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return cond()
 }
 
 func mouseMsg(x, y int) proto.ClientMsg {

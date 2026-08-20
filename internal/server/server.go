@@ -30,6 +30,7 @@ func Run(name, sockPath string, cfg config.Config) error {
 		return err
 	}
 	c.SetPrefixKey(cfg.Prefix)
+	c.SetStatusSegments(cfg.StatusSegments)
 	// core deliberately doesn't import server (server already imports
 	// core; Go disallows the cycle), so it can't discover sibling
 	// sessions itself — supplied here instead, for Ctrl-B S.
@@ -153,8 +154,23 @@ func (s *Session) broadcastLoop() {
 			s.broadcast()
 		case <-persistTick.C:
 			s.core.PersistState()
+		case <-s.core.Bell():
+			s.broadcastBell()
 		case <-s.core.Exited():
 			return
+		}
+	}
+}
+
+// broadcastBell passes a background window's first bit of new activity
+// on to every attached client as a real terminal bell, on top of the
+// tab strip's passive "!" marker — see Core.Bell.
+func (s *Session) broadcastBell() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for cc := range s.clients {
+		if err := cc.send(proto.ServerMsg{Kind: "bell"}); err != nil {
+			go cc.conn.Close()
 		}
 	}
 }

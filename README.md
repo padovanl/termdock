@@ -11,8 +11,9 @@ scrollback) for every pane directly.
 
 It also does a handful of things tmux doesn't, by default, at all — 🔍 a
 fuzzy jump picker, 🖼️ a live pane overview, 🔎 search across every pane's
-scrollback at once, 🔄 session switching without detaching, and 💾
-crash/reboot recovery among them. See
+scrollback at once, 🔄 session switching without detaching, 🪟 a floating
+popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
+and 💾 crash/reboot recovery among them. See
 [✨ What makes it different](#-what-makes-it-different-from-tmux).
 
 ## ✨ What makes it different from tmux
@@ -33,6 +34,11 @@ crash/reboot recovery among them. See
 | ⚠️ **Closing a whole window** | asks `y`/`n` first | gone immediately, no confirmation |
 | 🖼️ **Panel borders** | always-on, junction-aware box drawing with the active pane highlighted | thin borders, style is you-configure-it |
 | 🎯 **Zoom feedback** | the zoomed pane's border turns magenta and gets a `[Z]` tag | no visual cue you're zoomed beyond the layout itself |
+| 🪟 **Scratch terminal** | a floating popup pane (`Ctrl-B P`) toggled over whatever you're doing, no layout change | needs a dedicated popup session and a scripted `display-popup` binding |
+| 🔗 **Open a URL/path** | fuzzy-pick any link or path visible on screen, copied straight to your clipboard (`Ctrl-B u`) | needs the external `tmux-open`/`tmux-fpp` plugins |
+| 🔔 **Background activity** | one real terminal bell (`\a`) the moment a background window's `*` first lights up, not per line | `monitor-activity`/`visual-activity` needs both set explicitly |
+| ✂️ **Break a pane out** | `Ctrl-B !` moves the active pane into its own new window | `break-pane`, same idea, same key |
+| 📊 **Status bar segments** | opt-in git branch / battery segments, no extra process | needs `#()` shell hooks in `status-right` |
 
 ## 🏗️ Architecture
 
@@ -111,6 +117,9 @@ active pane.
 | `g` | 🖼️ **overview**: a live-thumbnail grid of every pane in the session (see below) |
 | `/` | 🔎 **search**: search every pane's scrollback at once (see below) |
 | `S` | 🔄 **switch session**: fuzzy-pick another session, no detach needed (see below) |
+| `P` | 🪟 toggle a floating **popup terminal** over the current layout (see below) |
+| `u` | 🔗 **open picker**: fuzzy-pick a URL/path spotted on screen, copies it to the clipboard (see below) |
+| `!` | ✂️ **break-pane**: move the active pane out into its own new window |
 | `0`-`9` | jump straight to window N |
 | `,` | rename the current window |
 | `&` | ⚠️ close the current window and every pane in it (asks `y`/`n` first) |
@@ -195,6 +204,50 @@ picker involved — unchanged, still the fast path. `Ctrl-B =` (tmux's
 instead, each shown as a one-line preview, for when the thing you want
 isn't the very last thing you copied.
 
+### 🪟 Popup terminal
+
+`Ctrl-B P` toggles a floating scratch terminal centered over whatever
+you're currently looking at — 80% wide, 70% tall, no split, no layout
+change, no window switch. It's a single persistent pane per session:
+toggling it away and back keeps whatever was running (`git log`, a REPL,
+a quick `man` page), the same way tmux's own `display-popup -E` does, but
+without needing to write the command out every time or wire up a binding
+yourself. `Ctrl-B P` again (or `Ctrl-B d`) closes it, clicking outside it
+also closes it, and everything else you type goes straight through to the
+shell inside it, exactly like a normal pane.
+
+### 🔗 Opening links and paths
+
+`Ctrl-B u` scans the active pane's visible screen for anything that looks
+like a URL or a filesystem path and opens a fuzzy picker over the
+matches, most recent (bottom of screen) first — handy after a build spews
+a stack trace full of file paths, or `curl` prints a link you want
+without reaching for the mouse. `Enter` copies the selected one to your
+clipboard via the same OSC52 mechanism copy-mode yanks use (the daemon
+may well be running on a different machine over SSH, so it can't just
+exec a browser locally); `Esc` cancels. This is what tmux needs the
+external `tmux-open`/`tmux-fpp` plugins for.
+
+### 🔔 Background activity
+
+The moment a background window's `*` activity marker first lights up
+(see [🪟 Windows](#-windows)), termdock rings your real terminal's bell
+(`\a`) once — not once per line, so a chatty background pane doesn't turn
+into a siren, and not at all for the window you're already looking at.
+What that bell actually *does* — flash the tab, bounce the dock icon,
+play a sound — is entirely up to your terminal emulator's own bell
+setting, the same as any other program's `\a`. tmux needs both
+`monitor-activity` and `visual-activity` set explicitly to get anywhere
+close to this.
+
+### ✂️ Breaking a pane out
+
+`Ctrl-B !` (tmux's own `break-pane`, same key) takes the active pane out
+of its current split layout and gives it a brand new window all to
+itself — the opposite of a split, for when a pane you added to a layout
+on a whim turns out to deserve its own window instead. A no-op if it's
+already alone in its window.
+
 ### ❓ Help
 
 `Ctrl-B ?` opens a scrollable reference listing every keybinding —
@@ -257,7 +310,10 @@ right side: hostname and clock, tmux-style. Press the prefix and the left
 side expands to the full key list for as long as you're mid-command;
 `Ctrl-B ?` opens the same list as a proper scrollable screen instead (see
 [❓ Help](#-help)), for when you want to actually read it rather than
-catch it in passing.
+catch it in passing. Turn on `status-segments` in the config (see
+[⚙️ Configuration](#-configuration)) to prepend a git branch and/or
+battery reading to the right side too, computed with a short cache so
+they don't add overhead to every frame.
 
 ## 📜 Scripting a session
 
@@ -342,6 +398,7 @@ shell /bin/zsh           # shell for new panes (default $SHELL)
 status-bg black          # status bar background (default black)
 status-fg silver         # status bar foreground (default silver)
 pane-active-bg teal       # active pane's border/title color (default teal)
+status-segments git,battery  # extra segments in the status bar (default: none)
 ```
 
 Colors accept any W3C name tcell understands, or `#rrggbb` hex.
@@ -349,6 +406,11 @@ Colors accept any W3C name tcell understands, or `#rrggbb` hex.
 effect when a session is *created* (`termdock new`), not on every attach;
 `mouse` and the colors are read by the **client**, so they apply per
 attach and can differ between two clients looking at the same session.
+`status-segments` is a comma-separated list, read by the server; `git`
+shows the active pane's current directory's branch (Linux only, empty
+outside a repo), `battery` shows charge level and charging state (Linux
+only, empty on a machine without one) — both cached for a couple of
+seconds so they don't spawn a subprocess on every redraw.
 
 ## 📁 Code layout
 
@@ -367,7 +429,8 @@ attach and can differ between two clients looking at the same session.
 - `internal/core` — the session's brain, with no terminal attached:
   windows, panes, layout, copy-mode, mouse, resize-mode, the jump picker,
   global search, the pane overview, paste registers, session switching,
-  help screen. Runs in the server.
+  the popup terminal, the URL/path opener, the activity bell,
+  break-pane, status bar segments, help screen. Runs in the server.
 - `internal/proto` — the messages exchanged between client and server
   over the socket.
 - `internal/persist` — the on-disk session-snapshot format and file I/O
@@ -387,15 +450,19 @@ go test ./...    # the actual test suite
 
 Every package with logic worth pinning down has one: layout geometry and
 the split-tree edge cases, the client's box-drawing/overlay/grid
-rendering, pane process handling, the snapshot format, the session brain
-in `internal/core` (mouse gesture disambiguation — click vs. drag vs.
-double-click, all sharing the same press/release events — every picker's
-fuzzy filter, window/pane reordering and moving, the pane overview's grid
-math, global search, and end-to-end crash-recovery), and
-`internal/server`, with real socket-level integration tests: two actual
-daemons for a session-switch to jump between, a read-only client's input
-and resize both confirmed dropped by driving a second, ordinary client
-and checking what it sees. All of it spins up real shells in real ptys
+rendering, pane process handling, the snapshot format, the config file
+parser, the session brain in `internal/core` (mouse gesture
+disambiguation — click vs. drag vs. double-click, all sharing the same
+press/release events — every picker's fuzzy filter, window/pane
+reordering and moving, the pane overview's grid math, global search,
+the popup terminal's own lifecycle and keys, the URL/path opener's
+regex matching, the activity bell's edge-triggering, break-pane, status
+segments, and end-to-end crash-recovery), and `internal/server`, with
+real socket-level integration tests: two actual daemons for a
+session-switch to jump between, a read-only client's input and resize
+both confirmed dropped by driving a second, ordinary client and checking
+what it sees, and a background window's activity confirmed to ring a
+bell on an attached client. All of it spins up real shells in real ptys
 and real unix-socket daemons rather than mocking the terminal or network
 layer, and isolates every bit of state a run touches — session-snapshot
 I/O (`$XDG_STATE_HOME`) and session sockets (`$XDG_RUNTIME_DIR`) alike —

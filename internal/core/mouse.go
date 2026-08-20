@@ -17,7 +17,7 @@ func (c *Core) handleMouse(m proto.ClientMsg) Result {
 		return Result{} // session mid-shutdown; a lingering connection raced us here
 	}
 	switch c.mode {
-	case ModeConfirm, ModePicker, ModeHelp, ModeRegisters, ModeSessions, ModeSearch:
+	case ModeConfirm, ModePicker, ModeHelp, ModeRegisters, ModeSessions, ModeSearch, ModeOpener:
 		// These are keyboard-only type-ahead/prompt modes — a stray
 		// click shouldn't be able to act on whatever's underneath while
 		// any of them are up.
@@ -27,13 +27,16 @@ func (c *Core) handleMouse(m proto.ClientMsg) Result {
 	buttons := tcell.ButtonMask(m.MouseButtons)
 	x, y := m.MouseX, m.MouseY
 
-	if buttons&tcell.WheelUp != 0 {
-		c.wheelUp(x, y)
-		c.markDirty()
-		return Result{}
-	}
-	if buttons&tcell.WheelDown != 0 {
-		c.wheelDown()
+	// Wheel-scrolling only makes sense over the normal pane layout or
+	// while already scrolled back in copy-mode; with the popup or
+	// overview covering the screen, there's no window underneath for it
+	// to sensibly apply to.
+	if (buttons&tcell.WheelUp != 0 || buttons&tcell.WheelDown != 0) && (c.mode == ModeNormal || c.mode == ModeCopy) {
+		if buttons&tcell.WheelUp != 0 {
+			c.wheelUp(x, y)
+		} else {
+			c.wheelDown()
+		}
 		c.markDirty()
 		return Result{}
 	}
@@ -47,6 +50,8 @@ func (c *Core) handleMouse(m proto.ClientMsg) Result {
 		res = c.handleCopyMouse(primary, released, x, y)
 	case ModeOverview:
 		c.handleOverviewMouse(primary, released, x, y)
+	case ModePopup:
+		c.handlePopupMouse(primary, released, x, y)
 	default:
 		c.handleNormalMouse(primary, released, x, y)
 	}

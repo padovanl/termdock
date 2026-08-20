@@ -290,3 +290,32 @@ func (c *Core) movePaneToWindow(leaf *layout.Node, from, to *Window) bool {
 	c.persistStateLocked()
 	return true
 }
+
+// breakPaneToNewWindow pulls the active pane out of the active window's
+// split tree and gives it a brand new window all its own — tmux's
+// break-pane (bound to the same "!"). The reverse of movePaneToWindow
+// with an existing target: here the leaf itself becomes a new window's
+// root instead of grafting into one that's already there.
+func (c *Core) breakPaneToNewWindow() {
+	w := c.win()
+	leaf := w.active
+	if len(layout.Leaves(w.root)) < 2 {
+		c.statusMsg = "this pane is already alone in its window"
+		return
+	}
+
+	newRoot, next := layout.Remove(w.root, leaf)
+	w.root = newRoot // never nil: the length check above guarantees at least one sibling survives
+	if w.active == leaf {
+		w.active = next
+	}
+	leaf.Parent = nil
+
+	nw := &Window{ID: c.nextWindowID, root: leaf, active: leaf}
+	c.nextWindowID++
+	c.windows = append(c.windows, nw)
+	c.activeWindow = len(c.windows) - 1
+	c.afterWindowSwitch()
+	c.relayoutLocked()
+	c.persistStateLocked()
+}

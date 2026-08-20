@@ -45,13 +45,14 @@ func (c *Core) Frame() proto.Frame {
 	f.Windows = c.windowTabs()
 	f.StatusText, f.StatusRight, f.StatusStyle = c.statusLine()
 	for _, provider := range []func() *proto.Overlay{
-		c.pickerOverlay, c.helpOverlay, c.registersOverlay, c.sessionsOverlay, c.searchOverlay,
+		c.pickerOverlay, c.helpOverlay, c.registersOverlay, c.sessionsOverlay, c.searchOverlay, c.openerOverlay,
 	} {
 		if f.Overlay = provider(); f.Overlay != nil {
 			break
 		}
 	}
 	f.Overview = c.overviewFrame()
+	f.Popup = c.popupFrame()
 	return f
 }
 
@@ -154,7 +155,8 @@ func (c *Core) paneTitle(idx int, p *pane.Pane) string {
 // press, so it needs to actually go somewhere.
 const helpText = "v/% vsplit | s/\" hsplit | hjkl/arrows move | o/Tab cycle | z zoom | r resize | " +
 	"[ copy | ] paste | = registers | y sync | c new-win | n/p next/prev-win | w jump | g overview | " +
-	"/ search | S sessions | 0-9 win# | , rename | & kill-win | x close-pane | d detach | q quit | ? help"
+	"/ search | S sessions | P popup | u open link | ! break-pane | 0-9 win# | , rename | & kill-win | " +
+	"x close-pane | d detach | q quit | ? help"
 
 func (c *Core) statusLine() (text, right, style string) {
 	// Minimal at rest — like tmux's default status line, not a permanent
@@ -192,6 +194,12 @@ func (c *Core) statusLine() (text, right, style string) {
 	case c.mode == ModeOverview:
 		style = "mode"
 		hint = "arrows/hjkl move, click or enter jump, esc cancel"
+	case c.mode == ModePopup:
+		style = "mode"
+		hint = "typing goes to the popup — Ctrl-B P hides it, Ctrl-B d/q still work"
+	case c.mode == ModeOpener:
+		style = "mode"
+		hint = "type to filter, ↑↓ select, enter copies to clipboard, esc cancel"
 	case c.prefix:
 		style = "prefix"
 		hint = "PREFIX > " + helpText
@@ -209,6 +217,9 @@ func (c *Core) statusLine() (text, right, style string) {
 	right = time.Now().Format("15:04 02-Jan-06")
 	if c.hostname != "" {
 		right = c.hostname + " " + right
+	}
+	if seg := c.statusSegmentsText(); seg != "" {
+		right = seg + " | " + right
 	}
 	right += " "
 	return text, right, style

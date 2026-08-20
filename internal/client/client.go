@@ -143,6 +143,8 @@ func attachOnce(screen tcell.Screen, sockPath string, cfg config.Config, readOnl
 				draw(screen, *se.msg.Frame, cfg)
 			case "clipboard":
 				writeClipboard(se.msg.Clipboard)
+			case "bell":
+				ringBell()
 			case "switch":
 				return "", se.msg.SwitchTo, nil
 			case "bye":
@@ -185,4 +187,13 @@ func forwardEvent(enc *gob.Encoder, ev tcell.Event) bool {
 // sequences) by writing straight to stdout.
 func writeClipboard(text string) {
 	os.Stdout.WriteString("\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(text)) + "\a")
+}
+
+// ringBell passes a background window's new activity on as a real
+// terminal BEL, straight to the real terminal rather than through tcell
+// (which has no API for it) — whether that's audible, a visual flash, or
+// nothing at all is entirely the user's own terminal bell setting, same
+// as it would be for any other program.
+func ringBell() {
+	os.Stdout.WriteString("\a")
 }

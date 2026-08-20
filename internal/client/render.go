@@ -35,10 +35,28 @@ func draw(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	if f.ShowStatus {
 		drawStatusBar(screen, f, cfg)
 	}
+	if f.Popup != nil {
+		drawPopup(screen, *f.Popup, cfg)
+	}
 	if f.Overlay != nil {
 		drawOverlay(screen, f, cfg)
 	}
 	screen.Show()
+}
+
+// drawPopup paints the Ctrl-B P floating scratch terminal: a bordered
+// box, its content drawn exactly like an ordinary pane's (see
+// drawPaneContent), on top of everything else already on screen.
+func drawPopup(screen tcell.Screen, p proto.PaneFrame, cfg config.Config) {
+	r := p.Rect
+	if r.W <= 0 || r.H <= 0 {
+		return
+	}
+	accent := tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(cfg.PaneActiveBG).Bold(true)
+	fillRect(screen, r.X-1, r.Y-1, r.W+2, r.H+2, tcell.StyleDefault.Background(tcell.ColorBlack))
+	drawFloatingBorder(screen, r.X-1, r.Y-1, r.W+2, r.H+2, accent)
+	overlayText(screen, r.X+1, r.Y-1, r.X+r.W, accent, " "+p.Title+" ")
+	drawPaneContent(screen, p)
 }
 
 // drawOverview paints the Ctrl-B g "mission control" grid: every pane's

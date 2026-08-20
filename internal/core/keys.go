@@ -64,6 +64,14 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 		c.handleOverviewKey(key, r)
 		c.markDirty()
 		return Result{}
+	case ModePopup:
+		res := c.handlePopupKey(key, r)
+		c.markDirty()
+		return res
+	case ModeOpener:
+		res := c.handleOpenerKey(key, r)
+		c.markDirty()
+		return res
 	}
 
 	if !c.prefix {
@@ -137,6 +145,12 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 		c.enterGlobalSearch()
 	case r == 'g':
 		c.enterOverview()
+	case r == 'P':
+		c.togglePopup()
+	case r == 'u':
+		c.enterOpener()
+	case r == '!':
+		c.breakPaneToNewWindow()
 	case r == 'd':
 		res.Detach = true
 	case r == 'q':

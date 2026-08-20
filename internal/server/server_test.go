@@ -212,3 +212,49 @@ func TestReadOnlyClientResizeIsDropped(t *testing.T) {
 		t.Fatalf("session size changed to %dx%d — a read-only client's resize should have been dropped", msg.Frame.Cols, msg.Frame.Rows)
 	}
 }
+
+// oneShot dials sock, sends msg, and returns the single reply — the same
+// request/response shape termdock's own CLI scripting subcommands use
+// (send-keys, new-window, ...): no "hello", no attach loop, just one
+// message and one reply before the connection closes.
+func oneShot(t *testing.T, sock string, msg proto.ClientMsg) proto.ServerMsg {
+	t.Helper()
+	conn, err := net.Dial("unix", sock)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+	if err := gob.NewEncoder(conn).Encode(msg); err != nil {
+		t.Fatalf("send %s: %v", msg.Kind, err)
+	}
+	var reply proto.ServerMsg
+	if err := gob.NewDecoder(conn).Decode(&reply); err != nil {
+		t.Fatalf("reply to %s: %v", msg.Kind, err)
+	}
+	return reply
+}
+
+func TestBellRingsForBackgroundWindowActivity(t *testing.T) {
+	sock, kill := startSession(t, "test-bell")
+	defer kill()
+
+	// An attached client sees whatever's active; window 0 starts out
+	// active, so create a second window to make window 0 the
+	// "background" one relative to it (newWindowOpts switches to the
+	// window it creates).
+	conn, _, dec := dial(t, sock, false)
+	defer conn.Close()
+
+	if reply := oneShot(t, sock, proto.ClientMsg{Kind: "new-window"}); reply.CLIError != "" {
+		t.Fatalf("new-window: %s", reply.CLIError)
+	}
+
+	// Writing into window 0 (now in the background) should ring a bell
+	// for the attached client.
+	reply := oneShot(t, sock, proto.ClientMsg{Kind: "send-keys", WindowIdx: 0, CLIText: "echo hi", CLIEnter: true})
+	if reply.CLIError != "" {
+		t.Fatalf("send-keys: %s", reply.CLIError)
+	}
+
+	recvUntil(t, dec, 5*time.Second, func(m proto.ServerMsg) bool { return m.Kind == "bell" })
+}

@@ -96,8 +96,9 @@ type Frame struct {
 	StatusStyle  string      // "normal" | "prefix" | "mode" | "confirm"
 	ShowStatus   bool        // false on a 1-row-tall terminal: no room for it
 	SessionName  string
-	Overlay      *Overlay  // non-nil while a modal (e.g. the jump picker) is open
-	Overview     *Overview // non-nil while the Ctrl-B g pane grid is open; drawn instead of Panes
+	Overlay      *Overlay   // non-nil while a modal (e.g. the jump picker) is open
+	Overview     *Overview  // non-nil while the Ctrl-B g pane grid is open; drawn instead of Panes
+	Popup        *PaneFrame // non-nil while the Ctrl-B P floating scratch terminal is open
 }
 
 // WindowInfo and PaneInfo answer the list-windows/list-panes CLI
@@ -165,7 +166,7 @@ type ClientMsg struct {
 
 // ServerMsg is anything the server sends to the client.
 type ServerMsg struct {
-	Kind      string // "frame" | "info" | "clipboard" | "bye" | "switch" | "cli"
+	Kind      string // "frame" | "info" | "clipboard" | "bye" | "switch" | "bell" | "cli"
 	Frame     *Frame
 	Info      *ServerInfo
 	Clipboard string // Kind == "clipboard": text to push via OSC52
