@@ -62,6 +62,10 @@ func (c *Core) confirmInput() {
 		if text != "" {
 			c.searchNext(1)
 		}
+	case "cmd":
+		if text != "" {
+			c.runCommand(text)
+		}
 	}
 	c.mode = c.input.returnMode
 	c.input = inputState{}

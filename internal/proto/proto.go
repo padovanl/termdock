@@ -84,6 +84,15 @@ type Overview struct {
 	Tiles []OverviewTile
 }
 
+// QuickJumpTag marks one pane with a big digit the user can press to
+// jump straight to it — tmux's display-panes, bound to Ctrl-B Q. Drawn
+// as a badge over the pane's existing content rather than replacing it,
+// unlike Overlay/Overview/Popup.
+type QuickJumpTag struct {
+	Rect  Rect
+	Digit rune
+}
+
 // Frame is a full snapshot of everything the client needs to paint.
 // The server sends one whenever session state changes.
 type Frame struct {
@@ -99,6 +108,7 @@ type Frame struct {
 	Overlay      *Overlay   // non-nil while a modal (e.g. the jump picker) is open
 	Overview     *Overview  // non-nil while the Ctrl-B g pane grid is open; drawn instead of Panes
 	Popup        *PaneFrame // non-nil while the Ctrl-B P floating scratch terminal is open
+	QuickJump    []QuickJumpTag // non-empty while Ctrl-B Q's display-panes overlay is open
 }
 
 // WindowInfo and PaneInfo answer the list-windows/list-panes CLI

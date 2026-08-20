@@ -20,6 +20,8 @@ type Window struct {
 	syncPanes            bool
 
 	activity bool // output arrived while this window wasn't the active one
+
+	layoutPreset layoutPreset // which preset Ctrl-B Space would apply next; see layoutpreset.go
 }
 
 // win returns the active window. Every Core method that manipulates "the"

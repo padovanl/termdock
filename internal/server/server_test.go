@@ -4,6 +4,7 @@ import (
 	"encoding/gob"
 	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -257,4 +258,65 @@ func TestBellRingsForBackgroundWindowActivity(t *testing.T) {
 	}
 
 	recvUntil(t, dec, 5*time.Second, func(m proto.ServerMsg) bool { return m.Kind == "bell" })
+}
+
+// TestNewKeybindingsEndToEnd drives this round's new features (pane
+// logging, the command prompt, layout presets, respawn-pane) through a
+// real client connection over a real socket, rather than calling into
+// internal/core directly like their own package's tests do — proving
+// the whole client-message -> server -> Core.HandleClientMsg pipeline
+// actually delivers each new keybinding, not just the handler logic in
+// isolation.
+func TestNewKeybindingsEndToEnd(t *testing.T) {
+	sock, kill := startSession(t, "test-new-features-e2e")
+	defer kill()
+
+	conn, enc, dec := dial(t, sock, false)
+	defer conn.Close()
+
+	// Ctrl-B L starts logging the active pane; the pane's title should
+	// pick up the [REC] tag on the very next frame.
+	sendKey(t, enc, tcell.KeyCtrlB, 0)
+	sendKey(t, enc, tcell.KeyRune, 'L')
+	recvUntil(t, dec, 5*time.Second, func(m proto.ServerMsg) bool {
+		return m.Kind == "frame" && m.Frame != nil && len(m.Frame.Panes) > 0 && strings.Contains(m.Frame.Panes[0].Title, "[REC]")
+	})
+
+	// Ctrl-B : opens the command prompt; typing "new-window -n e2e" and
+	// Enter should create a second window with that name.
+	sendKey(t, enc, tcell.KeyCtrlB, 0)
+	sendKey(t, enc, tcell.KeyRune, ':')
+	for _, r := range "new-window -n e2e" {
+		sendKey(t, enc, tcell.KeyRune, r)
+	}
+	sendKey(t, enc, tcell.KeyEnter, 0)
+	recvUntil(t, dec, 5*time.Second, func(m proto.ServerMsg) bool {
+		if m.Kind != "frame" || m.Frame == nil {
+			return false
+		}
+		for _, w := range m.Frame.Windows {
+			if strings.Contains(w.Label, "e2e") {
+				return true
+			}
+		}
+		return false
+	})
+
+	// Ctrl-B Space cycles the (now single-pane) window's layout; with
+	// only one pane it's a documented no-op, so just check the session
+	// is still alive and answering afterward instead of asserting on a
+	// specific layout (nothing to compare against with 1 pane).
+	sendKey(t, enc, tcell.KeyCtrlB, 0)
+	sendKey(t, enc, tcell.KeyRune, ' ')
+	if _, ok := Probe(sock); !ok {
+		t.Fatal("session should still be alive after Ctrl-B Space")
+	}
+
+	// Ctrl-B R respawns the active pane: the frame should keep showing
+	// exactly one pane in this window (same slot, fresh process).
+	sendKey(t, enc, tcell.KeyCtrlB, 0)
+	sendKey(t, enc, tcell.KeyRune, 'R')
+	recvUntil(t, dec, 5*time.Second, func(m proto.ServerMsg) bool {
+		return m.Kind == "frame" && m.Frame != nil && len(m.Frame.Panes) == 1
+	})
 }

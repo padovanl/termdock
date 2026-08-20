@@ -53,6 +53,7 @@ func (c *Core) Frame() proto.Frame {
 	}
 	f.Overview = c.overviewFrame()
 	f.Popup = c.popupFrame()
+	f.QuickJump = c.quickJumpFrame()
 	return f
 }
 
@@ -77,6 +78,9 @@ func (c *Core) buildPaneFrame(n *layout.Node, active bool, idx int, zoomed bool)
 	pf.Title = c.paneTitle(idx, p)
 	if zoomed {
 		pf.Title += " [Z]"
+	}
+	if _, logging := p.LogPath(); logging {
+		pf.Title += " [REC]"
 	}
 
 	if active && c.mode == ModeCopy && c.copy.paneID == n.ID {
@@ -155,7 +159,8 @@ func (c *Core) paneTitle(idx int, p *pane.Pane) string {
 // press, so it needs to actually go somewhere.
 const helpText = "v/% vsplit | s/\" hsplit | hjkl/arrows move | o/Tab cycle | z zoom | r resize | " +
 	"[ copy | ] paste | = registers | y sync | c new-win | n/p next/prev-win | w jump | g overview | " +
-	"/ search | S sessions | P popup | u open link | ! break-pane | 0-9 win# | , rename | & kill-win | " +
+	"/ search | S sessions | P popup | u open link | ! break-pane | Q quick-jump | : command | " +
+	"Space layout | R respawn | L log | 0-9 win# | , rename | & kill-win | " +
 	"x close-pane | d detach | q quit | ? help"
 
 func (c *Core) statusLine() (text, right, style string) {
@@ -200,6 +205,9 @@ func (c *Core) statusLine() (text, right, style string) {
 	case c.mode == ModeOpener:
 		style = "mode"
 		hint = "type to filter, ↑↓ select, enter copies to clipboard, esc cancel"
+	case c.mode == ModeQuickJump:
+		style = "mode"
+		hint = "press a pane's number to jump there, any other key cancels"
 	case c.prefix:
 		style = "prefix"
 		hint = "PREFIX > " + helpText

@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"os"
 	"os/exec"
+	"sync"
 	"sync/atomic"
 
 	"github.com/creack/pty"
@@ -36,6 +37,10 @@ type Pane struct {
 	term vt10x.Terminal
 
 	closed int32
+
+	logMu   sync.Mutex
+	logFile *os.File
+	logPath string
 }
 
 var nextID int32
@@ -154,7 +159,7 @@ func (p *Pane) Cwd() string {
 // child exits. It then calls onExit exactly once. Meant to run in its own
 // goroutine, one per pane.
 func (p *Pane) Pump(onUpdate, onExit func()) {
-	br := bufio.NewReader(p.pty)
+	br := bufio.NewReader(&loggingReader{p: p})
 	for {
 		if err := p.term.Parse(br); err != nil {
 			break
@@ -165,6 +170,69 @@ func (p *Pane) Pump(onUpdate, onExit func()) {
 		onUpdate()
 	}
 	onExit()
+}
+
+// loggingReader wraps a Pane's pty, transparently mirroring every byte
+// read to its active log file (see StartLogging), if any — a raw tee
+// rather than hooking vt10x's Parse itself, so logging captures exactly
+// what a real terminal watching the pty would see, escape sequences
+// included, the same as tmux's pipe-pane.
+type loggingReader struct {
+	p *Pane
+}
+
+func (lr *loggingReader) Read(b []byte) (int, error) {
+	n, err := lr.p.pty.Read(b)
+	if n > 0 {
+		lr.p.logMu.Lock()
+		if lr.p.logFile != nil {
+			_, _ = lr.p.logFile.Write(b[:n])
+		}
+		lr.p.logMu.Unlock()
+	}
+	return n, err
+}
+
+// StartLogging begins mirroring every byte this pane's shell produces to
+// a new file at path, in addition to normal rendering — termdock's
+// built-in equivalent of tmux's pipe-pane/tmux-logging plugin, toggled
+// with Ctrl-B L (see Core.toggleLogging). Replaces any log already in
+// progress for this pane.
+func (p *Pane) StartLogging(path string) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+	if err != nil {
+		return err
+	}
+	p.logMu.Lock()
+	old := p.logFile
+	p.logFile, p.logPath = f, path
+	p.logMu.Unlock()
+	if old != nil {
+		_ = old.Close()
+	}
+	return nil
+}
+
+// StopLogging stops any logging in progress for this pane, returning the
+// path that was being written to and true — or "", false if it wasn't
+// logging.
+func (p *Pane) StopLogging() (string, bool) {
+	p.logMu.Lock()
+	f, path := p.logFile, p.logPath
+	p.logFile, p.logPath = nil, ""
+	p.logMu.Unlock()
+	if f == nil {
+		return "", false
+	}
+	_ = f.Close()
+	return path, true
+}
+
+// LogPath reports the path currently being logged to, if any.
+func (p *Pane) LogPath() (string, bool) {
+	p.logMu.Lock()
+	defer p.logMu.Unlock()
+	return p.logPath, p.logFile != nil
 }
 
 // Resize adapts both the emulator's grid and the pty's kernel-side window
@@ -200,4 +268,10 @@ func (p *Pane) Close() {
 		_, _ = p.cmd.Process.Wait()
 	}
 	_ = p.pty.Close()
+	p.logMu.Lock()
+	if p.logFile != nil {
+		_ = p.logFile.Close()
+		p.logFile = nil
+	}
+	p.logMu.Unlock()
 }

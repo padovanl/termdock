@@ -72,6 +72,10 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 		res := c.handleOpenerKey(key, r)
 		c.markDirty()
 		return res
+	case ModeQuickJump:
+		c.handleQuickJumpKey(key, r)
+		c.markDirty()
+		return Result{}
 	}
 
 	if !c.prefix {
@@ -151,6 +155,16 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 		c.enterOpener()
 	case r == '!':
 		c.breakPaneToNewWindow()
+	case r == 'Q':
+		c.enterQuickJump()
+	case r == ':':
+		c.enterCommandPrompt()
+	case r == ' ':
+		c.cycleLayout()
+	case r == 'R':
+		c.respawnActivePane()
+	case r == 'L':
+		c.toggleLogging()
 	case r == 'd':
 		res.Detach = true
 	case r == 'q':

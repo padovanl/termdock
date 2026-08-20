@@ -38,10 +38,31 @@ func draw(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	if f.Popup != nil {
 		drawPopup(screen, *f.Popup, cfg)
 	}
+	if len(f.QuickJump) > 0 {
+		drawQuickJump(screen, f.QuickJump, cfg)
+	}
 	if f.Overlay != nil {
 		drawOverlay(screen, f, cfg)
 	}
 	screen.Show()
+}
+
+// drawQuickJump paints one highlighted digit badge centered over each
+// tagged pane — Ctrl-B Q's display-panes equivalent — on top of the
+// pane content already drawn, so the user can still tell what's running
+// underneath while picking which one to jump to.
+func drawQuickJump(screen tcell.Screen, tags []proto.QuickJumpTag, cfg config.Config) {
+	style := tcell.StyleDefault.Background(cfg.PaneActiveBG).Foreground(tcell.ColorBlack).Bold(true)
+	for _, t := range tags {
+		r := t.Rect
+		if r.W < 3 || r.H < 1 {
+			continue
+		}
+		cx, cy := r.X+r.W/2, r.Y+r.H/2
+		screen.SetContent(cx-1, cy, ' ', nil, style)
+		screen.SetContent(cx, cy, t.Digit, nil, style)
+		screen.SetContent(cx+1, cy, ' ', nil, style)
+	}
 }
 
 // drawPopup paints the Ctrl-B P floating scratch terminal: a bordered

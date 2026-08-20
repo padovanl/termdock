@@ -17,7 +17,7 @@ func (c *Core) handleMouse(m proto.ClientMsg) Result {
 		return Result{} // session mid-shutdown; a lingering connection raced us here
 	}
 	switch c.mode {
-	case ModeConfirm, ModePicker, ModeHelp, ModeRegisters, ModeSessions, ModeSearch, ModeOpener:
+	case ModeConfirm, ModePicker, ModeHelp, ModeRegisters, ModeSessions, ModeSearch, ModeOpener, ModeQuickJump:
 		// These are keyboard-only type-ahead/prompt modes — a stray
 		// click shouldn't be able to act on whatever's underneath while
 		// any of them are up.

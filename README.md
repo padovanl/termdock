@@ -13,7 +13,7 @@ It also does a handful of things tmux doesn't, by default, at all — 🔍 a
 fuzzy jump picker, 🖼️ a live pane overview, 🔎 search across every pane's
 scrollback at once, 🔄 session switching without detaching, 🪟 a floating
 popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
-and 💾 crash/reboot recovery among them. See
+📝 built-in pane logging, and 💾 crash/reboot recovery among them. See
 [✨ What makes it different](#-what-makes-it-different-from-tmux).
 
 ## ✨ What makes it different from tmux
@@ -39,6 +39,11 @@ and 💾 crash/reboot recovery among them. See
 | 🔔 **Background activity** | one real terminal bell (`\a`) the moment a background window's `*` first lights up, not per line | `monitor-activity`/`visual-activity` needs both set explicitly |
 | ✂️ **Break a pane out** | `Ctrl-B !` moves the active pane into its own new window | `break-pane`, same idea, same key |
 | 📊 **Status bar segments** | opt-in git branch / battery segments, no extra process | needs `#()` shell hooks in `status-right` |
+| 🔢 **Jump to a pane by number** | `Ctrl-B Q` badges every pane with a digit, press it to jump | `display-panes`, same idea, `Ctrl-B q` (termdock's `q` already means quit) |
+| 💻 **Command prompt** | `Ctrl-B :` runs the same verbs as the scripting CLI, no target needed | `command-prompt`, same key, needs an explicit target most of the time |
+| 🧱 **Preset layouts** | `Ctrl-B Space` cycles tiled / even-columns / even-rows | `next-layout`, same key, same idea |
+| 🔁 **Respawn a pane** | `Ctrl-B R` restarts the shell in place, no confirmation needed (same as `x`) | `respawn-pane`, no default binding, `-k` needed on a live pane |
+| 📝 **Log a pane to a file** | `Ctrl-B L` toggles it, no path to type, `[REC]` on the title | needs the external tmux-logging plugin or a hand-written `pipe-pane` |
 
 ## 🏗️ Architecture
 
@@ -120,6 +125,11 @@ active pane.
 | `P` | 🪟 toggle a floating **popup terminal** over the current layout (see below) |
 | `u` | 🔗 **open picker**: fuzzy-pick a URL/path spotted on screen, copies it to the clipboard (see below) |
 | `!` | ✂️ **break-pane**: move the active pane out into its own new window |
+| `Q` | 🔢 **quick-jump**: badge every pane with a number, press it to jump there (see below) |
+| `:` | 💻 **command prompt**: type a command (`new-window`, `split-window`, ...; see below) |
+| `Space` | 🧱 cycle the active window through **preset layouts** (see below) |
+| `R` | 🔁 **respawn-pane**: restart the shell in the active pane, in place |
+| `L` | 📝 toggle **logging** the active pane's output to a file (see below) |
 | `0`-`9` | jump straight to window N |
 | `,` | rename the current window |
 | `&` | ⚠️ close the current window and every pane in it (asks `y`/`n` first) |
@@ -247,6 +257,69 @@ of its current split layout and gives it a brand new window all to
 itself — the opposite of a split, for when a pane you added to a layout
 on a whim turns out to deserve its own window instead. A no-op if it's
 already alone in its window.
+
+### 🔢 Quick-jump
+
+`Ctrl-B Q` (tmux's own `display-panes`, moved off `q` since that's
+already termdock's quit) badges every pane in the active window with a
+number — 1 through 9 — right where its title bar shows it too. Press the
+digit to jump straight there, any other key just dismisses the badges
+with no effect. Good for a window with enough panes that hunting one
+down with `Tab` gets tedious, without needing the full jump picker or
+overview for something this local.
+
+### 💻 Command prompt
+
+`Ctrl-B :` (tmux's own binding, same key) opens a typed command line for
+the same handful of actions the external scripting CLI exposes
+(`new-window`, `split-window`, `select-window`, `rename-window`,
+`send-keys`, `kill-pane`, `break-pane`, `respawn-pane`) — without
+leaving the session, and without needing a `-t SESSION[:WINDOW]` target,
+since a command typed here always means "the window I'm looking at right
+now." `new-window` takes `-n NAME`; `split-window` takes `-v`/`-s`
+(side-by-side/stacked, same convention as `Ctrl-B v`/`Ctrl-B s`);
+`send-keys` takes a trailing `Enter` to submit, same as the CLI version.
+Unknown commands or bad arguments show an error in the status line
+instead of doing anything. `Esc` cancels without running anything typed
+so far.
+
+### 🧱 Preset layouts
+
+`Ctrl-B Space` (tmux's own `next-layout`, same key) rebuilds the active
+window's split into the next preset shape — **tiled** (a roughly square
+grid), **even-columns**, **even-rows** — cycling back to the first after
+the last, always in the panes' current left-to-right/top-to-bottom
+order, so it never depends on how the split was originally built by
+hand. Every pane's process is left completely alone; only the layout
+around it moves, the same guarantee dragging a pane's title onto another
+window's tab already gives. A no-op with only one pane, and blocked
+while zoomed (exit zoom first) since there'd be nothing to lay out.
+
+### 🔁 Respawning a pane
+
+`Ctrl-B R` (tmux's `respawn-pane`) kills whatever's running in the active
+pane and starts a fresh shell in exactly the same spot — same size, same
+position in the split, only the process and its underlying pane ID
+change. Handy when a shell's wedged, an SSH connection dropped, or a REPL
+needs a clean restart, without tearing down and rebuilding the split
+around it. Unlike tmux, there's no separate `-k` flag to force it: this
+already replaces a still-running process without asking, the same
+no-confirmation convention `Ctrl-B x` (close pane) already uses.
+
+### 📝 Logging a pane
+
+`Ctrl-B L` toggles capturing the active pane's raw output to a file —
+termdock's built-in equivalent of the tmux-logging plugin (or a
+hand-written `pipe-pane -o 'cat >>file'`), with no plugin to install and
+no path to type. Logs land under
+`$XDG_STATE_HOME/termdock/logs/SESSION-wN-pID-TIMESTAMP.log` (falling
+back to `~/.local/state/termdock/logs/`), and the status line shows the
+exact path the moment logging starts. A pane that's currently logging
+gets a `[REC]` tag on its title bar, so it's never a surprise which one
+is being captured. Logging follows the pane's *process*, not its spot in
+the layout: it survives `Ctrl-B !` (break-pane) moving the pane to a new
+window, but a `Ctrl-B R` respawn — which replaces the process outright —
+starts the fresh shell with logging off, the same as any other new pane.
 
 ### ❓ Help
 
@@ -430,7 +503,9 @@ seconds so they don't spawn a subprocess on every redraw.
   windows, panes, layout, copy-mode, mouse, resize-mode, the jump picker,
   global search, the pane overview, paste registers, session switching,
   the popup terminal, the URL/path opener, the activity bell,
-  break-pane, status bar segments, help screen. Runs in the server.
+  break-pane, status bar segments, quick-jump, the command prompt,
+  preset layouts, respawn-pane, pane logging, help screen. Runs in the
+  server.
 - `internal/proto` — the messages exchanged between client and server
   over the socket.
 - `internal/persist` — the on-disk session-snapshot format and file I/O
@@ -450,24 +525,32 @@ go test ./...    # the actual test suite
 
 Every package with logic worth pinning down has one: layout geometry and
 the split-tree edge cases, the client's box-drawing/overlay/grid
-rendering, pane process handling, the snapshot format, the config file
+rendering, pane process handling (including logging's raw pty tee — see
+`internal/pane/pane_test.go`), the snapshot format, the config file
 parser, the session brain in `internal/core` (mouse gesture
 disambiguation — click vs. drag vs. double-click, all sharing the same
 press/release events — every picker's fuzzy filter, window/pane
 reordering and moving, the pane overview's grid math, global search,
 the popup terminal's own lifecycle and keys, the URL/path opener's
 regex matching, the activity bell's edge-triggering, break-pane, status
-segments, and end-to-end crash-recovery), and `internal/server`, with
-real socket-level integration tests: two actual daemons for a
-session-switch to jump between, a read-only client's input and resize
-both confirmed dropped by driving a second, ordinary client and checking
-what it sees, and a background window's activity confirmed to ring a
-bell on an attached client. All of it spins up real shells in real ptys
-and real unix-socket daemons rather than mocking the terminal or network
-layer, and isolates every bit of state a run touches — session-snapshot
-I/O (`$XDG_STATE_HOME`) and session sockets (`$XDG_RUNTIME_DIR`) alike —
-to throwaway temp directories, so a test run never touches or gets
-confused by your actual sessions.
+segments, quick-jump's digit cap, the command prompt's every verb,
+preset layouts' equal-share math, respawn-pane, pane logging, and
+end-to-end crash-recovery), and `internal/server`, with real
+socket-level integration tests: two actual daemons for a session-switch
+to jump between, a read-only client's input and resize both confirmed
+dropped by driving a second, ordinary client and checking what it sees,
+a background window's activity confirmed to ring a bell on an attached
+client, and this round's five new keybindings driven end to end through
+one real client connection. `internal/core/interop_test.go` specifically
+checks these newer features against *each other* — logging surviving a
+break-pane, a respawn correctly *not* carrying logging over to the fresh
+process, the command prompt's verbs matching their direct keybindings
+exactly — rather than each in isolation. All of it spins up real shells
+in real ptys and real unix-socket daemons rather than mocking the
+terminal or network layer, and isolates every bit of state a run
+touches — session-snapshot I/O (`$XDG_STATE_HOME`) and session sockets
+(`$XDG_RUNTIME_DIR`) alike — to throwaway temp directories, so a test
+run never touches or gets confused by your actual sessions.
 
 CI (`.github/workflows/ci.yml`) runs build, vet, and the full test suite
 on every push and pull request against `master`.

@@ -39,6 +39,7 @@ const (
 	ModeRegisters // type-ahead pick which yank to paste; see registers.go
 	ModePopup     // the floating scratch terminal is focused; see popup.go
 	ModeOpener    // type-ahead pick a URL/path spotted on screen; see opener.go
+	ModeQuickJump // display-panes: big numbers overlay, press one to jump; see quickjump.go
 )
 
 const resizeStep = 2
