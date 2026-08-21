@@ -181,6 +181,7 @@ type Core struct {
 	tabDrag      *tabDragState
 	contentPress *contentPressState
 	titleDrag    *titleDragState
+	closedPanes  []closedPane    // undo stack behind Ctrl-B Z; see undoclose.go
 	registers    []registerEntry // yanks, most recent first, for Ctrl-B ] and Ctrl-B = (see registers.go)
 
 	popup        *pane.Pane // the floating scratch terminal (Ctrl-B P), lazily created; see popup.go
@@ -635,6 +636,10 @@ func (c *Core) detachLeafIn(w *Window, n *layout.Node) {
 	// The divider being dragged may be the split that just got collapsed
 	// away; either way the geometry it was dragging against is gone.
 	c.drag = nil
+	// Before it leaves the tree, while its working directory can still be
+	// read off the live process — that path is the whole value of the
+	// undo (see undoclose.go).
+	c.recordClosedPane(w, n)
 	newRoot, next := layout.Remove(w.root, n)
 	if newRoot == nil {
 		if idx := c.windowIndex(w); idx >= 0 {

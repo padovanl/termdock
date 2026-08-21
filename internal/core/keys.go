@@ -271,6 +271,8 @@ func (c *Core) dispatchAction(act action) Result {
 		c.cycleLayout()
 	case actRespawnPane:
 		c.respawnActivePane()
+	case actReopenPane:
+		c.reopenClosedPane()
 	case actToggleLogging:
 		c.toggleLogging()
 	case actRenameWindow:

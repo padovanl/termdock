@@ -67,6 +67,7 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
 | ⚠️ **Quitting the whole session** | `Ctrl-B q` asks `y`/`n` first — closing every window and pane at once deserves the same care `&` already gets | gone immediately, no confirmation |
 | 🏷️ **Rename a live session** | `Ctrl-B $` renames it for real: the unix socket and the recovery snapshot move too, so `ls`/`attach -t` follow immediately | tmux's own `rename-session`, same key |
 | ⏩ **Repeating a focus move** | after `Ctrl-B ←`, a bare `←` keeps moving — and only the *arrows* repeat, so it can never swallow the `h` of something you start typing | tmux's `bind -r`, but its repeatable movement keys are `hjkl` too, which does eat typed letters |
+| ↩️ **Reopen a closed pane** | `Ctrl-B Z` brings back the last pane you closed — same window, same working directory, however you closed it (`x`, or an accidental `exit`) | no equivalent: a closed pane is gone |
 | 🔎 **Regex search** | copy-mode `/` and global search both accept a regex (falls back to a literal substring if it doesn't compile) | copy-mode search is a plain substring only |
 
 Every "tmux needs the external `tmux-whatever` plugin" above is describing **tmux**, not termdock: everything in the termdock column is built into the single `termdock` binary. There's no plugin manager, no plugin API, and nothing here — themes, status segments, logging, the popup, any of it — ever needs an external plugin, script, or program to work. The one narrow exception is the `git` status segment, which shells out to your system's own `git` binary the same way any git integration would (not a termdock plugin, just using the tool that's already there) — everything else is pure Go, self-contained.
@@ -194,6 +195,7 @@ them to a different key.
 | `:` | 💻 **command prompt**: type a command (`new-window`, `split-window`, ...; see below) |
 | `Space` | 🧱 cycle the active window through **preset layouts** (see below) |
 | `R` | 🔁 **respawn-pane**: restart the shell in the active pane, in place |
+| `Z` | ↩️ **reopen** the last closed pane, back in its window and directory (see below) |
 | `L` | 📝 toggle **logging** the active pane's output to a file (see below) |
 | `0`-`9` | jump straight to window N |
 | `,` | rename the current window |
@@ -404,6 +406,27 @@ needs a clean restart, without tearing down and rebuilding the split
 around it. Unlike tmux, there's no separate `-k` flag to force it: this
 already replaces a still-running process without asking, the same
 no-confirmation convention `Ctrl-B x` (close pane) already uses.
+
+### ↩️ Reopening a closed pane
+
+`Ctrl-B Z` brings back the pane you just closed: a fresh shell, in the
+window it came from, started in the directory it was sitting in. Press
+it again to walk further back — the last 16 closures are kept.
+
+It covers every way a pane goes away, including a shell that exited on
+its own, which is the case it mostly exists for: an `exit` typed into
+the wrong pane. Closing a pane is the one destructive thing here that
+happens by accident constantly — killing a window and quitting both ask
+first — so it is the one worth being able to take back.
+
+What comes back is the *place*, not the process: nothing can resurrect
+what was running, the same honest limit
+[session persistence](#-session-persistence) has. Retyping the command
+is easy; remembering which of four windows it was in and `cd`-ing three
+levels down again is what actually costs you. If the reopen can't
+happen (no room to split, or the window is zoomed) the pane stays on
+the stack, so it is never lost to a failed undo. tmux has no
+equivalent: a closed pane is gone.
 
 ### 📝 Logging a pane
 
