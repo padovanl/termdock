@@ -181,8 +181,11 @@ type Core struct {
 	tabDrag      *tabDragState
 	contentPress *contentPressState
 	titleDrag    *titleDragState
-	closedPanes  []closedPane    // undo stack behind Ctrl-B Z; see undoclose.go
-	registers    []registerEntry // yanks, most recent first, for Ctrl-B ] and Ctrl-B = (see registers.go)
+	closedPanes  []closedPane // undo stack behind Ctrl-B Z; see undoclose.go
+	// doneWatch maps a watched pane id to whether it was busy last time
+	// we looked; see watchdone.go (Ctrl-B m).
+	doneWatch map[int]bool
+	registers []registerEntry // yanks, most recent first, for Ctrl-B ] and Ctrl-B = (see registers.go)
 
 	popup        *pane.Pane // the floating scratch terminal (Ctrl-B P), lazily created; see popup.go
 	popupVisible bool

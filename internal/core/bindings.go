@@ -48,6 +48,7 @@ const (
 	actCycleLayout   action = "cycle-layout"
 	actRespawnPane   action = "respawn-pane"
 	actReopenPane    action = "reopen-pane"
+	actWatchDone     action = "watch-done"
 	actToggleLogging action = "toggle-logging"
 	actRenameWindow  action = "rename-window"
 	actRenameSession action = "rename-session"
@@ -95,6 +96,7 @@ var defaultBindings = map[rune]action{
 	' ': actCycleLayout,
 	'R': actRespawnPane,
 	'Z': actReopenPane,
+	'm': actWatchDone,
 	'L': actToggleLogging,
 	',': actRenameWindow,
 	'$': actRenameSession,
@@ -119,7 +121,7 @@ var actionOrder = []action{
 	actJumpPicker, actLastWindow, actLastPane, actOverview,
 	actGlobalSearch, actSwitchSession, actPopup, actOpener,
 	actBreakPane, actQuickJump, actCommandPrompt, actCycleLayout,
-	actRespawnPane, actReopenPane, actToggleLogging, actRenameWindow, actRenameSession, actKillWindow,
+	actRespawnPane, actReopenPane, actWatchDone, actToggleLogging, actRenameWindow, actRenameSession, actKillWindow,
 	actClosePane, actSettings, actDetach, actQuit, actHelp,
 }
 
@@ -156,6 +158,7 @@ var actionDescriptions = map[action]string{
 	actCycleLayout:   "cycle the active window through preset layouts",
 	actRespawnPane:   "respawn-pane: restart the shell in the active pane, in place",
 	actReopenPane:    "reopen the last closed pane, back in its window and directory",
+	actWatchDone:     "tell me when this pane's command finishes (bell + message)",
 	actToggleLogging: "toggle logging the active pane's output to a file",
 	actRenameWindow:  "rename the current window",
 	actRenameSession: "rename this session (its socket and snapshot move with it)",
@@ -201,6 +204,7 @@ var actionShort = map[action]string{
 	actCycleLayout:   "layout",
 	actRespawnPane:   "respawn",
 	actReopenPane:    "reopen",
+	actWatchDone:     "notify",
 	actToggleLogging: "log",
 	actRenameWindow:  "rename",
 	actRenameSession: "rename-session",

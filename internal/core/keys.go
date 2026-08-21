@@ -273,6 +273,8 @@ func (c *Core) dispatchAction(act action) Result {
 		c.respawnActivePane()
 	case actReopenPane:
 		c.reopenClosedPane()
+	case actWatchDone:
+		c.watchDone()
 	case actToggleLogging:
 		c.toggleLogging()
 	case actRenameWindow:

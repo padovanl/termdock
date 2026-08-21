@@ -68,6 +68,7 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
 | 🏷️ **Rename a live session** | `Ctrl-B $` renames it for real: the unix socket and the recovery snapshot move too, so `ls`/`attach -t` follow immediately | tmux's own `rename-session`, same key |
 | ⏩ **Repeating a focus move** | after `Ctrl-B ←`, a bare `←` keeps moving — and only the *arrows* repeat, so it can never swallow the `h` of something you start typing | tmux's `bind -r`, but its repeatable movement keys are `hjkl` too, which does eat typed letters |
 | ↩️ **Reopen a closed pane** | `Ctrl-B Z` brings back the last pane you closed — same window, same working directory, however you closed it (`x`, or an accidental `exit`) | no equivalent: a closed pane is gone |
+| ⏳ **"Tell me when this finishes"** | `Ctrl-B m` marks a pane; the moment its command exits you get a bell and a message naming it. No shell setup, and it can be armed *after* the command is already running | `monitor-silence` watches for output going quiet: it fires on a build that pauses to think, and stays silent on one that ends without a final line |
 | 🔎 **Regex search** | copy-mode `/` and global search both accept a regex (falls back to a literal substring if it doesn't compile) | copy-mode search is a plain substring only |
 
 Every "tmux needs the external `tmux-whatever` plugin" above is describing **tmux**, not termdock: everything in the termdock column is built into the single `termdock` binary. There's no plugin manager, no plugin API, and nothing here — themes, status segments, logging, the popup, any of it — ever needs an external plugin, script, or program to work. The one narrow exception is the `git` status segment, which shells out to your system's own `git` binary the same way any git integration would (not a termdock plugin, just using the tool that's already there) — everything else is pure Go, self-contained.
@@ -196,6 +197,7 @@ them to a different key.
 | `Space` | 🧱 cycle the active window through **preset layouts** (see below) |
 | `R` | 🔁 **respawn-pane**: restart the shell in the active pane, in place |
 | `Z` | ↩️ **reopen** the last closed pane, back in its window and directory (see below) |
+| `m` | ⏳ **notify me** when this pane's command finishes (see below) |
 | `L` | 📝 toggle **logging** the active pane's output to a file (see below) |
 | `0`-`9` | jump straight to window N |
 | `,` | rename the current window |
@@ -406,6 +408,33 @@ needs a clean restart, without tearing down and rebuilding the split
 around it. Unlike tmux, there's no separate `-k` flag to force it: this
 already replaces a still-running process without asking, the same
 no-confirmation convention `Ctrl-B x` (close pane) already uses.
+
+### ⏳ Telling you when a command finishes
+
+`Ctrl-B m` marks the active pane. The moment whatever it is running
+exits and it falls back to a bare prompt, termdock rings the terminal
+bell and names the pane in the status bar. An armed pane wears a `[⏳]`
+tag on its title, so it is visible rather than something you have to
+remember doing; pressing `m` again takes it back. It fires once, then
+disarms, so a pane you keep working in doesn't ring on every command.
+
+It is for the twenty-minute build, the test run, the deploy — the jobs
+you start and then go and do something else during, which is exactly
+when you stop watching a pane you can't see.
+
+Two things make it different from the usual advice of appending
+`; notify-send done` to the command. It needs **no shell configuration
+at all**: termdock already asks the pty which process group holds the
+foreground — the same reading that keeps pane titles current — so
+"busy" is just that name not being your shell's, and "finished" is the
+transition back. And it can be armed **after** the command is already
+running, which a wrapper fundamentally cannot: you almost never know in
+advance that this is the run that will take twenty minutes.
+
+tmux has no equivalent. Its `monitor-silence` watches for *output*
+going quiet, which is a different thing: it fires on a build that
+pauses to think, and stays silent on one that finishes without printing
+a final line.
 
 ### ↩️ Reopening a closed pane
 

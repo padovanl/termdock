@@ -18,6 +18,10 @@ func (c *Core) Frame() proto.Frame {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Frame already samples every pane's foreground process to title it,
+	// so the "has it finished?" check rides along rather than polling.
+	c.checkDoneWatches()
+
 	f := proto.Frame{
 		Cols:        c.cols,
 		Rows:        c.rows,
@@ -157,10 +161,11 @@ func glyphToCell(g vt10x.Glyph) proto.Cell {
 }
 
 func (c *Core) paneTitle(idx int, p *pane.Pane) string {
+	name := c.shellName
 	if fg := p.ForegroundTitle(); fg != "" {
-		return fmt.Sprintf("%d:%s", idx, fg)
+		name = fg
 	}
-	return fmt.Sprintf("%d:%s", idx, c.shellName)
+	return fmt.Sprintf("%d:%s%s", idx, name, c.watchedPaneMarker(p.ID))
 }
 
 // cheatSheet is the terse keybinding cheat-sheet shown transiently
