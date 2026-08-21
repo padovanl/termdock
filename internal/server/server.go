@@ -34,6 +34,7 @@ func Run(name, sockPath string, cfg config.Config) error {
 	c.SetPopupCommand(cfg.PopupCommand)
 	c.SetFocusEvents(cfg.FocusEvents)
 	c.SetBindOverrides(cfg.BindOverrides)
+	c.SetRepeatTime(cfg.RepeatTime)
 	// core deliberately doesn't import server (server already imports
 	// core; Go disallows the cycle), so it can't discover sibling
 	// sessions itself — supplied here instead, for Ctrl-B S.

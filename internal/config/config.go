@@ -19,6 +19,10 @@
 //	focus-events <on|off>  forward synthetic terminal focus-in/focus-out
 //	                       to a pane when you switch to/away from it
 //	                       (default off) — see internal/core/focusevents.go
+//	repeat-time <ms>       how long a bare arrow keeps repeating a focus
+//	                       move after a prefixed one, in milliseconds
+//	                       (default 1000; 0 disables) — see
+//	                       internal/core/keys.go
 //	bind <key> <action>    rebind one prefix-key command to a different
 //	                       key, e.g. "bind M jump-picker" — repeatable,
 //	                       one key per line; <key> is a single character
@@ -55,8 +59,9 @@ type Config struct {
 	Mouse          bool
 	HistoryLimit   int
 	Shell          string
-	PopupCommand   string // command to run in the popup instead of an interactive shell; see internal/core/popup.go
-	FocusEvents    bool   // forward synthetic pane focus-in/out; see internal/core/focusevents.go
+	PopupCommand   string          // command to run in the popup instead of an interactive shell; see internal/core/popup.go
+	FocusEvents    bool            // forward synthetic pane focus-in/out; see internal/core/focusevents.go
+	RepeatTime     int             // ms a bare arrow keeps repeating a focus move after the prefixed one; 0 disables. See internal/core/keys.go
 	BindOverrides  map[rune]string // "bind" lines: key -> action name; see internal/core/bindings.go
 	StatusBG       tcell.Color
 	StatusFG       tcell.Color
@@ -71,6 +76,7 @@ func Default() Config {
 		Prefix:       tcell.KeyCtrlB,
 		Mouse:        true,
 		HistoryLimit: 10000,
+		RepeatTime:   1000,
 		StatusBG:     tcell.ColorBlack,
 		StatusFG:     tcell.ColorSilver,
 		PaneActiveBG: tcell.ColorTeal,
@@ -148,6 +154,11 @@ func applySetting(cfg *Config, key, val string) {
 	case "history-limit":
 		if n, err := strconv.Atoi(val); err == nil && n > 0 {
 			cfg.HistoryLimit = n
+		}
+	case "repeat-time":
+		// 0 is meaningful here (disables repeating), unlike history-limit.
+		if n, err := strconv.Atoi(val); err == nil && n >= 0 {
+			cfg.RepeatTime = n
 		}
 	case "shell":
 		cfg.Shell = val

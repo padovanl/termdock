@@ -60,6 +60,7 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
 | 🎯 **Pane focus events** | `focus-events on` forwards synthetic focus-in/out on every pane/window switch | tmux's own `focus-events`, same idea (plus real OS-level focus tmux also forwards — see [🚧 What's missing](#-whats-missing-on-purpose-for-now)) |
 | ➡️ **Move pane focus from a script** | `termdock select-pane -t TARGET -L/-R/-U/-D`, no client attached | tmux's own `select-pane -L/-R/-U/-D` |
 | ⚠️ **Quitting the whole session** | `Ctrl-B q` asks `y`/`n` first — closing every window and pane at once deserves the same care `&` already gets | gone immediately, no confirmation |
+| ⏩ **Repeating a focus move** | after `Ctrl-B ←`, a bare `←` keeps moving — and only the *arrows* repeat, so it can never swallow the `h` of something you start typing | tmux's `bind -r`, but its repeatable movement keys are `hjkl` too, which does eat typed letters |
 | 🔎 **Regex search** | copy-mode `/` and global search both accept a regex (falls back to a literal substring if it doesn't compile) | copy-mode search is a plain substring only |
 
 Every "tmux needs the external `tmux-whatever` plugin" above is describing **tmux**, not termdock: everything in the termdock column is built into the single `termdock` binary. There's no plugin manager, no plugin API, and nothing here — themes, status segments, logging, the popup, any of it — ever needs an external plugin, script, or program to work. The one narrow exception is the `git` status segment, which shells out to your system's own `git` binary the same way any git integration would (not a termdock plugin, just using the tool that's already there) — everything else is pure Go, self-contained.
@@ -174,7 +175,7 @@ them to a different key.
 |---|---|
 | `v` or `%` | split the active pane **vertically** (side by side) |
 | `s` or `"` | split the active pane **horizontally** (stacked) |
-| `←/→/↑/↓` or `h/j/k/l` | move focus to the adjacent pane |
+| `←/→/↑/↓` or `h/j/k/l` | move focus to the adjacent pane — after an arrow, a **bare** arrow keeps moving without the prefix (see [⏩ Repeating a focus move](#-repeating-a-focus-move)) |
 | `o` or `Tab` | cycle to the next pane |
 | `z` | 🎯 zoom: the active pane fills the whole screen — its border turns magenta and its title gets a `[Z]` tag, so it's obvious you're zoomed (`z` again to undo) |
 | `r` | **resize-mode**: subsequent arrows/hjkl resize the pane, any other key exits |
@@ -443,6 +444,23 @@ The digits `0`-`9` are "jump to window N" by default, but an explicit
 at the cost of no longer being able to jump straight to window 5. Only
 digits you actually rebind are affected; the rest keep jumping.
 
+### ⏩ Repeating a focus move
+
+Walking three panes over shouldn't mean pressing the prefix three times.
+After a prefixed arrow moves the focus, a **bare** arrow keeps moving it
+for `repeat-time` milliseconds (default 1000, `repeat-time 0` disables) —
+so it's `Ctrl-B ←←←`, not `Ctrl-B ← Ctrl-B ← Ctrl-B ←`. Each repeat
+extends the window, so a steady walk never expires mid-way, and any
+other command (or any other key) ends it immediately, so arrows are
+never left hijacked.
+
+This is tmux's `bind -r`/`repeat-time`, with one deliberate difference:
+**only the arrow keys repeat, never `hjkl`**. tmux makes its `hjkl`
+movement bindings repeatable too, which means a letter you type shortly
+after switching panes can be swallowed as a movement instead. Arrows
+aren't ordinary text, so restricting the repeat to them removes that
+whole failure mode while keeping everything the feature is actually for.
+
 ### 🎯 Focus events
 
 `focus-events on` in the config makes termdock forward a synthetic
@@ -632,6 +650,7 @@ history-limit 10000     # scrollback lines kept per pane (default 10000)
 shell /bin/zsh           # shell for new panes (default $SHELL)
 popup-command lazygit    # what Ctrl-B P runs (default: the shell, see below)
 focus-events on          # forward synthetic pane focus-in/out (default off)
+repeat-time 1000         # ms a bare arrow keeps moving focus (default 1000, 0 off)
 bind M jump-picker        # rebind one key to a different action (repeatable)
 theme dracula            # bundled color preset (default: none, see below)
 status-bg black          # status bar background (default black)
@@ -641,7 +660,8 @@ status-segments git,battery,cpu,mem  # extra segments in the status bar (default
 ```
 
 Colors accept any W3C name tcell understands, or `#rrggbb` hex.
-`prefix`/`history-limit`/`shell`/`popup-command`/`focus-events`/`bind`
+`prefix`/`history-limit`/`shell`/`popup-command`/`focus-events`/`bind`/
+`repeat-time`
 are read by the **server**, so they take effect when a session is
 *created* (`termdock new`), not on every attach; `mouse`, `theme`, and
 the colors are read by the **client**, so they apply per attach and can

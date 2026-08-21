@@ -253,3 +253,26 @@ func TestTypoedColorDoesNotBlockATheme(t *testing.T) {
 		t.Errorf("an explicit status-bg should still beat the theme, got %v", explicit.StatusBG)
 	}
 }
+
+// repeat-time differs from every other numeric setting in that 0 is a
+// meaningful value (it disables repeating) rather than a rejected one.
+func TestLoadParsesRepeatTimeIncludingZero(t *testing.T) {
+	for _, tc := range []struct {
+		line string
+		want int
+	}{
+		{"repeat-time 250", 250},
+		{"repeat-time 0", 0},
+		{"repeat-time nonsense", 1000}, // unparseable: keep the default
+		{"repeat-time -5", 1000},       // negative: same
+	} {
+		path := filepath.Join(t.TempDir(), "termdock.conf")
+		if err := os.WriteFile(path, []byte(tc.line+"\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("TERMDOCK_CONFIG", path)
+		if got := Load().RepeatTime; got != tc.want {
+			t.Errorf("%q -> RepeatTime = %d, want %d", tc.line, got, tc.want)
+		}
+	}
+}

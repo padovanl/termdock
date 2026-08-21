@@ -143,6 +143,14 @@ type Core struct {
 	focusEvents   bool // config's "focus-events"; see SetFocusEvents
 	focusedPaneID int  // the pane last sent a focus-in, for updateFocusEvents
 
+	// repeatTime/repeatUntil implement repeatable focus moves — tmux's
+	// `bind -r` plus repeat-time. After a prefixed arrow moves the focus,
+	// a *bare* arrow keeps moving it until repeatUntil passes, so walking
+	// three panes over is Ctrl-B ←←← rather than Ctrl-B ← Ctrl-B ← Ctrl-B ←.
+	// See handleKey.
+	repeatTime  time.Duration
+	repeatUntil time.Time
+
 	copy         copyState
 	input        inputState
 	picker       pickerState
@@ -285,6 +293,19 @@ func (c *Core) SetBindOverrides(overrides map[rune]string) {
 			c.bindOverridden[r] = true
 		}
 	}
+}
+
+// SetRepeatTime sets how long a bare arrow key keeps repeating a focus
+// move after a prefixed one (config's "repeat-time", in milliseconds);
+// 0 disables repeating entirely. Call before the session has any
+// attached clients.
+func (c *Core) SetRepeatTime(ms int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if ms < 0 {
+		ms = 0
+	}
+	c.repeatTime = time.Duration(ms) * time.Millisecond
 }
 
 // SetFocusEvents enables synthesizing terminal focus-in/focus-out

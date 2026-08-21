@@ -1,6 +1,8 @@
 package core
 
 import (
+	"time"
+
 	"github.com/padovanl/termdock/internal/layout"
 	"github.com/padovanl/termdock/internal/pane"
 	"github.com/padovanl/termdock/internal/proto"
@@ -83,6 +85,20 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 			c.prefix = true
 			return Result{}
 		}
+		// Repeatable focus moves: right after a prefixed arrow, a bare
+		// arrow keeps moving, so crossing three panes is Ctrl-B ←←←
+		// instead of pressing the prefix again for every single step.
+		// tmux's `bind -r` / repeat-time, restricted here to the arrow
+		// keys and never to hjkl: h/j/k/l are ordinary text, and eating
+		// the "h" of something you started typing a moment after
+		// switching panes would be a far worse bug than the extra
+		// keystroke this saves.
+		if act, ok := repeatableArrow(key); ok && c.repeatActive() {
+			res := c.dispatchAction(act)
+			c.markDirty()
+			return res
+		}
+		c.repeatUntil = time.Time{} // any other key ends the repeat window
 		c.forwardKey(key, r)
 		return Result{}
 	}
@@ -123,11 +139,53 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 	return res
 }
 
+// repeatableArrow maps an arrow key to the focus move it repeats, for
+// the no-prefix-needed repeat window (see handleKey). Only focus moves
+// repeat: they're the commands you genuinely run several times in a row,
+// and unlike, say, a repeated split or kill, doing one more than you
+// meant to costs nothing.
+func repeatableArrow(key tcell.Key) (action, bool) {
+	switch key {
+	case tcell.KeyLeft:
+		return actFocusLeft, true
+	case tcell.KeyRight:
+		return actFocusRight, true
+	case tcell.KeyUp:
+		return actFocusUp, true
+	case tcell.KeyDown:
+		return actFocusDown, true
+	}
+	return "", false
+}
+
+// repeatActive reports whether a bare arrow should still be taken as a
+// focus move rather than passed to the pane.
+func (c *Core) repeatActive() bool {
+	return c.repeatTime > 0 && !c.repeatUntil.IsZero() && time.Now().Before(c.repeatUntil)
+}
+
+// armRepeat (re)opens the repeat window, extending it on every repeated
+// move so a steady walk across panes doesn't expire mid-way.
+func (c *Core) armRepeat() {
+	if c.repeatTime > 0 {
+		c.repeatUntil = time.Now().Add(c.repeatTime)
+	}
+}
+
 // dispatchAction runs act — the single place every prefix-key command
 // is actually invoked from, whether reached via its default rune, a
 // config "bind" override, or one of the fixed arrow/Tab alternates
 // above. c.mu is already held (handleKey's caller).
 func (c *Core) dispatchAction(act action) Result {
+	// A focus move opens (or extends) the window in which a bare arrow
+	// repeats it; anything else closes it, so an unrelated command can't
+	// leave arrows hijacked afterwards.
+	switch act {
+	case actFocusLeft, actFocusRight, actFocusUp, actFocusDown:
+		c.armRepeat()
+	default:
+		c.repeatUntil = time.Time{}
+	}
 	var res Result
 	switch act {
 	case actVSplit:
