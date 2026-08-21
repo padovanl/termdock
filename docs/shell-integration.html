@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shell integration — termdock</title>
+<meta name="description" content="Teach your shell to mark prompts (OSC 133) and termdock learns where every command starts, ends and how it went — enabling command history, jumping between commands, and copying one command&#x27;s whole output.">
+<meta property="og:title" content="Shell integration — termdock">
+<meta property="og:description" content="Teach your shell to mark prompts (OSC 133) and termdock learns where every command starts, ends and how it went — enabling command history, jumping between commands, and copying one command&#x27;s whole output.">
+<meta property="og:type" content="article">
+<meta name="theme-color" content="#07100f">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2.5' y='2.5' width='27' height='27' rx='3' fill='none' stroke='%2335e0c8' stroke-width='2.4'/><path d='M16 3.5 V28.5 M16 13 H28.5' stroke='%2335e0c8' stroke-width='2.4' stroke-linecap='round'/></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="crt-veil" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="index.html" style="text-decoration:none;border:0">termdock<span class="cursor">_</span></a>
+    <nav class="navlinks">
+      <a href="getting-started.html">start</a>
+      <a href="keys.html">keys</a>
+      <a href="shell-integration.html">shell</a>
+      <a href="workflow.html">workflow</a>
+      <a href="configuration.html">config</a>
+      <a href="remote.html">remote</a>
+      <a href="https://github.com/padovanl/termdock">github</a>
+    </nav>
+  </div>
+</header>
+
+<main class="manual">
+  <aside class="manual-toc">
+    <h2>On this page</h2>
+    <a href="#the-problem-it-solves">The problem it solves</a>
+    <a href="#turning-it-on">Turning it on</a>
+    <a href="#a-worked-example">A worked example</a>
+    <a href="#what-you-get">What you get</a>
+    <a href="#without-it">Without it</a>
+  </aside>
+  <div class="manual-body">
+    <h1 style="margin:0 0 0.5rem;font-size:2rem">Shell integration</h1>
+    <p class="page-lede">One line in your shell rc. It is the single highest-value thing you can configure, and it unlocks four features nothing else can offer.</p>
+<h2 id="the-problem-it-solves">The problem it solves</h2>
+
+<p>Every terminal has the same blind spot. It receives one long stream of
+characters and has no idea which of them are your prompt, which are the
+command you typed, and which are that command's output. It is all just
+text arriving.</p>
+
+<p>That is why no multiplexer offers "jump back to the previous command"
+or "copy that command's output" — not because nobody thought of it, but
+because the information genuinely is not there to act on.</p>
+
+<p><strong>OSC 133</strong> is the fix the terminal world settled on: the
+shell announces the boundaries as it goes. Four invisible, zero-width
+markers per command — prompt starts, prompt ends, command started
+running, command finished with its exit status.</p>
+
+<p>termdock records them in <em>its own</em> VT emulator, which is why
+this works over SSH, in any terminal, whether or not the terminal you are
+sitting at has ever heard of OSC 133. tmux cannot do this at any price:
+it has no emulator of its own to record them in.</p>
+
+<h2 id="turning-it-on">Turning it on</h2>
+
+<p>Add one line to your shell's startup file:</p>
+
+<pre><code># ~/.bashrc, ~/.zshrc, or ~/.config/fish/config.fish
+eval "$(termdock shell-init)"</code></pre>
+
+<p><code>termdock shell-init</code> detects your shell from
+<code>$SHELL</code>; pass <code>bash</code>, <code>zsh</code> or
+<code>fish</code> to be explicit. It <strong>prints</strong> the snippet
+rather than installing it — that file is yours and you should read what
+goes into it. To just look:</p>
+
+<pre><code>termdock shell-init bash | less</code></pre>
+
+<p>Open a new pane afterwards; shells already running won't pick it up.
+Nothing about your prompt changes visually.</p>
+
+<div class="note">
+<strong>If your prompt comes from a theme</strong> — oh-my-zsh,
+powerlevel10k, starship — put the <code>eval</code> line <em>after</em>
+that theme's setup, or the theme will overwrite the marker termdock
+appends to <code>PS1</code>. <code>termdock doctor</code> will tell you
+whether it found the line at all.
+</div>
+
+<h2 id="a-worked-example">A worked example</h2>
+
+<p>You run a test suite. It fails somewhere in three hundred lines of
+output. You then run four more commands while poking at it, and now the
+failure is far up the scrollback:</p>
+
+<pre><code>$ go test ./...          ← 300 lines of output, somewhere up there
+$ git status
+$ vim internal/core/foo.go
+$ git diff
+$ go build ./...
+$                        ← you are here</code></pre>
+
+<p><strong>Without</strong> shell integration, retrieving that failure
+means entering copy-mode, scrolling up by eye past four commands, finding
+where the test run started, guessing where it ended, drag-selecting
+several screens of text, and hoping you didn't clip the first line.</p>
+
+<p><strong>With it:</strong></p>
+
+<table>
+<tr><th>You press</th><th>What happens</th></tr>
+<tr><td><code>Ctrl-B [</code> then <code>{</code></td><td>Jumps to the prompt of <code>go build</code>.</td></tr>
+<tr><td><code>{ { { {</code></td><td>Four more jumps, one per command, landing on <code>go test ./...</code>.</td></tr>
+<tr><td><code>Ctrl-B O</code></td><td>The <strong>entire</strong> output of that run — all 300 lines — is on your clipboard.</td></tr>
+</table>
+
+<h2 id="what-you-get">What you get</h2>
+
+<h3>Move by command, not by line</h3>
+
+<p><code>{</code> and <code>}</code> in copy-mode jump to the previous
+and next command. Each jump lands on a prompt with that command's output
+filling the screen below it — which is the thing you were scrolling to
+find. Repeated presses walk back through your history one command at a
+time.</p>
+
+<h3>Copy a command's whole output</h3>
+
+<p><span class="k">Ctrl-B</span> <span class="k">O</span>. Not "roughly
+this screenful", not "what's currently visible" — exactly the lines
+between where that command started printing and where it stopped,
+whether that is 2 lines or 3000, with the prompt and the command itself
+excluded.</p>
+
+<p><em>Which</em> command follows where you are looking: in copy-mode it
+is the one your cursor sits in, so walking back with <code>{</code> and
+then copying does what it plainly looks like it should. At a live prompt
+it is the most recent. Pressed while a build is still running, you get
+everything it has printed so far.</p>
+
+<h3>A verdict on every pane</h3>
+
+<p>A pane whose last command failed says so in its title:</p>
+
+<pre><code> 2:go [✗1 47s]        ← exited 1, took 47 seconds
+ 3:npm                ← last command succeeded, quickly: nothing added</code></pre>
+
+<p>The exit status appears only on failure, the duration only when the
+command ran longer than a few seconds. A title is no place for noise,
+and <code>✗</code> is the thing worth catching out of the corner of your
+eye when you glance at a pane you left running.</p>
+
+<h3>History and timeline</h3>
+
+<p>Both of these become possible, and they get
+<a href="workflow.html">their own section</a>:
+<span class="k">Ctrl-B</span> <span class="k">H</span> searches every
+command the session has run, and <span class="k">Ctrl-B</span>
+<span class="k">T</span> draws them on a timeline.</p>
+
+<h2 id="without-it">Without it</h2>
+
+<p>Nothing breaks. There are simply no marks, and each feature says so
+and points at the fix rather than silently doing nothing:</p>
+
+<pre><code>no command marks in this pane — run `termdock shell-init` for the shell snippet</code></pre>
+    <nav class="manual-nav">
+      <span>← <a href="keys.html">Every key</a></span>
+      <span><a href="workflow.html">Working in it all day</a> →</span>
+    </nav>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-chips">
+      <a class="foot-chip" href="index.html">Home</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock">GitHub</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock/releases">Releases</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock/issues">Issues</a>
+    </div>
+    <p class="foot-note">MIT licensed · written from scratch in Go · linux &amp; macOS</p>
+  </div>
+</footer>
+</body>
+</html>

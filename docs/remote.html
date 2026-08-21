@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Remote sessions &amp; sharing — termdock</title>
+<meta name="description" content="Run a termdock session on a server, attach from anywhere, and let a colleague watch read-only without giving them your account.">
+<meta property="og:title" content="Remote sessions &amp; sharing — termdock">
+<meta property="og:description" content="Run a termdock session on a server, attach from anywhere, and let a colleague watch read-only without giving them your account.">
+<meta property="og:type" content="article">
+<meta name="theme-color" content="#07100f">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2.5' y='2.5' width='27' height='27' rx='3' fill='none' stroke='%2335e0c8' stroke-width='2.4'/><path d='M16 3.5 V28.5 M16 13 H28.5' stroke='%2335e0c8' stroke-width='2.4' stroke-linecap='round'/></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="crt-veil" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="index.html" style="text-decoration:none;border:0">termdock<span class="cursor">_</span></a>
+    <nav class="navlinks">
+      <a href="getting-started.html">start</a>
+      <a href="keys.html">keys</a>
+      <a href="shell-integration.html">shell</a>
+      <a href="workflow.html">workflow</a>
+      <a href="configuration.html">config</a>
+      <a href="remote.html">remote</a>
+      <a href="https://github.com/padovanl/termdock">github</a>
+    </nav>
+  </div>
+</header>
+
+<main class="manual">
+  <aside class="manual-toc">
+    <h2>On this page</h2>
+    <a href="#a-session-on-another-machine">A session on another machine</a>
+    <a href="#letting-someone-watch">Letting someone watch</a>
+    <a href="#without-giving-away-your-account">Without giving away your account</a>
+    <a href="#why-this-is-sshs-job">Why this is SSH's job</a>
+    <a href="#driving-a-session-from-a-script">Driving a session from a script</a>
+  </aside>
+  <div class="manual-body">
+    <h1 style="margin:0 0 0.5rem;font-size:2rem">Remote sessions &amp; sharing</h1>
+    <p class="page-lede">A session lives on the machine that owns the panes. Reaching it is SSH's job, and SSH does it well.</p>
+<h2 id="a-session-on-another-machine">A session on another machine</h2>
+
+<p>A session's socket lives on the machine running the panes, so "remote"
+means SSH — and it works with nothing extra installed or configured:</p>
+
+<pre><code>ssh -t server termdock new -s work        # create it there, and attach
+ssh -t server termdock attach -t work     # come back from any other machine
+ssh -t server termdock attach -t work -r  # attach as a read-only observer</code></pre>
+
+<p>The <code>-t</code> is doing real work: it asks SSH for a pty, which
+the client needs in order to draw.</p>
+
+<p>Detach with <span class="k">Ctrl-B</span> <span class="k">d</span> and
+the panes keep running on the server exactly as they would locally. Close
+the laptop, open another one, attach again. This is the client/server
+split earning its keep: your terminal was never where the work lived.</p>
+
+<h2 id="letting-someone-watch">Letting someone watch</h2>
+
+<p><code>-r</code> is a real read-only attach. Every frame streams to
+that client, and every key and mouse event it sends is
+<strong>dropped by the server</strong> before it reaches the session.
+That is enforced on the daemon's side, not by asking the client to
+behave, so a modified or scripted client cannot type either. An
+observer's terminal size does not resize the shared session, so a smaller
+window on their end disturbs nobody.</p>
+
+<p>Any number of normal and read-only clients can attach at once.</p>
+
+<h2 id="without-giving-away-your-account">Without giving away your account</h2>
+
+<p>The socket is <code>0600</code> inside a <code>0700</code> directory,
+so attaching means being <em>you</em> on that machine. Handing a
+colleague your login so they can watch is not sharing; it is handing over
+the keys.</p>
+
+<p>SSH solves this properly, with a <strong>forced command</strong>. Put
+their public key in your <code>~/.ssh/authorized_keys</code>, restricted
+to exactly one thing:</p>
+
+<pre><code>restrict,pty,command="/usr/local/bin/termdock attach -t work -r" ssh-ed25519 AAAAC3Nz... alice</code></pre>
+
+<p>Now <code>ssh server</code> from Alice's machine drops her straight
+into watching that session, read-only, and nothing else.
+<code>restrict</code> denies port forwarding, agent forwarding, X11 and
+user rc files; <code>pty</code> puts back the one capability the client
+actually needs. Delete the line to end the sharing.</p>
+
+<div class="note">
+<strong>Use the binary's absolute path.</strong> A forced command runs
+with a minimal environment, and <code>termdock</code> may not be on
+<code>PATH</code>.
+</div>
+
+<h2 id="why-this-is-sshs-job">Why this is SSH's job</h2>
+
+<p>Authentication and encryption are the parts that must not be got
+wrong, and OpenSSH has had decades of scrutiny on exactly them. A
+bespoke listener in termdock with a hand-rolled token would be a
+downgrade wearing the word "feature".</p>
+
+<p>It compares well, too. tmux users reach for <code>wemux</code>, which
+only works between accounts on one machine, or <code>tmate</code>, which
+relays your terminal through someone else's servers.</p>
+
+<h2 id="driving-a-session-from-a-script">Driving a session from a script</h2>
+
+<p>Sessions can be operated without a client attached at all, which is
+what makes them usable from CI, cron, or a setup script:</p>
+
+<pre><code>termdock new-window -t work -n logs
+termdock split-window -t work -v
+termdock send-keys -t work:1 'tail -f /var/log/app.log' Enter
+termdock select-window -t work:1
+termdock select-pane -t work:1 -R
+termdock list-windows -t work
+termdock list-panes -t work:1</code></pre>
+
+<p>A target is <code>SESSION[:WINDOW[.PANE]]</code>, where
+<code>PANE</code> is the number shown in the pane's title bar.</p>
+    <nav class="manual-nav">
+      <span>← <a href="configuration.html">Configuration</a></span>
+      <span></span>
+    </nav>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-chips">
+      <a class="foot-chip" href="index.html">Home</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock">GitHub</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock/releases">Releases</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock/issues">Issues</a>
+    </div>
+    <p class="foot-note">MIT licensed · written from scratch in Go · linux &amp; macOS</p>
+  </div>
+</footer>
+</body>
+</html>
