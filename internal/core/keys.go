@@ -291,6 +291,8 @@ func (c *Core) dispatchAction(act action) Result {
 		c.enterTimeline()
 	case actToggleLogging:
 		c.toggleLogging()
+	case actLogWindow:
+		c.promptWindowLogging()
 	case actRenameWindow:
 		c.startInput("rename", "Rename window: ", c.windowDisplayName(c.win()), ModeNormal)
 	case actRenamePane:

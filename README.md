@@ -76,6 +76,7 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
 | 🧱 **Saved layouts** | `termdock layout save dev` / `apply dev` — windows, splits, ratios, names and each pane's directory, rebuilt on demand | needs the external tmuxinator or teamocil, with a YAML file and a Ruby/Python dependency |
 | 🩺 **Diagnosing your own setup** | `termdock doctor` checks the things that fail *silently* — a misspelled theme being ignored, shell integration never set up — and every warning names the fix | no equivalent; a mistyped `tmux.conf` line is just as silent, with nothing to ask |
 | 🏷️ **Naming a pane** | `Ctrl-B .` names one pane, which then wins over the process name, appears in the jump picker, and survives a crash | `select-pane -T`, but it is not shown in `choose-tree` and is lost when the pane's process changes |
+| 📼 **Log a whole window at once** | `Ctrl-B A` asks for a directory and logs *every* pane in the window into it, one file each, named after the session, window and pane — a folder you can attach to a ticket | `pipe-pane` is one pane at a time, with the path and the filename written out by hand every time |
 | 🔎 **Regex search** | copy-mode `/` and global search both accept a regex (falls back to a literal substring if it doesn't compile) | copy-mode search is a plain substring only |
 
 Every "tmux needs the external `tmux-whatever` plugin" above is describing **tmux**, not termdock: everything in the termdock column is built into the single `termdock` binary. There's no plugin manager, no plugin API, and nothing here — themes, status segments, logging, the popup, any of it — ever needs an external plugin, script, or program to work. The one narrow exception is the `git` status segment, which shells out to your system's own `git` binary the same way any git integration would (not a termdock plugin, just using the tool that's already there) — everything else is pure Go, self-contained.
@@ -213,6 +214,7 @@ them to a different key.
 | `T` | 🕘 **session timeline**: when each command ran and for how long (needs shell integration) |
 | `.` | 🏷️ **name this pane** — empty clears it, back to the process name |
 | `L` | 📝 toggle **logging** the active pane's output to a file (see below) |
+| `A` | 📼 **log every pane in this window** to a directory you name (see below) |
 | `0`-`9` | jump straight to window N |
 | `,` | rename the current window |
 | `$` | 🏷️ **rename this session** — the socket and snapshot move with it (see below) |
@@ -683,6 +685,43 @@ levels down again is what actually costs you. If the reopen can't
 happen (no room to split, or the window is zoomed) the pane stays on
 the stack, so it is never lost to a failed undo. tmux has no
 equivalent: a closed pane is gone.
+
+### 📼 Logging a whole window
+
+`Ctrl-B A` asks where to put the files and then logs **every pane in the
+current window**, one file each. Press it again to stop them all.
+
+The prompt comes prefilled with the default log directory, so the common
+case is `Enter`; type anything else — `~/bug-1234` is expanded, and the
+directory is created if it doesn't exist, because being told "no such
+directory" right after saying where you want the logs is a pointless
+round trip.
+
+Files are named after the things you recognise — the session, the
+window, and the pane's own [name](#-naming-a-pane) where you gave it
+one:
+
+```
+~/bug-1234/
+  deploy-feat_login-api_server.log
+  deploy-feat_login-worker.log
+  deploy-feat_login-pane3.log      ← unnamed panes fall back to position
+```
+
+A directory of `api.log`, `worker.log` and `db.log` is worth something an
+hour later; one of `p3-20260821-154233.log` is not. Anything awkward for
+a filesystem is replaced (a window called `feat/login` becomes
+`feat_login`, rather than trying to write into a directory that isn't
+there), and two panes sharing a name get numbered rather than quietly
+sharing one file.
+
+A pane you had already started logging by hand with `Ctrl-B L` is left
+alone rather than restarted, so this never truncates a file you opened
+deliberately.
+
+This is for the moment before you reproduce something: six panes, one
+keystroke, a folder you can attach to a ticket. tmux's `pipe-pane` is
+one pane at a time, with the path and filename written out by hand.
 
 ### 📝 Logging a pane
 

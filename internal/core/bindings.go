@@ -53,6 +53,7 @@ const (
 	actHistory       action = "command-history"
 	actTimeline      action = "timeline"
 	actToggleLogging action = "toggle-logging"
+	actLogWindow     action = "log-window"
 	actRenameWindow  action = "rename-window"
 	actRenamePane    action = "rename-pane"
 	actRenameSession action = "rename-session"
@@ -105,6 +106,7 @@ var defaultBindings = map[rune]action{
 	'H': actHistory,
 	'T': actTimeline,
 	'L': actToggleLogging,
+	'A': actLogWindow,
 	',': actRenameWindow,
 	'.': actRenamePane,
 	'$': actRenameSession,
@@ -129,7 +131,7 @@ var actionOrder = []action{
 	actJumpPicker, actLastWindow, actLastPane, actOverview,
 	actGlobalSearch, actSwitchSession, actPopup, actOpener,
 	actBreakPane, actQuickJump, actCommandPrompt, actCycleLayout,
-	actRespawnPane, actReopenPane, actWatchDone, actCopyOutput, actHistory, actTimeline, actToggleLogging, actRenameWindow, actRenamePane, actRenameSession, actKillWindow,
+	actRespawnPane, actReopenPane, actWatchDone, actCopyOutput, actHistory, actTimeline, actToggleLogging, actLogWindow, actRenameWindow, actRenamePane, actRenameSession, actKillWindow,
 	actClosePane, actSettings, actDetach, actQuit, actHelp,
 }
 
@@ -171,6 +173,7 @@ var actionDescriptions = map[action]string{
 	actHistory:       "search every command run in this session (needs shell-init)",
 	actTimeline:      "session timeline: when each command ran and for how long",
 	actToggleLogging: "toggle logging the active pane's output to a file",
+	actLogWindow:     "log every pane in this window to a directory you name",
 	actRenameWindow:  "rename the current window",
 	actRenamePane:    "name this pane (empty clears it, back to the process name)",
 	actRenameSession: "rename this session (its socket and snapshot move with it)",
@@ -221,6 +224,7 @@ var actionShort = map[action]string{
 	actHistory:       "history",
 	actTimeline:      "timeline",
 	actToggleLogging: "log",
+	actLogWindow:     "log-all",
 	actRenameWindow:  "rename",
 	actRenamePane:    "name-pane",
 	actRenameSession: "rename-session",

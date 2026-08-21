@@ -72,6 +72,8 @@ func (c *Core) confirmInput() {
 			c.paneNames[id] = text
 		}
 		c.persistStateLocked()
+	case "log-window":
+		c.applyWindowLogging(text)
 	case "rename-session":
 		c.applySessionRename(text)
 	case "search":
