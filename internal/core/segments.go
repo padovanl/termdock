@@ -47,6 +47,13 @@ type segmentCache struct {
 	haveCPU   bool
 }
 
+// Each segment carries a short word as well as its icon — "🧠 mem 43%",
+// not "🧠43%". The icon alone is a rebus: a brain could be memory or
+// load, a monitor could be CPU or a display, and the two sit next to
+// each other reading as a row of pictures. The word costs four columns
+// and removes the guessing. A git branch names itself, so it doesn't
+// need one.
+//
 // statusSegmentsText renders every enabled segment, refreshing the cache
 // first if it's stale. Returns "" if no segments are enabled or none of
 // the enabled ones have anything to show (e.g. "git" outside a repo).
@@ -148,7 +155,7 @@ func readBattery() string {
 			strings.TrimSpace(string(statusBytes)) == "Charging" {
 			icon = "⚡"
 		}
-		return icon + pct + "%"
+		return icon + " bat " + pct + "%"
 	}
 	return ""
 }
@@ -199,7 +206,7 @@ func cpuPercent(prev, cur cpuSample) string {
 		return "" // clock hasn't advanced, or a counter wrapped — nothing sane to report
 	}
 	pct := 100 * (dTotal - dIdle) / dTotal
-	return fmt.Sprintf("🖥️%d%%", pct)
+	return fmt.Sprintf("🖥️ cpu %d%%", pct)
 }
 
 // readMem reads /proc/meminfo for the fraction of memory in use —
@@ -229,5 +236,5 @@ func readMem() string {
 		return ""
 	}
 	pct := 100 * (total - avail) / total
-	return fmt.Sprintf("🧠%d%%", pct)
+	return fmt.Sprintf("🧠 mem %d%%", pct)
 }

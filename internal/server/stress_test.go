@@ -73,11 +73,23 @@ func TestConcurrentClientsStress(t *testing.T) {
 				{Kind: "mouse", MouseX: 9, MouseY: 5, MouseButtons: 0},
 				{Kind: "mouse", MouseX: 4, MouseY: 4, MouseButtons: int32(tcell.WheelUp)},
 			}
-			for {
+			for sent := 0; ; sent++ {
 				select {
 				case <-stop:
 					return
 				default:
+				}
+				// Periodically bail out to normal mode. A random walk can
+				// otherwise park a client inside a modal that swallows
+				// every key — the settings screen's in-place editor takes
+				// each keystroke as text — and with all three clients
+				// stuck there, no splits happen while the scripted
+				// "exit"s keep closing panes, so the session ends and the
+				// run measures nothing. This bounds how long any client
+				// can sit in one without weakening what's being driven.
+				if sent%9 == 8 {
+					enc.Encode(proto.ClientMsg{Kind: "key", KeyCode: int32(tcell.KeyEsc)})
+					enc.Encode(proto.ClientMsg{Kind: "key", KeyCode: int32(tcell.KeyEsc)})
 				}
 				m := keys[rng.Intn(len(keys))]
 				if rng.Intn(12) == 0 {

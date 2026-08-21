@@ -708,20 +708,35 @@ change how termdock behaves. **`Ctrl-B C`** opens a settings screen — every
 setting, its current value, and what it does:
 
 ```
-prefix           C-b            prefix key, any Ctrl+letter
-mouse            on             mouse support (click, drag, wheel)
-history-limit    10000          scrollback lines kept per pane [new panes]
-shell            (your $SHELL)  shell to launch in new panes [new panes]
-theme            dracula        bundled color preset (sets the five colors below)
-...
+  prefix           C-b            prefix key, any Ctrl+letter
+  mouse            on             mouse support (click, drag, wheel)
+  history-limit    10000          scrollback lines kept per pane [new panes]
+  shell            (your $SHELL)  shell to launch in new panes [new panes]
+> theme            dracula        bundled color preset (...)  ←→ 3 of 12
+  status-bg        #44475a        status bar background
+  ...
 ```
 
-`↑`/`↓` move, `Enter` opens the command prompt already filled in with
-that setting and its current value so you can edit it in place, `S` does
-the same but saves the result to your config file too, `Esc` closes.
+`↑`/`↓` move between settings, and then:
 
-The same thing from the command prompt (`Ctrl-B :`), which is what
-`Enter` above is a shortcut for:
+- **`←`/`→` pick a value** for anything with a fixed set of them. On
+  `theme` that steps through all twelve palettes, applying each one as you
+  land on it — which is the only way to choose a colour scheme that
+  doesn't involve knowing every name by heart. Same for the on/off
+  settings.
+- **`Enter` types a value** into the row itself, starting from what's
+  already there. For a path, a number or a command there's nothing to step
+  through, so you type it. `Enter` again applies it, `Esc` abandons it.
+- **`S` saves** whatever the row is currently on to your config file.
+  Separate from changing it on purpose: arrowing past eleven themes
+  shouldn't rewrite the file eleven times.
+- **`Esc`** closes the screen.
+
+Everything applies to the running session the moment you land on it —
+nothing waits for a save.
+
+The same settings from the command prompt (`Ctrl-B :`), which is what you
+want when you already know the value:
 
 ```
 set theme gruvbox          # change it for this session
