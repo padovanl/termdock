@@ -46,11 +46,15 @@ func Run(sockPath string, cfg config.Config, readOnly bool) error {
 		screen.EnableMouse(tcell.MouseButtonEvents | tcell.MouseDragEvents)
 	}
 	screen.HideCursor()
+	recolored := setTerminalColors(cfg)
 	finished := false
 	finish := func() {
 		if !finished {
 			finished = true
 			screen.Fini()
+			if recolored {
+				resetTerminalColors()
+			}
 		}
 	}
 	defer finish()
@@ -185,6 +189,55 @@ func forwardEvent(enc *gob.Encoder, ev tcell.Event) bool {
 // writeClipboard pushes text to the real terminal's system clipboard via
 // OSC52, bypassing tcell (which has no API for arbitrary escape
 // sequences) by writing straight to stdout.
+// setTerminalColors asks the terminal emulator itself to adopt the
+// theme's pane colours, via OSC 10 (default foreground) and OSC 11
+// (default background). Reports whether it changed anything, so the
+// caller knows whether to undo it.
+//
+// Painting cells can only ever reach the character grid, and a terminal
+// emulator typically draws a few pixels of padding around that grid in
+// its own background colour — so a fully themed termdock still sat in a
+// thin frame of the emulator's background, which is exactly what the
+// theme was meant to replace. OSC 11 is the only way to reach it, being
+// a request to the emulator rather than something drawn.
+//
+// Written straight to stdout, bypassing tcell (which has no API for
+// arbitrary escape sequences), the same way writeClipboard does for
+// OSC 52.
+func setTerminalColors(cfg config.Config) bool {
+	seq := ""
+	if hex, ok := oscColor(cfg.PaneFG); ok {
+		seq += "\x1b]10;" + hex + "\a"
+	}
+	if hex, ok := oscColor(cfg.PaneBG); ok {
+		seq += "\x1b]11;" + hex + "\a"
+	}
+	if seq == "" {
+		return false
+	}
+	os.Stdout.WriteString(seq)
+	return true
+}
+
+// resetTerminalColors puts the emulator's own default foreground and
+// background back (OSC 110/111), so quitting or detaching doesn't leave
+// the terminal wearing termdock's theme. Called after screen.Fini(), so
+// it lands on a terminal tcell has already restored.
+func resetTerminalColors() {
+	os.Stdout.WriteString("\x1b]110\a\x1b]111\a")
+}
+
+// oscColor renders a colour as the "#rrggbb" OSC 10/11 wants, reporting
+// false for ColorDefault (and anything else with no RGB value), which
+// means "leave the emulator's own alone" — the no-theme default.
+func oscColor(c tcell.Color) (string, bool) {
+	h := c.Hex()
+	if h < 0 {
+		return "", false
+	}
+	return fmt.Sprintf("#%06x", h), true
+}
+
 func writeClipboard(text string) {
 	os.Stdout.WriteString("\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(text)) + "\a")
 }

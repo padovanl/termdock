@@ -724,7 +724,16 @@ floating on whatever your emulator happens to use. The pane borders, the
 margin around the layout, the window tabs and the floating boxes (the
 picker, the popup, the preview) are all in on it too — floating chrome
 sits on the palette's surface shade, one step above the panes, the same
-colour the status bar uses. Output that asks for
+colour the status bar uses.
+
+Beyond that, termdock asks the **terminal emulator itself** to adopt the
+theme's background and foreground (via `OSC 10`/`OSC 11`) while it's
+attached. Painting cells can only reach the character grid, and most
+emulators draw a few pixels of padding around that grid in their own
+background colour — so without this a fully themed session still sat in
+a thin frame of whatever your terminal profile uses. The emulator's own
+colours are put back (`OSC 110`/`111`) when you detach or quit; with no
+theme set, nothing is sent and your terminal is never touched. Output that asks for
 a specific colour is never repainted. Want a theme's chrome but your
 own background? `pane-bg default` opts that one piece back out.
 
