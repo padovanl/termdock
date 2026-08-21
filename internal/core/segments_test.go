@@ -108,8 +108,8 @@ func TestReadCPUSampleOnARealSystem(t *testing.T) {
 func TestCPUPercentComputesFromDelta(t *testing.T) {
 	prev := cpuSample{idle: 100, total: 1000}
 	cur := cpuSample{idle: 150, total: 1200} // +200 total, +50 idle -> 150/200 busy = 75%
-	if got := cpuPercent(prev, cur); got != "🖥️75%" {
-		t.Fatalf("cpuPercent() = %q, want %q", got, "🖥️75%")
+	if got := cpuPercent(prev, cur); got != "🖥️ cpu 75%" {
+		t.Fatalf("cpuPercent() = %q, want %q", got, "🖥️ cpu 75%")
 	}
 }
 
@@ -177,5 +177,25 @@ func TestStatusSegmentsTextJoinsEnabledOnes(t *testing.T) {
 
 	if got != " main | 🔋80%" {
 		t.Fatalf("statusSegmentsText() = %q, want %q", got, " main | 🔋80%")
+	}
+}
+
+// TestSegmentsAreLabelledNotJustIcons: an icon on its own is a rebus —
+// a brain could be memory or load, a monitor could be CPU or a display —
+// and with several of them side by side the status bar reads as a row of
+// pictures. Each carries a short word as well. A git branch names itself.
+func TestSegmentsAreLabelledNotJustIcons(t *testing.T) {
+	for _, tc := range []struct{ got, want string }{
+		{cpuPercent(cpuSample{idle: 100, total: 200}, cpuSample{idle: 125, total: 300}), "cpu"},
+	} {
+		if !strings.Contains(tc.got, tc.want) {
+			t.Errorf("%q should carry the word %q", tc.got, tc.want)
+		}
+	}
+	if got := readMem(); got != "" && !strings.Contains(got, "mem") {
+		t.Errorf("mem segment %q should carry the word \"mem\"", got)
+	}
+	if got := readBattery(); got != "" && !strings.Contains(got, "bat") {
+		t.Errorf("battery segment %q should carry the word \"bat\"", got)
 	}
 }

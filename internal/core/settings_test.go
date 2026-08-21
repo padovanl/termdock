@@ -233,29 +233,230 @@ func TestSettingsScreenListsEveryKeyWithItsValue(t *testing.T) {
 	}
 }
 
-// TestSettingsScreenEnterPrefillsThePrompt: the list is how you find a
-// key; the prompt is how you change it. Enter has to carry the key and
-// its current value across, or you're retyping both from memory.
-func TestSettingsScreenEnterPrefillsThePrompt(t *testing.T) {
+// TestSettingsScreenEditsInPlace: changing a setting happens in its own
+// row. The list is where you can see what something is currently set to,
+// so it's where changing it belongs — handing off to the ":" prompt at
+// the bottom meant reading the value in one place and retyping it in
+// another.
+func TestSettingsScreenEditsInPlace(t *testing.T) {
 	c := newTestCore(t)
 	c.ApplyConfig(config.Default())
 
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.enterSettings()
-	for c.settings.sel < len(config.Settings()) && config.Settings()[c.settings.sel].Key != "history-limit" {
-		c.settings.sel++
-	}
-	c.handleSettingsKey(tcell.KeyEnter, 0)
-	mode := c.mode
-	buffer := string(c.input.buffer)
-	c.mu.Unlock()
+	selectSetting(t, c, "history-limit")
 
-	if mode != ModeInput {
-		t.Fatalf("Enter should open the command prompt, mode=%v", mode)
+	c.handleSettingsKey(tcell.KeyEnter, 0)
+	if c.mode != ModeSettings {
+		t.Fatalf("editing should stay on the settings screen, mode=%v", c.mode)
 	}
-	if buffer != "set history-limit 10000" {
-		t.Errorf("prompt prefilled with %q, want %q", buffer, "set history-limit 10000")
+	if !c.settings.editing {
+		t.Fatal("enter should start editing the selected row")
 	}
+	if got := string(c.settings.buffer); got != "10000" {
+		t.Errorf("the row starts from the current value, got %q", got)
+	}
+
+	// The row shows what's being typed, with a cursor.
+	c.settings.buffer = []rune("500")
+	if row := settingsRow(c, "history-limit"); !strings.Contains(row, "500_") {
+		t.Errorf("the edited row should show the text and a cursor, got %q", row)
+	}
+
+	c.handleSettingsKey(tcell.KeyEnter, 0)
+	if c.settings.editing {
+		t.Error("enter should finish editing")
+	}
+	if config.Get(&c.cfg, "history-limit") != "500" {
+		t.Errorf("the new value should have been applied, got %s", config.Get(&c.cfg, "history-limit"))
+	}
+}
+
+func TestSettingsScreenEditCanBeCancelled(t *testing.T) {
+	c := newTestCore(t)
+	c.ApplyConfig(config.Default())
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.enterSettings()
+	selectSetting(t, c, "history-limit")
+
+	c.handleSettingsKey(tcell.KeyEnter, 0)
+	c.settings.buffer = []rune("77")
+	c.handleSettingsKey(tcell.KeyEsc, 0)
+
+	if c.settings.editing {
+		t.Error("esc should abandon the edit")
+	}
+	if c.mode != ModeSettings {
+		t.Errorf("esc out of an edit should leave the screen open, mode=%v", c.mode)
+	}
+	if got := config.Get(&c.cfg, "history-limit"); got != "10000" {
+		t.Errorf("an abandoned edit must change nothing, got %s", got)
+	}
+}
+
+func TestSettingsScreenRefusesABadTypedValue(t *testing.T) {
+	c := newTestCore(t)
+	c.ApplyConfig(config.Default())
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.enterSettings()
+	selectSetting(t, c, "history-limit")
+
+	c.handleSettingsKey(tcell.KeyEnter, 0)
+	c.settings.buffer = []rune("banana")
+	c.handleSettingsKey(tcell.KeyEnter, 0)
+
+	if !strings.Contains(c.statusMsg, "positive number") {
+		t.Errorf("a refused value should say why, got %q", c.statusMsg)
+	}
+	if got := config.Get(&c.cfg, "history-limit"); got != "10000" {
+		t.Errorf("a refused value must leave the setting alone, got %s", got)
+	}
+}
+
+// TestSettingsScreenArrowsPickAValue is the point of the whole thing for
+// "theme": eleven palettes you'd otherwise have to know by name. ←→ steps
+// through them and each one applies as you land on it.
+func TestSettingsScreenArrowsPickAValue(t *testing.T) {
+	c := newTestCore(t)
+	c.ApplyConfig(config.Default())
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.enterSettings()
+	selectSetting(t, c, "theme")
+
+	before := config.Get(&c.cfg, "pane-active-bg")
+	c.handleSettingsKey(tcell.KeyRight, 0)
+
+	first := c.cfg.Theme
+	if first == "" {
+		t.Fatal("→ should have moved onto a theme")
+	}
+	if config.Get(&c.cfg, "pane-active-bg") == before {
+		t.Error("landing on a theme should apply its colours straight away")
+	}
+	if c.clientSettings() == nil {
+		t.Error("a theme picked here has to reach every attached client")
+	}
+
+	c.handleSettingsKey(tcell.KeyRight, 0)
+	if c.cfg.Theme == first {
+		t.Error("→ again should move to the next theme")
+	}
+	c.handleSettingsKey(tcell.KeyLeft, 0)
+	if c.cfg.Theme != first {
+		t.Errorf("← should come back to %q, got %q", first, c.cfg.Theme)
+	}
+}
+
+// Stepping wraps, so you can reach the last entry by going backwards
+// rather than pressing → eleven times.
+func TestSettingsScreenArrowsWrapAround(t *testing.T) {
+	c := newTestCore(t)
+	c.ApplyConfig(config.Default())
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.enterSettings()
+	selectSetting(t, c, "theme")
+
+	c.handleSettingsKey(tcell.KeyLeft, 0)
+	names := config.ThemeNames()
+	if want := names[len(names)-1]; c.cfg.Theme != want {
+		t.Errorf("← from unset should land on the last theme (%s), got %q", want, c.cfg.Theme)
+	}
+}
+
+func TestSettingsScreenArrowsToggleABool(t *testing.T) {
+	c := newTestCore(t)
+	c.ApplyConfig(config.Default())
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.enterSettings()
+	selectSetting(t, c, "focus-events")
+
+	c.handleSettingsKey(tcell.KeyRight, 0)
+	if !c.focusEvents {
+		t.Error("→ on an on/off setting should turn it on, and reach the session")
+	}
+	c.handleSettingsKey(tcell.KeyRight, 0)
+	if c.focusEvents {
+		t.Error("→ again should turn it back off")
+	}
+}
+
+// A setting with no fixed set of values says so rather than doing
+// nothing when you press an arrow at it.
+func TestSettingsScreenArrowsOnAFreeFormSetting(t *testing.T) {
+	c := newTestCore(t)
+	c.ApplyConfig(config.Default())
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.enterSettings()
+	selectSetting(t, c, "shell")
+
+	c.handleSettingsKey(tcell.KeyRight, 0)
+	if !strings.Contains(c.statusMsg, "no fixed set") {
+		t.Errorf("status = %q, want it to point you at typing a value", c.statusMsg)
+	}
+}
+
+// TestSettingsScreenSaveWritesTheCurrentValue: S saves what the row is
+// on now. Stepping through themes must not rewrite the file on every
+// press, so saving is its own key.
+func TestSettingsScreenSaveWritesTheCurrentValue(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "termdock.conf")
+	os.WriteFile(path, []byte("# mine\n"), 0644)
+	t.Setenv("TERMDOCK_CONFIG", path)
+
+	c := newTestCore(t)
+	c.ApplyConfig(config.Default())
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.enterSettings()
+	selectSetting(t, c, "theme")
+
+	c.handleSettingsKey(tcell.KeyRight, 0)
+	picked := c.cfg.Theme
+
+	saved, _ := os.ReadFile(path)
+	if strings.Contains(string(saved), "theme") {
+		t.Fatal("stepping through values must not touch the config file")
+	}
+
+	c.handleSettingsKey(0, 'S')
+	saved, _ = os.ReadFile(path)
+	if !strings.Contains(string(saved), "theme "+picked) {
+		t.Errorf("S should have saved %q:\n%s", picked, saved)
+	}
+	if !strings.Contains(string(saved), "# mine") {
+		t.Errorf("saving must leave the rest of the file alone:\n%s", saved)
+	}
+}
+
+// selectSetting moves the highlight onto a setting by name.
+func selectSetting(t *testing.T, c *Core, key string) {
+	t.Helper()
+	for i, s := range config.Settings() {
+		if s.Key == key {
+			c.settings.sel = i
+			return
+		}
+	}
+	t.Fatalf("no setting called %q", key)
+}
+
+// settingsRow returns the rendered line for one setting.
+func settingsRow(c *Core, key string) string {
+	ov := c.settingsOverlay()
+	for i, s := range config.Settings() {
+		if s.Key == key {
+			return ov.Items[i]
+		}
+	}
+	return ""
 }
 
 func TestSettingsScreenEscCloses(t *testing.T) {

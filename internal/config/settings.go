@@ -46,6 +46,22 @@ type Setting struct {
 	NewPanesOnly bool
 	get          func(*Config) string
 	set          func(*Config, string) error
+	// choices, when set, lists every value this setting can take, in the
+	// order to step through them. It's what lets the settings screen
+	// offer left/right to pick one rather than requiring you to know the
+	// vocabulary and type it — which for "theme" means arrowing through
+	// the palettes and watching each one apply. Settings whose value is a
+	// path, a number or free text have no such list and are typed.
+	choices func() []string
+}
+
+// Choices lists every value the setting can be stepped through, or nil
+// if it has no fixed set.
+func (s Setting) Choices() []string {
+	if s.choices == nil {
+		return nil
+	}
+	return s.choices()
 }
 
 var settings = []Setting{
@@ -63,8 +79,9 @@ var settings = []Setting{
 	},
 	{
 		Key: "mouse", Doc: "mouse support (click, drag, wheel)", Scope: ScopeClient,
-		get: func(c *Config) string { return onOff(c.Mouse) },
-		set: func(c *Config, v string) error { return setBool(&c.Mouse, v) },
+		choices: onOffChoices,
+		get:     func(c *Config) string { return onOff(c.Mouse) },
+		set:     func(c *Config, v string) error { return setBool(&c.Mouse, v) },
 	},
 	{
 		Key: "history-limit", Doc: "scrollback lines kept per pane", Scope: ScopeServer, NewPanesOnly: true,
@@ -120,8 +137,9 @@ var settings = []Setting{
 	},
 	{
 		Key: "focus-events", Doc: "forward synthetic pane focus-in/out", Scope: ScopeServer,
-		get: func(c *Config) string { return onOff(c.FocusEvents) },
-		set: func(c *Config, v string) error { return setBool(&c.FocusEvents, v) },
+		choices: onOffChoices,
+		get:     func(c *Config) string { return onOff(c.FocusEvents) },
+		set:     func(c *Config, v string) error { return setBool(&c.FocusEvents, v) },
 	},
 	{
 		Key: "repeat-time", Doc: "ms a bare arrow keeps moving focus (0 disables)", Scope: ScopeServer,
@@ -137,9 +155,15 @@ var settings = []Setting{
 	},
 	{
 		Key: "theme", Doc: "bundled color preset (sets the five colors below)", Scope: ScopeClient,
+		choices: func() []string { return append([]string{"none"}, ThemeNames()...) },
+		// "none" rather than the parenthesised "(none)" the other unset
+		// settings use: those have no value you could type, while this
+		// one does — "set theme none" is a real thing to write, it's the
+		// first entry in the list ←→ steps through, and it's what saving
+		// an un-themed session to the config file writes.
 		get: func(c *Config) string {
 			if c.Theme == "" {
-				return "(none)"
+				return "none"
 			}
 			return c.Theme
 		},
@@ -252,6 +276,48 @@ func Set(cfg *Config, key, value string) error {
 		return fmt.Errorf("no setting called %q — try one of: %s", key, strings.Join(Keys(), ", "))
 	}
 	return s.set(cfg, value)
+}
+
+func onOffChoices() []string { return []string{"on", "off"} }
+
+// Step moves a setting to the next value in its own list, delta places
+// along and wrapping at both ends, returning what it landed on. Reports
+// false for a setting with no fixed set of values — those get typed.
+//
+// Where it currently sits is found by asking Get, so a setting resting
+// on something outside its list (a colour picked by hand leaves "theme"
+// reading "(none)") starts from one end rather than refusing to move.
+func Step(cfg *Config, key string, delta int) (string, bool) {
+	s, ok := Lookup(key)
+	if !ok {
+		return "", false
+	}
+	choices := s.Choices()
+	if len(choices) == 0 {
+		return "", false
+	}
+	current := s.get(cfg)
+	idx := -1
+	for i, v := range choices {
+		if v == current {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		// Sitting on nothing in the list: step forward onto the first
+		// entry, back onto the last.
+		idx = -1
+		if delta < 0 {
+			idx = 0
+		}
+	}
+	n := len(choices)
+	next := choices[((idx+delta)%n+n)%n]
+	if err := s.set(cfg, next); err != nil {
+		return "", false
+	}
+	return next, true
 }
 
 // CheckSetting reports whether a setting that's already been accepted

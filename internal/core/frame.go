@@ -267,7 +267,7 @@ func (c *Core) statusHint() (hint, style string) {
 		hint = "type to filter, ↑↓ select, enter copies to clipboard, esc cancel"
 	case c.mode == ModeSettings:
 		style = "mode"
-		hint = "↑↓ move, enter edit, S edit+save to the config file, esc close"
+		hint = c.settingsHint()
 	case c.mode == ModeQuickJump:
 		style = "mode"
 		hint = "press a pane's number to jump there, any other key cancels"

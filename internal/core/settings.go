@@ -241,10 +241,19 @@ func (c *Core) runBind(args []string) {
 	c.statusMsg = fmt.Sprintf("bound %s to %s", keyLabel(keys[0]), act)
 }
 
-// settingsState backs the settings screen: a plain scrollable list of
-// every key and its current value, built fresh each time it's opened.
+// settingsState backs the settings screen: a scrollable list of every
+// key and its current value, and — when you're changing one — the text
+// being typed into that row.
+//
+// Editing happens in the row itself rather than by handing off to the
+// command prompt at the bottom of the screen. The list is where you can
+// see what a setting is currently set to, so it's where changing it
+// belongs; bouncing down to a ":" line meant reading the value in one
+// place and retyping it in another.
 type settingsState struct {
-	sel int
+	sel     int
+	editing bool
+	buffer  []rune
 }
 
 func (c *Core) enterSettings() {
@@ -253,6 +262,10 @@ func (c *Core) enterSettings() {
 }
 
 func (c *Core) handleSettingsKey(key tcell.Key, r rune) {
+	if c.settings.editing {
+		c.handleSettingsEditKey(key, r)
+		return
+	}
 	n := len(config.Settings())
 	switch {
 	case key == tcell.KeyEsc || r == 'q':
@@ -266,11 +279,139 @@ func (c *Core) handleSettingsKey(key tcell.Key, r rune) {
 		c.settings.sel = 0
 	case key == tcell.KeyEnd:
 		c.settings.sel = maxi(0, n-1)
+	case key == tcell.KeyLeft || r == 'h':
+		c.stepSelectedSetting(-1)
+	case key == tcell.KeyRight || r == 'l':
+		c.stepSelectedSetting(1)
 	case key == tcell.KeyEnter || r == ' ':
-		c.editSelectedSetting(false)
+		c.startEditingSetting()
 	case r == 'S':
-		c.editSelectedSetting(true)
+		c.saveSelectedSetting()
 	}
+}
+
+// stepSelectedSetting is what ←/→ do: move a setting with a known set of
+// values to the next one and apply it at once. Arrowing along "theme"
+// repaints the session on every press, which is the only way to choose a
+// palette that doesn't involve knowing all eleven names by heart.
+func (c *Core) stepSelectedSetting(delta int) {
+	s, ok := c.selectedSetting()
+	if !ok {
+		return
+	}
+	if len(s.Choices()) == 0 {
+		c.statusMsg = fmt.Sprintf("%s has no fixed set of values — press enter to type one", s.Key)
+		return
+	}
+	updated := c.cfg
+	value, ok := config.Step(&updated, s.Key, delta)
+	if !ok {
+		return
+	}
+	c.applySettingChange(s, updated, value)
+}
+
+// startEditingSetting turns the selected row into a text field holding
+// its current value.
+func (c *Core) startEditingSetting() {
+	s, ok := c.selectedSetting()
+	if !ok {
+		return
+	}
+	current := config.Get(&c.cfg, s.Key)
+	if strings.HasPrefix(current, "(") {
+		current = "" // a description of "unset", not a value to edit
+	}
+	c.settings.editing = true
+	c.settings.buffer = []rune(current)
+	c.statusMsg = ""
+}
+
+// handleSettingsEditKey drives the row being typed into. Deliberately the
+// same small vocabulary as every other text entry in termdock (see
+// input.go): enter commits, esc abandons, Ctrl-U clears.
+func (c *Core) handleSettingsEditKey(key tcell.Key, r rune) {
+	switch {
+	case key == tcell.KeyEsc:
+		c.settings.editing = false
+		c.settings.buffer = nil
+	case key == tcell.KeyEnter:
+		c.commitEditedSetting()
+	case key == tcell.KeyBackspace || key == tcell.KeyBackspace2:
+		if n := len(c.settings.buffer); n > 0 {
+			c.settings.buffer = c.settings.buffer[:n-1]
+		}
+	case key == tcell.KeyCtrlU:
+		c.settings.buffer = c.settings.buffer[:0]
+	case r != 0 && key == tcell.KeyRune:
+		c.settings.buffer = append(c.settings.buffer, r)
+	}
+}
+
+func (c *Core) commitEditedSetting() {
+	s, ok := c.selectedSetting()
+	if !ok {
+		return
+	}
+	value := strings.TrimSpace(string(c.settings.buffer))
+	c.settings.editing = false
+	c.settings.buffer = nil
+
+	updated := c.cfg
+	if err := config.Set(&updated, s.Key, value); err != nil {
+		c.statusMsg = s.Key + ": " + err.Error()
+		return
+	}
+	if err := config.CheckSetting(&updated, s.Key); err != nil {
+		c.statusMsg = s.Key + ": " + err.Error()
+		return
+	}
+	c.applySettingChange(s, updated, config.Get(&updated, s.Key))
+}
+
+// saveSelectedSetting writes whatever the selected setting is currently
+// on to the config file, rewriting only its line. Separate from changing
+// it on purpose: arrowing through themes shouldn't rewrite a file eleven
+// times on the way past.
+func (c *Core) saveSelectedSetting() {
+	s, ok := c.selectedSetting()
+	if !ok {
+		return
+	}
+	value := config.Get(&c.cfg, s.Key)
+	if strings.HasPrefix(value, "(") {
+		c.statusMsg = fmt.Sprintf("%s isn't set to anything to save", s.Key)
+		return
+	}
+	if err := c.persistSetting(s.Key, value); err != nil {
+		c.statusMsg = fmt.Sprintf("could not save %s: %v", s.Key, err)
+		return
+	}
+	c.statusMsg = fmt.Sprintf("%s = %s — saved to %s", s.Key, value, config.Path())
+}
+
+// applySettingChange is the one place a change made on this screen takes
+// effect, so stepping with the arrows and typing a value behave
+// identically — including starting to push colours to every attached
+// client once a look-and-feel setting has been changed here.
+func (c *Core) applySettingChange(s config.Setting, updated config.Config, value string) {
+	if s.Scope == config.ScopeClient {
+		c.clientCfgOverridden = true
+	}
+	c.applyConfigLocked(updated)
+	msg := fmt.Sprintf("%s = %s", s.Key, value)
+	if s.NewPanesOnly {
+		msg += " (applies to new panes)"
+	}
+	c.statusMsg = msg
+}
+
+func (c *Core) selectedSetting() (config.Setting, bool) {
+	all := config.Settings()
+	if c.settings.sel < 0 || c.settings.sel >= len(all) {
+		return config.Setting{}, false
+	}
+	return all[c.settings.sel], true
 }
 
 func (c *Core) scrollSettings(delta int) {
@@ -313,18 +454,74 @@ func (c *Core) settingsOverlay() *proto.Overlay {
 			valW = l
 		}
 	}
+	// Room for the cursor the row being edited grows, so the columns
+	// don't shift sideways the moment you start typing.
+	valW++
+
 	items := make([]string, len(all))
 	for i, s := range all {
-		note := ""
+		value := config.Get(&c.cfg, s.Key)
+		note := s.Doc
 		if s.NewPanesOnly {
-			note = " [new panes]"
+			note += " [new panes]"
 		}
-		items[i] = fmt.Sprintf("%-*s  %-*s  %s%s", keyW, s.Key, valW, config.Get(&c.cfg, s.Key), s.Doc, note)
+		switch {
+		case i == c.settings.sel && c.settings.editing:
+			value = string(c.settings.buffer) + "_"
+			note = "enter to apply, esc to cancel"
+		case i == c.settings.sel && len(s.Choices()) > 0:
+			// Only say it on the row it applies to: most settings are
+			// typed, and a permanent "←→" against every one of them would
+			// be an invitation that mostly does nothing.
+			// A position rather than the list itself. Spelling out twelve
+			// theme names made this row three times the width of any
+			// other, and the overlay sizes itself to its longest line — so
+			// the whole box grew and shrank as the selection moved past it,
+			// which is the jumping the picker's fixed-size preview exists
+			// to avoid. You learn the names by arrowing through them, or
+			// from "termdock themes".
+			note += fmt.Sprintf("  ←→ %d/%d", choiceIndex(s, value)+1, len(s.Choices()))
+		}
+		items[i] = fmt.Sprintf("%-*s  %-*s  %s", keyW, s.Key, valW, value, note)
 	}
 	return &proto.Overlay{
-		Title:      "settings — ↑↓ move, enter edit, S edit+save to the config file, esc close",
+		Title:      c.settingsTitle(),
 		Selectable: true,
 		Items:      items,
 		Selected:   c.settings.sel,
 	}
+}
+
+// choiceIndex is where value sits in a setting's list, or 0 when it
+// isn't in there at all.
+func choiceIndex(s config.Setting, value string) int {
+	for i, v := range s.Choices() {
+		if v == value {
+			return i
+		}
+	}
+	return 0
+}
+
+// settingsHint is the status bar line while the settings screen is up.
+// It tracks the row you're on, same as the overlay's own title: what the
+// arrows do depends on whether the selected setting has a list of values.
+func (c *Core) settingsHint() string {
+	if c.settings.editing {
+		return "typing a value — enter applies it, esc cancels"
+	}
+	if s, ok := c.selectedSetting(); ok && len(s.Choices()) > 0 {
+		return "↑↓ move, ←→ choose a value, enter to type one, S save to file, esc close"
+	}
+	return "↑↓ move, enter to type a value, S save to file, esc close"
+}
+
+func (c *Core) settingsTitle() string {
+	if c.settings.editing {
+		return "settings — type a value, enter applies it, esc cancels"
+	}
+	if s, ok := c.selectedSetting(); ok && len(s.Choices()) > 0 {
+		return "settings — ↑↓ move, ←→ choose, enter type, S save to file, esc close"
+	}
+	return "settings — ↑↓ move, enter type a value, S save to file, esc close"
 }
