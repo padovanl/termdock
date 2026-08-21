@@ -57,6 +57,8 @@ func (c *Core) confirmInput() {
 			w.renamed = true
 		}
 		c.persistStateLocked()
+	case "rename-session":
+		c.applySessionRename(text)
 	case "search":
 		c.copy.searchTerm = text
 		if text != "" {

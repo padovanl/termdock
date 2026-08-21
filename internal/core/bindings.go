@@ -49,6 +49,7 @@ const (
 	actRespawnPane   action = "respawn-pane"
 	actToggleLogging action = "toggle-logging"
 	actRenameWindow  action = "rename-window"
+	actRenameSession action = "rename-session"
 	actKillWindow    action = "kill-window"
 	actPaste         action = "paste"
 	actPastePicker   action = "paste-picker"
@@ -93,6 +94,7 @@ var defaultBindings = map[rune]action{
 	'R': actRespawnPane,
 	'L': actToggleLogging,
 	',': actRenameWindow,
+	'$': actRenameSession,
 	'&': actKillWindow,
 	']': actPaste,
 	'=': actPastePicker,
@@ -113,7 +115,7 @@ var actionOrder = []action{
 	actJumpPicker, actLastWindow, actLastPane, actOverview,
 	actGlobalSearch, actSwitchSession, actPopup, actOpener,
 	actBreakPane, actQuickJump, actCommandPrompt, actCycleLayout,
-	actRespawnPane, actToggleLogging, actRenameWindow, actKillWindow,
+	actRespawnPane, actToggleLogging, actRenameWindow, actRenameSession, actKillWindow,
 	actClosePane, actDetach, actQuit, actHelp,
 }
 
@@ -151,6 +153,7 @@ var actionDescriptions = map[action]string{
 	actRespawnPane:   "respawn-pane: restart the shell in the active pane, in place",
 	actToggleLogging: "toggle logging the active pane's output to a file",
 	actRenameWindow:  "rename the current window",
+	actRenameSession: "rename this session (its socket and snapshot move with it)",
 	actKillWindow:    "close the current window and every pane in it (asks first)",
 	actClosePane:     "close the active pane",
 	actDetach:        "detach (session keeps running)",
@@ -193,6 +196,7 @@ var actionShort = map[action]string{
 	actRespawnPane:   "respawn",
 	actToggleLogging: "log",
 	actRenameWindow:  "rename",
+	actRenameSession: "rename-session",
 	actKillWindow:    "kill-win",
 	actClosePane:     "close-pane",
 	actDetach:        "detach",

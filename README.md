@@ -60,6 +60,7 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
 | 🎯 **Pane focus events** | `focus-events on` forwards synthetic focus-in/out on every pane/window switch | tmux's own `focus-events`, same idea (plus real OS-level focus tmux also forwards — see [🚧 What's missing](#-whats-missing-on-purpose-for-now)) |
 | ➡️ **Move pane focus from a script** | `termdock select-pane -t TARGET -L/-R/-U/-D`, no client attached | tmux's own `select-pane -L/-R/-U/-D` |
 | ⚠️ **Quitting the whole session** | `Ctrl-B q` asks `y`/`n` first — closing every window and pane at once deserves the same care `&` already gets | gone immediately, no confirmation |
+| 🏷️ **Rename a live session** | `Ctrl-B $` renames it for real: the unix socket and the recovery snapshot move too, so `ls`/`attach -t` follow immediately | tmux's own `rename-session`, same key |
 | ⏩ **Repeating a focus move** | after `Ctrl-B ←`, a bare `←` keeps moving — and only the *arrows* repeat, so it can never swallow the `h` of something you start typing | tmux's `bind -r`, but its repeatable movement keys are `hjkl` too, which does eat typed letters |
 | 🔎 **Regex search** | copy-mode `/` and global search both accept a regex (falls back to a literal substring if it doesn't compile) | copy-mode search is a plain substring only |
 
@@ -201,6 +202,7 @@ them to a different key.
 | `L` | 📝 toggle **logging** the active pane's output to a file (see below) |
 | `0`-`9` | jump straight to window N |
 | `,` | rename the current window |
+| `$` | 🏷️ **rename this session** — the socket and snapshot move with it (see below) |
 | `&` | ⚠️ close the current window and every pane in it (asks `y`/`n` first) |
 | `x` | close the active pane |
 | `d` | **detach**: disconnect from the session, which keeps running in the background |
@@ -443,6 +445,22 @@ The digits `0`-`9` are "jump to window N" by default, but an explicit
 `bind` on one wins: `bind 5 vsplit` really does make `Ctrl-B 5` split,
 at the cost of no longer being able to jump straight to window 5. Only
 digits you actually rebind are affected; the rest keep jumping.
+
+### 🏷️ Renaming a session
+
+`Ctrl-B $` (tmux's own key) renames the session you're in, prefilled
+with its current name — `Ctrl-U` clears it, `Enter` confirms, `Esc`
+cancels. This is a real rename, not just a new label on the status bar:
+a session's name *is* the name of its unix socket and of its
+crash-recovery snapshot, so both move with it and `termdock ls`,
+`termdock attach -t NAME` and the session switcher (`Ctrl-B S`) all
+answer to the new name immediately, and stop answering to the old one.
+Clients already attached stay attached throughout — they're connected
+to the daemon, not to the path.
+
+Renaming onto a name another live session already uses is refused
+rather than performed, since that would leave two daemons pointed at
+one socket path and whichever lost unreachable.
 
 ### ⏩ Repeating a focus move
 

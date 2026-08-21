@@ -472,3 +472,82 @@ func waitForPaneCount(sock string, want int) bool {
 	}
 	return false
 }
+
+// TestRenameSessionEndToEnd drives Ctrl-B $ over a real daemon and
+// checks the rename is a real one: the socket moves (so `termdock ls`
+// and `attach -t` find it under the new name and no longer under the
+// old), and the session keeps serving on it.
+func TestRenameSessionEndToEnd(t *testing.T) {
+	oldName, newName := "test-rename-old", "test-rename-new"
+	oldSock, _ := startSession(t, oldName)
+
+	newSock, err := SocketPath(newName)
+	if err != nil {
+		t.Fatalf("SocketPath: %v", err)
+	}
+	defer func() { Kill(newSock) }()
+
+	conn, enc, dec := dial(t, oldSock, false)
+	defer conn.Close()
+
+	sendKey(t, enc, tcell.KeyCtrlB, 0)
+	sendKey(t, enc, tcell.KeyRune, '$')
+	recvUntil(t, dec, 5*time.Second, func(m proto.ServerMsg) bool {
+		return m.Kind == "frame" && m.Frame != nil && strings.Contains(m.Frame.StatusText, "Rename session")
+	})
+	// The prompt comes prefilled with the current name (see
+	// renameSessionPrompt), so clear it before typing the new one.
+	sendKey(t, enc, tcell.KeyCtrlU, 0)
+	for _, r := range newName {
+		sendKey(t, enc, tcell.KeyRune, r)
+	}
+	sendKey(t, enc, tcell.KeyEnter, 0)
+
+	// The status bar is the session's own view of its name.
+	recvUntil(t, dec, 5*time.Second, func(m proto.ServerMsg) bool {
+		return m.Kind == "frame" && m.Frame != nil && m.Frame.SessionName == newName
+	})
+
+	// ...and the socket really moved, which is what makes the rename
+	// visible to `ls`/`attach` rather than only cosmetic.
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, ok := Probe(newSock); ok {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if _, ok := Probe(newSock); !ok {
+		t.Fatalf("session does not answer on its new socket %q", newSock)
+	}
+	if _, err := os.Stat(oldSock); !os.IsNotExist(err) {
+		t.Fatalf("old socket %q should be gone after a rename, stat err = %v", oldSock, err)
+	}
+}
+
+// A rename onto a name already in use must be refused, not allowed to
+// clobber the other session's socket and leave it unreachable.
+func TestRenameSessionRefusesAnExistingName(t *testing.T) {
+	sockA, killA := startSession(t, "test-rename-clash-a")
+	defer killA()
+	_, killB := startSession(t, "test-rename-clash-b")
+	defer killB()
+
+	conn, enc, dec := dial(t, sockA, false)
+	defer conn.Close()
+
+	sendKey(t, enc, tcell.KeyCtrlB, 0)
+	sendKey(t, enc, tcell.KeyRune, '$')
+	sendKey(t, enc, tcell.KeyCtrlU, 0)
+	for _, r := range "test-rename-clash-b" {
+		sendKey(t, enc, tcell.KeyRune, r)
+	}
+	sendKey(t, enc, tcell.KeyEnter, 0)
+
+	recvUntil(t, dec, 5*time.Second, func(m proto.ServerMsg) bool {
+		return m.Kind == "frame" && m.Frame != nil && strings.Contains(m.Frame.StatusText, "already exists")
+	})
+	if _, ok := Probe(sockA); !ok {
+		t.Fatal("session A should still be reachable on its original socket after a refused rename")
+	}
+}

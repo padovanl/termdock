@@ -128,3 +128,38 @@ func TestLettersNeverRepeat(t *testing.T) {
 	}
 	_ = ids
 }
+
+// The horizontal arrows repeat exactly like the vertical ones — worth
+// its own case since the first version of this test only ever pressed Up.
+func TestBareLateralArrowRepeatsFocusMove(t *testing.T) {
+	c := newTestCore(t)
+	c.SetRepeatTime(1000)
+	c.mu.Lock()
+	for i := 0; i < 3; i++ {
+		c.doSplit(layout.Vertical) // side by side
+	}
+	leaves := layout.Leaves(c.win().root)
+	ids := make([]int, len(leaves))
+	for i, l := range leaves {
+		ids[i] = l.ID
+	}
+	c.setActive(leaves[0]) // leftmost
+	c.mu.Unlock()
+
+	pressKey(c, tcell.KeyCtrlB)
+	pressKey(c, tcell.KeyRight)
+	if got := activeID(c); got != ids[1] {
+		t.Fatalf("first (prefixed) Right: active pane %d, want %d", got, ids[1])
+	}
+	for _, want := range []int{ids[2], ids[3]} {
+		pressKey(c, tcell.KeyRight) // bare
+		if got := activeID(c); got != want {
+			t.Fatalf("bare Right should have repeated the move: active pane %d, want %d", got, want)
+		}
+	}
+	// ...and back the other way, still without the prefix.
+	pressKey(c, tcell.KeyLeft)
+	if got := activeID(c); got != ids[2] {
+		t.Fatalf("bare Left should have repeated too: active pane %d, want %d", got, ids[2])
+	}
+}

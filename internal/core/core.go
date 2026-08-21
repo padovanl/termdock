@@ -181,6 +181,15 @@ type Core struct {
 	// switch to (Ctrl-B S), excluding this one.
 	ListSessions func() []string
 
+	// RenameSession, if set (by the server, same reasoning as
+	// ListSessions), renames this live session — which is really a
+	// filesystem operation, not a core one: the name is what its unix
+	// socket and its persistence snapshot are called, so core on its own
+	// could only change the label in the status bar and leave `termdock
+	// ls` and `attach -t` still answering to the old one. Returns an
+	// error the prompt shows as-is (name already taken, invalid, ...).
+	RenameSession func(newName string) error
+
 	mouseDown              bool
 	mouseDownX, mouseDownY int
 

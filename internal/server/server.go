@@ -6,8 +6,10 @@ package server
 
 import (
 	"encoding/gob"
+	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/padovanl/termdock/internal/core"
 	"github.com/padovanl/termdock/internal/layout"
 	"github.com/padovanl/termdock/internal/pane"
+	"github.com/padovanl/termdock/internal/persist"
 	"github.com/padovanl/termdock/internal/proto"
 )
 
@@ -59,6 +62,48 @@ func Run(name, sockPath string, cfg config.Config) error {
 	}
 	os.Chmod(sockPath, 0600)
 
+	// The session's name — and so its socket path — can change while it
+	// runs (Ctrl-B $), so anything that touches either afterwards reads
+	// them from here under liveMu rather than closing over the arguments.
+	var (
+		liveMu   sync.Mutex
+		liveName = name
+		liveSock = sockPath
+	)
+	c.RenameSession = func(newName string) error {
+		if err := ValidateSessionName(newName); err != nil {
+			return err
+		}
+		newSock, err := SocketPath(newName)
+		if err != nil {
+			return err
+		}
+		liveMu.Lock()
+		defer liveMu.Unlock()
+		if newSock == liveSock {
+			return nil
+		}
+		// Renaming onto a live session would leave two daemons fighting
+		// over one socket path, and whichever lost would be unreachable.
+		if _, err := os.Stat(newSock); err == nil {
+			return fmt.Errorf("a session named %q already exists", newName)
+		}
+		if err := os.Rename(liveSock, newSock); err != nil {
+			return err
+		}
+		// Best-effort tidying, neither worth failing the rename over: the
+		// daemon's log keeps being written through an already-open fd
+		// regardless of what the file is called, and a stale snapshot is
+		// only ever read by name (core writes a fresh one under the new
+		// name right after this returns).
+		if dir, derr := Dir(); derr == nil {
+			os.Rename(filepath.Join(dir, liveName+".log"), filepath.Join(dir, newName+".log"))
+		}
+		persist.Delete(liveName)
+		liveName, liveSock = newName, newSock
+		return nil
+	}
+
 	s := &Session{
 		core: c,
 		ln:   ln,
@@ -70,7 +115,9 @@ func Run(name, sockPath string, cfg config.Config) error {
 		once.Do(func() {
 			c.Shutdown()
 			ln.Close()
-			os.Remove(sockPath)
+			liveMu.Lock()
+			os.Remove(liveSock) // not sockPath: the session may have been renamed
+			liveMu.Unlock()
 			close(shutdown)
 		})
 	}
