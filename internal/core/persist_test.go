@@ -1,6 +1,9 @@
 package core
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/padovanl/termdock/internal/layout"
@@ -153,5 +156,166 @@ func TestFreshSessionWhenNoSnapshot(t *testing.T) {
 
 	if len(c.windows) != 1 || len(layout.Leaves(c.windows[0].root)) != 1 {
 		t.Fatalf("expected the normal single-window single-pane default, got %d windows", len(c.windows))
+	}
+}
+
+// TestRestoreSurvivesACorruptSnapshot: the snapshot is read back every
+// time a session of that name starts, so anything in it that breaks the
+// restore breaks the session permanently — it can never start, so it can
+// never replace the file that stops it starting. Every one of these has
+// to end with a usable session.
+func TestRestoreSurvivesACorruptSnapshot(t *testing.T) {
+	dir := filepath.Join(os.Getenv("XDG_STATE_HOME"), "termdock")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	deep := func(n int) string {
+		var b strings.Builder
+		b.WriteString(`{"SessionName":"x","Windows":[{"Root":`)
+		for i := 0; i < n; i++ {
+			b.WriteString(`{"Split":1,"Ratio":0.5,"First":`)
+		}
+		b.WriteString(`{"Cwd":"/tmp"}`)
+		for i := 0; i < n; i++ {
+			b.WriteString(`,"Second":{"Cwd":"/tmp"}}`)
+		}
+		b.WriteString(`}]}`)
+		return b.String()
+	}
+
+	cases := map[string]string{
+		"truncated":      `{"SessionName":"x","Windows":[{"Root":`,
+		"not-json":       `this is not json at all`,
+		"null-root":      `{"SessionName":"x","Windows":[{"Root":null}]}`,
+		"empty-windows":  `{"SessionName":"x","Windows":[]}`,
+		"infinite-ratio": `{"SessionName":"x","Windows":[{"Root":{"Split":1,"Ratio":1e999,"First":{"Cwd":"/tmp"},"Second":{"Cwd":"/tmp"}}}]}`,
+		"negative-ratio": `{"SessionName":"x","Windows":[{"Root":{"Split":1,"Ratio":-5,"First":{"Cwd":"/tmp"},"Second":{"Cwd":"/tmp"}}}]}`,
+		"unusable-cwd":   `{"SessionName":"x","Windows":[{"Root":{"Cwd":"/no/such/dir/anywhere"}}]}`,
+		"nested":         deep(3),
+	}
+
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			session := "corrupt-snapshot-" + name
+			if err := os.WriteFile(filepath.Join(dir, session+".json"), []byte(body), 0600); err != nil {
+				t.Fatal(err)
+			}
+			c, err := New(session, 80, 24)
+			if err != nil {
+				t.Fatalf("New refused to start at all: %v", err)
+			}
+			defer closeAllPanes(c)
+
+			if len(c.windows) == 0 {
+				t.Fatal("no windows: the session would be unusable")
+			}
+			// Every pane must have real geometry — a zero-sized rect means
+			// a shell running where nobody can see or reach it.
+			f := c.Frame()
+			if len(f.Panes) == 0 {
+				t.Fatal("the frame has no panes to draw")
+			}
+			// Every pane in these fits comfortably in 80x24, so a
+			// zero-sized rect here means the layout went wrong rather
+			// than the terminal being too small — which layout.Compute
+			// deliberately allows, squeezing panes rather than refusing
+			// to draw (see TestRestoreOfMorePanesThanFitStaysReachable).
+			for _, p := range f.Panes {
+				if p.Rect.W <= 0 || p.Rect.H <= 0 {
+					t.Errorf("pane %d restored with an empty rect %+v — invisible and unreachable", p.ID, p.Rect)
+				}
+			}
+		})
+	}
+}
+
+// TestRestoreOfMorePanesThanFitStaysReachable covers the other side of
+// that: a layout saved on a wide monitor and restored on a narrow
+// terminal genuinely can't give every pane room. They're squeezed to
+// nothing rather than dropped — which is what tmux does too — so the
+// thing that matters is that they all still exist and can be reached,
+// since zooming one is how you get at it.
+func TestRestoreOfMorePanesThanFitStaysReachable(t *testing.T) {
+	dir := filepath.Join(os.Getenv("XDG_STATE_HOME"), "termdock")
+	os.MkdirAll(dir, 0700)
+	session := "too-many-panes"
+
+	var b strings.Builder
+	const depth = 12
+	b.WriteString(`{"SessionName":"x","Windows":[{"Root":`)
+	for i := 0; i < depth; i++ {
+		b.WriteString(`{"Split":1,"Ratio":0.5,"First":`)
+	}
+	b.WriteString(`{"Cwd":"/tmp"}`)
+	for i := 0; i < depth; i++ {
+		b.WriteString(`,"Second":{"Cwd":"/tmp"}}`)
+	}
+	b.WriteString(`}]}`)
+	if err := os.WriteFile(filepath.Join(dir, session+".json"), []byte(b.String()), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	c, err := New(session, 80, 24)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer closeAllPanes(c)
+
+	c.mu.Lock()
+	leaves := layout.Leaves(c.win().root)
+	c.mu.Unlock()
+	if len(leaves) != depth+1 {
+		t.Fatalf("restored %d panes, want all %d", len(leaves), depth+1)
+	}
+
+	// Each one has a live pane behind it, and zooming reaches it.
+	for _, l := range leaves {
+		c.mu.Lock()
+		_, live := c.panes[l.ID]
+		c.mu.Unlock()
+		if !live {
+			t.Errorf("pane %d restored into the tree with no process behind it", l.ID)
+		}
+	}
+	c.mu.Lock()
+	c.toggleZoomOn(leaves[len(leaves)-1])
+	c.mu.Unlock()
+	f := c.Frame()
+	if len(f.Panes) != 1 || f.Panes[0].Rect.W <= 0 || f.Panes[0].Rect.H <= 0 {
+		t.Errorf("zooming a squeezed pane should give it the whole area, got %+v", f.Panes)
+	}
+}
+
+// TestRestoreCoercesAnImpossibleSplit is the specific one that bit: an
+// orientation that is neither vertical nor horizontal is not a leaf
+// either, so layout.Compute has no case for it and leaves both children
+// sized zero — two real shells drawing nothing, written back out to the
+// snapshot so the window stays broken every restart.
+func TestRestoreCoercesAnImpossibleSplit(t *testing.T) {
+	dir := filepath.Join(os.Getenv("XDG_STATE_HOME"), "termdock")
+	os.MkdirAll(dir, 0700)
+	session := "impossible-split"
+	body := `{"SessionName":"x","Windows":[{"Root":{"Split":99,"Ratio":0.5,"First":{"Cwd":"/tmp"},"Second":{"Cwd":"/tmp"}}}]}`
+	if err := os.WriteFile(filepath.Join(dir, session+".json"), []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	c, err := New(session, 80, 24)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer closeAllPanes(c)
+
+	c.mu.Lock()
+	split := c.win().root.Split
+	c.mu.Unlock()
+	if split != layout.Vertical && split != layout.Horizontal {
+		t.Fatalf("root split = %v, want it coerced to a real orientation", split)
+	}
+	for _, p := range c.Frame().Panes {
+		if p.Rect.W <= 0 || p.Rect.H <= 0 {
+			t.Errorf("pane %d has an empty rect %+v", p.ID, p.Rect)
+		}
 	}
 }

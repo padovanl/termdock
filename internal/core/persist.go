@@ -113,8 +113,21 @@ func (c *Core) buildNodeFromSnapshot(ns *persist.Node, cols, rows int) (*layout.
 	if ratio <= 0 || ratio >= 1 {
 		ratio = 0.5 // guards against a corrupt/hand-edited snapshot producing a zero-width child
 	}
+	// Same guard for the orientation, and for the same reason. A Split
+	// that is neither Vertical nor Horizontal isn't a leaf either, so
+	// layout.Compute has no case for it and silently leaves both children
+	// at a zero-sized Rect: two real shells, each holding a pty, drawing
+	// nothing and reachable by nothing — and then written straight back
+	// out to the snapshot, so the window stays broken every restart.
+	// Falling back to a vertical split loses the orientation but keeps
+	// the panes and their directories, which is the whole point of
+	// restoring at all.
+	split := layout.SplitType(ns.Split)
+	if split != layout.Vertical && split != layout.Horizontal {
+		split = layout.Vertical
+	}
 	n := &layout.Node{
-		Split:  layout.SplitType(ns.Split),
+		Split:  split,
 		Ratio:  ratio,
 		First:  first,
 		Second: second,
