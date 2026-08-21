@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
@@ -158,14 +159,30 @@ func TestExplicitColorOverridesThemeRegardlessOfOrder(t *testing.T) {
 	})
 }
 
-func TestThemeNamesAreAllApplicable(t *testing.T) {
+// ThemeNames is now derived from the themes map, so "every name has an
+// entry" can no longer fail by construction. What is still worth
+// pinning down is that every listed name actually *does* something:
+// a theme whose colors were left zero would be printed by "termdock
+// themes" as a real choice and then quietly change nothing.
+func TestEveryThemeNameAppliesRealColors(t *testing.T) {
+	if len(ThemeNames()) == 0 {
+		t.Fatal("no built-in themes at all")
+	}
 	for _, name := range ThemeNames() {
-		if _, ok := themes[name]; !ok {
-			t.Errorf("ThemeNames() lists %q, but it has no entry in the themes map", name)
+		cfg := loadFrom(t, "theme "+name+"\n")
+		def := Default()
+		if cfg.StatusBG == def.StatusBG && cfg.StatusFG == def.StatusFG && cfg.PaneActiveBG == def.PaneActiveBG {
+			t.Errorf("theme %q left every color at the default — it is listed but does nothing", name)
 		}
 	}
-	if len(ThemeNames()) != len(themes) {
-		t.Errorf("ThemeNames() lists %d names, but themes has %d entries", len(ThemeNames()), len(themes))
+}
+
+// ThemeNames must stay sorted: it is user-facing output ("termdock
+// themes"), and map iteration order is random.
+func TestThemeNamesAreSorted(t *testing.T) {
+	names := ThemeNames()
+	if !sort.StringsAreSorted(names) {
+		t.Errorf("ThemeNames() is not sorted: %v", names)
 	}
 }
 

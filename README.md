@@ -142,6 +142,7 @@ termdock new [-s NAME]          # create a new session and attach to it
 termdock attach [-t NAME] [-r]  # attach to an existing session; -r = read-only
 termdock ls                     # list active sessions
 termdock kill-session -t NAME   # terminate a session (and all its panes)
+termdock themes                 # list the built-in color themes
 ```
 
 Sessions survive the terminal closing: you can disconnect over SSH, close
@@ -710,7 +711,10 @@ color, regardless of whether it comes before or after the `theme` line —
 so `theme nord` plus a single `pane-active-bg` tweak works exactly like
 you'd expect. An unknown theme name is silently ignored, the same
 leniency every other setting in `termdock.conf` already has, falling
-back to the plain defaults.
+back to the plain defaults — so if a theme seems not to have applied,
+check the spelling against `termdock themes`, which prints the
+built-in names straight from the binary (and where to put the config
+line), rather than trusting this list to still be current.
 
 ### 🐞 Debugging input
 

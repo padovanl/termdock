@@ -1,6 +1,10 @@
 package config
 
-import "github.com/gdamore/tcell/v2"
+import (
+	"sort"
+
+	"github.com/gdamore/tcell/v2"
+)
 
 // theme bundles the handful of colors termdock itself draws (the status
 // bar and the active pane's accent border) into one named preset — the
@@ -49,9 +53,23 @@ var themes = map[string]theme{
 	},
 }
 
-// ThemeNames lists every built-in theme, sorted, for help/error text.
+// ThemeNames lists every built-in theme, sorted — what "termdock
+// themes" prints, and the only way to discover the valid spellings
+// from the program itself, since a misspelled "theme" line is
+// deliberately ignored in silence (see applyTheme).
+//
+// Derived from the themes map rather than written out again beside
+// it: as a second hardcoded list it could silently disagree with the
+// themes actually available — which is exactly what it did, listing
+// six names while nothing checked the two stayed in step except a
+// test policing the duplication.
 func ThemeNames() []string {
-	return []string{"catppuccin", "dracula", "gruvbox", "nord", "solarized", "tokyo-night"}
+	names := make([]string, 0, len(themes))
+	for name := range themes {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // applyTheme fills in cfg's colors from the named theme, skipping any

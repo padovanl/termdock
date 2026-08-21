@@ -28,10 +28,14 @@
 //	                       one key per line; <key> is a single character
 //	                       or "Space"; see internal/core/bindings.go for
 //	                       the full list of action names
-//	theme <name>           bundled color preset — see ThemeNames — applied
+//	theme <name>           bundled color preset: dracula, nord, gruvbox,
+//	                       catppuccin, solarized or tokyo-night (run
+//	                       "termdock themes" for the live list). Applied
 //	                       before status-bg/status-fg/pane-active-bg below,
 //	                       so any of those three still overrides it
-//	                       regardless of which comes first in the file
+//	                       regardless of which comes first in the file.
+//	                       An unrecognized name is ignored, like every
+//	                       other setting here
 //	status-bg <color>      status bar background (default black)
 //	status-fg <color>      status bar foreground (default silver)
 //	pane-active-bg <color> active pane's border/title color (default teal)
@@ -88,7 +92,7 @@ func Default() Config {
 // just falls back to the default for that setting.
 func Load() Config {
 	cfg := Default()
-	path := findPath()
+	path := Path()
 	if path == "" {
 		return cfg
 	}
@@ -271,7 +275,12 @@ func parseKeyChord(s string) (tcell.Key, bool) {
 	return 0, false
 }
 
-func findPath() string {
+// Path returns where termdock looks for its config file — $TERMDOCK_CONFIG
+// if set, else $XDG_CONFIG_HOME/termdock/termdock.conf, else
+// ~/.config/termdock/termdock.conf. It reports the location whether or
+// not a file is actually there, since the useful thing to tell someone
+// who has no config yet is where to create one.
+func Path() string {
 	if p := os.Getenv("TERMDOCK_CONFIG"); p != "" {
 		return p
 	}

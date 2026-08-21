@@ -51,6 +51,8 @@ func main() {
 		cmdAttach(parseSessionFlag(args[1:], defaultSession), hasFlag(args[1:], "-r", "--view"))
 	case "ls", "list-sessions":
 		cmdList()
+	case "themes", "list-themes":
+		cmdThemes()
 	case "kill-session":
 		name := parseSessionFlag(args[1:], "")
 		if name == "" {
@@ -124,6 +126,19 @@ func cmdList() {
 		fmt.Fprintf(tw, "%s\t%d\t%s ago\n", in.Name, in.PaneCount, age)
 	}
 	tw.Flush()
+}
+
+// cmdThemes prints the built-in color themes. The set is compiled in,
+// so the program itself is the authoritative place to ask: before this,
+// the only way to learn a theme's exact spelling was the README, and a
+// misspelled "theme" line is deliberately tolerated in silence (see
+// internal/config), which makes guessing at one a dead end with no
+// feedback at all.
+func cmdThemes() {
+	for _, name := range config.ThemeNames() {
+		fmt.Println(name)
+	}
+	fmt.Fprintln(os.Stderr, "\nSet one with a \"theme <name>\" line in termdock.conf ("+config.Path()+").")
 }
 
 func cmdKill(name string) {
@@ -251,6 +266,7 @@ Usage:
   termdock attach [-t NAME] [-r]  attach to an existing session (default "main");
                                   -r attaches read-only, as an observer
   termdock ls                  list active sessions
+  termdock themes              list the built-in color themes
   termdock kill-session -t NAME  terminate a session
   termdock --version            print the version and exit
 
