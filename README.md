@@ -1,4 +1,4 @@
-# 🐳 termdock
+# ▦ termdock
 
 [![ci](https://img.shields.io/github/actions/workflow/status/padovanl/termdock/ci.yml?branch=master&logo=github&label=ci)](https://github.com/padovanl/termdock/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/actions/workflow/status/padovanl/termdock/release.yml?logo=github&label=release)](https://github.com/padovanl/termdock/actions/workflows/release.yml)
@@ -72,6 +72,10 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
 | 🧠 **Knows where your commands are** | `termdock shell-init` teaches your shell to mark prompts (OSC 133), which termdock records in its own VT emulator: `{`/`}` jump between commands, `Ctrl-B O` copies one command's *entire* output exactly, and a pane whose last command failed shows its exit status and how long it took | no equivalent, and no way to add one — tmux sees an undifferentiated stream of characters and has no emulator of its own to record marks in |
 | 🕮 **Session-wide command history** | `Ctrl-B H` fuzzy-searches every command run in *any* pane of the session, showing how each one exited and how long it took; Enter types it back into the current pane | your shell's history only, which is per-pane, records what you typed but not what happened, and isn't written until that shell exits |
 | 📡 **Type into several panes at once** | `Ctrl-B y` syncs the whole window, or pick exactly which panes in the overview with `space` — the status bar then reads `[SYNC 3/7]` | `synchronize-panes` is all-or-nothing over a window: the pane you need to *keep* out of it has to be moved elsewhere first |
+| 🕘 **Session timeline** | `Ctrl-B T` draws every command in the session on one shared time scale, with a bar for its span, so overlapping work reads as overlap | no equivalent, and no way to build one: tmux never learns that a command happened, let alone when |
+| 🧱 **Saved layouts** | `termdock layout save dev` / `apply dev` — windows, splits, ratios, names and each pane's directory, rebuilt on demand | needs the external tmuxinator or teamocil, with a YAML file and a Ruby/Python dependency |
+| 🩺 **Diagnosing your own setup** | `termdock doctor` checks the things that fail *silently* — a misspelled theme being ignored, shell integration never set up — and every warning names the fix | no equivalent; a mistyped `tmux.conf` line is just as silent, with nothing to ask |
+| 🏷️ **Naming a pane** | `Ctrl-B .` names one pane, which then wins over the process name, appears in the jump picker, and survives a crash | `select-pane -T`, but it is not shown in `choose-tree` and is lost when the pane's process changes |
 | 🔎 **Regex search** | copy-mode `/` and global search both accept a regex (falls back to a literal substring if it doesn't compile) | copy-mode search is a plain substring only |
 
 Every "tmux needs the external `tmux-whatever` plugin" above is describing **tmux**, not termdock: everything in the termdock column is built into the single `termdock` binary. There's no plugin manager, no plugin API, and nothing here — themes, status segments, logging, the popup, any of it — ever needs an external plugin, script, or program to work. The one narrow exception is the `git` status segment, which shells out to your system's own `git` binary the same way any git integration would (not a termdock plugin, just using the tool that's already there) — everything else is pure Go, self-contained.
@@ -142,6 +146,8 @@ termdock attach [-t NAME] [-r]  # attach to an existing session; -r = read-only
 termdock ls                     # list active sessions
 termdock kill-session -t NAME   # terminate a session (and all its panes)
 termdock themes                 # list the built-in color themes
+termdock doctor                 # check for settings that are failing silently
+termdock layout save|apply|ls|rm [-t SESSION] [NAME]   # named arrangements
 termdock shell-init [SHELL]     # print the shell snippet for command marks
 ```
 
@@ -204,6 +210,8 @@ them to a different key.
 | `m` | ⏳ **notify me** when this pane's command finishes (see below) |
 | `O` | 🧠 **copy the last command's entire output** — needs [shell integration](#-shell-integration-termdock-knows-where-your-commands-are) |
 | `H` | 🕮 **command history**: fuzzy-search every command run in this session (needs shell integration) |
+| `T` | 🕘 **session timeline**: when each command ran and for how long (needs shell integration) |
+| `.` | 🏷️ **name this pane** — empty clears it, back to the process name |
 | `L` | 📝 toggle **logging** the active pane's output to a file (see below) |
 | `0`-`9` | jump straight to window N |
 | `,` | rename the current window |
@@ -414,6 +422,84 @@ needs a clean restart, without tearing down and rebuilding the split
 around it. Unlike tmux, there's no separate `-k` flag to force it: this
 already replaces a still-running process without asking, the same
 no-confirmation convention `Ctrl-B x` (close pane) already uses.
+
+### 🕘 Session timeline
+
+`Ctrl-B T` draws every command the session has run on one shared time
+scale, oldest first:
+
+```
+23:46:40  go build ./...   ██████████··················  31ms  0:api › 1
+23:46:40  go test ./...    ·········███████████████████  60ms  ✗1  0:api › 1
+23:46:40  tail -f app.log  ···························█  running  1:ops › 1
+```
+
+It answers the question you ask *after* something went wrong, when the
+evidence is spread across four panes' scrollback: was the build still
+running when I started the migration? Because every bar is on the same
+scale, overlapping work reads as overlap. Commands still going are
+included and marked — they are usually the ones being asked about.
+
+Needs [shell integration](#-shell-integration-termdock-knows-where-your-commands-are):
+without those marks a terminal never learns that a command happened, let
+alone when it started, which is why no other multiplexer offers this.
+
+### 🧱 Saved layouts
+
+```sh
+termdock layout save -t work dev   # capture the current arrangement
+termdock layout apply dev          # rebuild it, here or on another machine
+termdock layout ls / rm dev
+```
+
+A [session snapshot](#-session-persistence) is automatic and about
+surviving a crash. A layout is deliberate and about starting the same
+working set again tomorrow: windows, splits, ratios, window and pane
+names, and each pane's working directory, so applying one rebuilds the
+workspace rather than an empty grid you then repopulate by hand.
+
+Applying **adds** to the session rather than replacing it. A layout is
+something you reach for to *start* work, and one that silently closed
+panes you had running — with no undo for a whole session's worth —
+would be a thing you approach nervously. Closing the old windows is one
+keystroke each, and your decision.
+
+This is the job people currently leave termdock for, using tmuxinator or
+teamocil: an external tool, a YAML file, a language runtime.
+
+### 🏷️ Naming a pane
+
+`Ctrl-B .` names the active pane. A pane is otherwise titled after
+whatever process holds its foreground, which is `bash` for every idle
+one — useless exactly when you have six and need to tell them apart.
+
+A name you give wins over the process name, shows up in the
+[jump picker](#-jump-picker) so the pane becomes findable by it, and is
+saved with the session so a crash doesn't undo it. Confirming an empty
+prompt clears the name and puts the pane back to being called after
+whatever is running.
+
+### 🩺 Checking your own setup
+
+```sh
+termdock doctor
+```
+
+Nearly every setting here is deliberately lenient: a line termdock
+doesn't understand is ignored, so a typo can never stop a session
+starting. That is the right trade and it has a cost — a misspelled
+theme, a shell that was never told to emit prompt marks, or a terminal
+quietly rounding colours all present as "I set it and nothing happened",
+with nothing anywhere saying why.
+
+```
+[ warn ] theme                  "drakula" is not a built-in theme, so the line is being ignored
+                                → check the spelling against `termdock themes`
+```
+
+Every check reports what it *found* rather than a bare verdict, so the
+output is worth pasting into a bug report from a machine you cannot see,
+and every warning names the thing to do about it.
 
 ### 🧠 Shell integration: termdock knows where your commands are
 

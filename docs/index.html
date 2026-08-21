@@ -11,7 +11,10 @@
 <meta property="og:url" content="https://padovanl.github.io/termdock/">
 <meta property="og:image" content="https://padovanl.github.io/termdock/demo.gif">
 <meta name="theme-color" content="#07100f">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐳</text></svg>">
+<!-- A pane layout, drawn the way termdock draws one: an outer border,
+     one vertical split, one horizontal split in the right half. Replaces
+     the whale, which is Docker's mark and not ours to borrow. -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2.5' y='2.5' width='27' height='27' rx='3' fill='none' stroke='%2335e0c8' stroke-width='2.4'/><path d='M16 3.5 V28.5 M16 13 H28.5' stroke='%2335e0c8' stroke-width='2.4' stroke-linecap='round'/></svg>">
 <style>
   :root {
     --ink: #07100f;
@@ -378,6 +381,123 @@
         <code>new-window</code>, <code>select-pane</code>,
         <code>list-panes</code> — set a whole dev environment up from a shell
         script, with no client attached.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Knows where your commands are</div>
+      <div class="feature-window-body">
+        <strong>One line in your shell rc</strong> (<code>eval "$(termdock shell-init)"</code>)
+        and termdock records where every prompt, command and output begins —
+        in <em>its own</em> VT emulator, so it works over SSH in any terminal.
+        Everything below depends on it, and tmux cannot do it at all: it has
+        no emulator to record marks in.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Copy a command's whole output</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B O.</strong> Exactly the lines that command printed —
+        2 or 3000 — with the prompt and the command itself excluded. In
+        copy-mode it takes the command your cursor is on, so walking back
+        with <span class="k">{</span> and copying does what it looks like.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Jump between commands</div>
+      <div class="feature-window-body">
+        <strong>{ and } in copy-mode.</strong> Move by <em>command</em>, not by
+        line or page: each jump lands on a prompt with that run's output
+        below it. Finding where a test run started stops being a scroll hunt.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Session-wide command history</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B H.</strong> Fuzzy-search every command run in <em>any</em>
+        pane, with how it exited and how long it took. Your shell's history is
+        per-pane, records what you typed but not what happened, and isn't
+        written until that shell exits. Enter types it back, without running it.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Session timeline</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B T.</strong> Every command on one shared scale, with a bar
+        for its span — so "was the build still running when I started the
+        migration?" is a glance instead of an archaeology dig across four
+        scrollbacks.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Reopen a closed pane</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B Z.</strong> Brings back the pane you just closed — same
+        window, same working directory — however it went: <code>x</code>, or
+        an <code>exit</code> typed into the wrong one. In tmux a closed pane
+        is simply gone.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Tell me when it finishes</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B m.</strong> Mark a pane; when its command exits you get a
+        bell and a message naming it. No shell setup, and it can be armed
+        <em>after</em> the command is already running — which a
+        <code>; notify-send</code> wrapper fundamentally cannot.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Name your panes</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B .</strong> Six panes all called "bash" tell you nothing.
+        Give one a name and it wins over the process name, shows up in the
+        jump picker, and survives a crash.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Type into the panes you choose</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B y</strong>, or <span class="k">space</span> in the overview
+        to pick exactly which. tmux's synchronize-panes is all-or-nothing over
+        a window — the pane you need to keep <em>out</em> has to be moved
+        elsewhere first.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Saved layouts</div>
+      <div class="feature-window-body">
+        <code>termdock layout save dev</code> / <code>apply dev</code>. Windows,
+        splits, ratios, names and each pane's directory, rebuilt on demand —
+        the job people currently leave for tmuxinator and a YAML file.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Crash recovery that remembers</div>
+      <div class="feature-window-body">
+        Layout, working directories <em>and the last 200 lines of each pane</em>,
+        snapshotted continuously. You reopen looking at the stack trace you
+        were reading. tmux needs tmux-resurrect for the layout alone, and even
+        that brings back nothing of the contents.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>termdock doctor</div>
+      <div class="feature-window-body">
+        Checks the things that fail <em>silently</em>: a misspelled theme being
+        ignored, shell integration that was never set up, a terminal quietly
+        rounding your colours. Every warning names the fix.
       </div>
     </div>
 
