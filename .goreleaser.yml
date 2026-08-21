@@ -26,6 +26,66 @@ archives:
     formats: [tar.gz]
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - LICENSE
+      - README.md
+      - src: packaging/termdock.conf.example
+        dst: termdock.conf.example
+
+# Native packages, so installing is `apt install ./termdock_*.deb` rather
+# than "extract this tarball somewhere on your PATH". Linux only: these
+# formats have no meaning on macOS, and goreleaser builds one package per
+# linux/arch pair from the binaries above.
+nfpms:
+  - id: termdock
+    package_name: termdock
+    file_name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    vendor: padovanl
+    homepage: https://github.com/padovanl/termdock
+    maintainer: padovanl <padovanl@users.noreply.github.com>
+    description: |
+      Terminal multiplexer with persistent sessions.
+      Split a terminal into panes, run several shells side by side, and
+      leave them running in the background to reattach later — from
+      another terminal or another machine. Written from scratch in Go,
+      with its own pty handling and VT100 emulation, and no dependency
+      on tmux or screen.
+    license: MIT
+    section: utils
+    priority: optional
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin
+    contents:
+      # Deliberately documentation, NOT a conffile under /etc.
+      #
+      # termdock reads its config from $TERMDOCK_CONFIG, else
+      # $XDG_CONFIG_HOME/termdock/termdock.conf, else
+      # ~/.config/termdock/termdock.conf — there is no system-wide path,
+      # so a file installed under /etc would simply never be read. It is
+      # per-user configuration besides, and a package installing as root
+      # has no business deciding whose home directory gets one.
+      #
+      # Shipping it as a conffile would also mean dpkg asking, on every
+      # single upgrade, whether to keep the copy the user edited. So this
+      # is an example to copy from, and the real file is written by
+      # termdock itself on request — Ctrl-B C then S, or ":set -p <key>
+      # <value>", both of which create the directory as needed.
+      - src: packaging/termdock.conf.example
+        dst: /usr/share/doc/termdock/termdock.conf.example
+        file_info:
+          mode: 0644
+      - src: LICENSE
+        dst: /usr/share/doc/termdock/copyright
+        file_info:
+          mode: 0644
+      - src: README.md
+        dst: /usr/share/doc/termdock/README.md
+        file_info:
+          mode: 0644
 
 checksum:
   name_template: checksums.txt
@@ -36,42 +96,37 @@ changelog:
     exclude:
       - "^test:"
       - "^chore:"
-
-# Publishes a Homebrew formula to a separate tap repository on every
-# release — `brew install <owner>/termdock/termdock` once it exists. The
-# tap repo (named exactly "homebrew-termdock", Homebrew's own naming
-# requirement) has to be created once by hand and isn't something
-# goreleaser (or anything running inside *this* repo) can do for you;
-# see the "Homebrew tap" section in README.md for the one-time setup and
-# the HOMEBREW_TAP_GITHUB_TOKEN secret this step needs to push to it.
-#
-# `brews:` is deprecated in favor of `homebrew_casks:` as of goreleaser
-# v2 (`goreleaser check` flags it) — deliberately NOT migrated here:
-# casks are macOS-only, while termdock also targets Linux (see the
-# `goos:` list above), and a formula under `brews:` still installs
-# correctly via Homebrew on both. `brews:` itself still works today,
-# just with a deprecation notice; revisit this if goreleaser ever drops
-# it outright.
-brews:
-  - name: termdock
-    homepage: "https://github.com/padovanl/termdock"
-    description: "A terminal multiplexer in the tmux/screen tradition, written from scratch in Go."
-    license: MIT
-    repository:
-      owner: padovanl
-      name: homebrew-termdock
-      branch: main
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    directory: Formula
-    commit_author:
-      name: goreleaser-bot
-      email: goreleaser@users.noreply.github.com
-    install: |
-      bin.install "termdock"
-    test: |
-      system "#{bin}/termdock", "--version"
+      - "^docs:"
 
 release:
   github:
     owner: padovanl
     name: termdock
+  footer: |
+    ## Installing
+
+    **Debian/Ubuntu**
+
+    ```sh
+    curl -LO https://github.com/padovanl/termdock/releases/download/{{ .Tag }}/termdock_{{ .Version }}_linux_amd64.deb
+    sudo apt install ./termdock_{{ .Version }}_linux_amd64.deb
+    ```
+
+    **Fedora/RHEL** — `sudo dnf install ./termdock_{{ .Version }}_linux_amd64.rpm`
+    **Alpine** — `sudo apk add --allow-untrusted ./termdock_{{ .Version }}_linux_amd64.apk`
+    **Anything else** — grab the `.tar.gz` for your platform, or `go install github.com/padovanl/termdock@{{ .Tag }}`
+
+    Then run `termdock`. `Ctrl-B ?` lists every keybinding, `Ctrl-B C` opens
+    the settings.
+
+# A Homebrew tap is deliberately not published here.
+#
+# goreleaser can push a formula to a separate "homebrew-termdock" repo,
+# but that needs both the repo to exist and a HOMEBREW_TAP_GITHUB_TOKEN
+# secret with write access to it — and until both do, the tap step fails
+# and takes the whole release with it, including the packages that had
+# already built fine. Releases shouldn't depend on a second repository
+# that isn't there yet.
+#
+# To add it later: create padovanl/homebrew-termdock, add the secret, and
+# put back a `brews:` block pointing at it (see this file's history).
