@@ -943,10 +943,12 @@ pushing. Pushing that tag is the only thing that triggers
 builds and publishes the `.deb`/`.rpm`/`.apk` packages, the `.tar.gz`
 archives and their checksums against the tag.
 
-A third workflow (`.github/workflows/pages.yml`) publishes
-[padovanl.github.io/termdock](https://padovanl.github.io/termdock/) from
-`site/`. It needs Pages enabled once by hand, with "GitHub Actions" as
-the source (Settings → Pages).
+[padovanl.github.io/termdock](https://padovanl.github.io/termdock/) is
+served straight from `docs/` — no workflow involved, GitHub publishes it
+on every push to `master`. It needs enabling once by hand: Settings →
+Pages → Deploy from a branch → `master` / `/docs`. The page and the
+README share the one copy of `docs/demo.gif`, which is why the page
+refers to it relatively.
 
 ## 📄 License
 
