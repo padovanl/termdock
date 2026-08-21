@@ -1,0 +1,20 @@
+# Line endings.
+#
+# This repo gets worked on from more than one machine, including a WSL
+# checkout living on a Windows/OneDrive path, where something along the
+# way rewrites files with CRLF. Without a rule, every such round trip
+# showed a dozen files as "modified" with the entire contents replaced by
+# identical contents — burying real changes and making a diff useless for
+# reviewing anything.
+#
+# text=auto lets git decide what's text; eol=lf pins what lands in the
+# working tree, on every platform. LF everywhere is the right choice here
+# because everything this repo produces is run on Linux: Go sources, shell
+# scripts, and a terminal multiplexer whose whole job is talking to a pty.
+* text=auto eol=lf
+
+# The recorded demo, and anything like it: never touched, never diffed as
+# text.
+*.gif binary
+*.png binary
+*.jpg binary
