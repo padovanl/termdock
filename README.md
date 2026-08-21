@@ -70,6 +70,7 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
 | ↩️ **Reopen a closed pane** | `Ctrl-B Z` brings back the last pane you closed — same window, same working directory, however you closed it (`x`, or an accidental `exit`) | no equivalent: a closed pane is gone |
 | ⏳ **"Tell me when this finishes"** | `Ctrl-B m` marks a pane; the moment its command exits you get a bell and a message naming it. No shell setup, and it can be armed *after* the command is already running | `monitor-silence` watches for output going quiet: it fires on a build that pauses to think, and stays silent on one that ends without a final line |
 | 🧠 **Knows where your commands are** | `termdock shell-init` teaches your shell to mark prompts (OSC 133), which termdock records in its own VT emulator: `{`/`}` jump between commands, `Ctrl-B O` copies one command's *entire* output exactly, and a pane whose last command failed shows its exit status and how long it took | no equivalent, and no way to add one — tmux sees an undifferentiated stream of characters and has no emulator of its own to record marks in |
+| 🕮 **Session-wide command history** | `Ctrl-B H` fuzzy-searches every command run in *any* pane of the session, showing how each one exited and how long it took; Enter types it back into the current pane | your shell's history only, which is per-pane, records what you typed but not what happened, and isn't written until that shell exits |
 | 🔎 **Regex search** | copy-mode `/` and global search both accept a regex (falls back to a literal substring if it doesn't compile) | copy-mode search is a plain substring only |
 
 Every "tmux needs the external `tmux-whatever` plugin" above is describing **tmux**, not termdock: everything in the termdock column is built into the single `termdock` binary. There's no plugin manager, no plugin API, and nothing here — themes, status segments, logging, the popup, any of it — ever needs an external plugin, script, or program to work. The one narrow exception is the `git` status segment, which shells out to your system's own `git` binary the same way any git integration would (not a termdock plugin, just using the tool that's already there) — everything else is pure Go, self-contained.
@@ -201,6 +202,7 @@ them to a different key.
 | `Z` | ↩️ **reopen** the last closed pane, back in its window and directory (see below) |
 | `m` | ⏳ **notify me** when this pane's command finishes (see below) |
 | `O` | 🧠 **copy the last command's entire output** — needs [shell integration](#-shell-integration-termdock-knows-where-your-commands-are) |
+| `H` | 🕮 **command history**: fuzzy-search every command run in this session (needs shell integration) |
 | `L` | 📝 toggle **logging** the active pane's output to a file (see below) |
 | `0`-`9` | jump straight to window N |
 | `,` | rename the current window |
@@ -504,6 +506,26 @@ one your cursor is sitting in, so walking back with `{` and then copying
 does what it plainly looks like it should. At a live prompt it is the
 most recent one. Press it while a build is still running and you get
 everything it has printed so far.
+
+**`Ctrl-B H` searches every command you have run**, in any pane of the
+session, newest first, with how each one exited and how long it took:
+
+```
+go test ./...                            ✗1  2m14s  0:api › 1
+kubectl rollout status deploy/web                   1:ops › 2
+docker compose up -d                          8s    1:ops › 1
+```
+
+Type to filter, Enter **types it into the current pane** without running
+it — the list is full of things that already happened, some of which
+failed, and firing one straight off a fuzzy match is how the wrong
+directory gets deleted. Repeats collapse to one entry.
+
+Your shell's own history cannot be this: it is per-shell, so what you
+ran in the pane next door is invisible; it records what you typed but
+not what happened, so the command that worked looks identical to the
+three attempts before it; and it is written when that shell exits, so a
+pane still open has contributed nothing yet.
 
 **Pane titles gain a verdict.** A pane whose last command failed says so:
 

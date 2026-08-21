@@ -50,7 +50,7 @@ func (c *Core) Frame() proto.Frame {
 	f.Windows = c.windowTabs()
 	f.StatusText, f.StatusRight, f.StatusStyle = c.statusLine()
 	for _, provider := range []func() *proto.Overlay{
-		c.pickerOverlay, c.helpOverlay, c.settingsOverlay, c.registersOverlay, c.sessionsOverlay, c.searchOverlay, c.openerOverlay,
+		c.pickerOverlay, c.helpOverlay, c.settingsOverlay, c.historyOverlay, c.registersOverlay, c.sessionsOverlay, c.searchOverlay, c.openerOverlay,
 	} {
 		if f.Overlay = provider(); f.Overlay != nil {
 			break

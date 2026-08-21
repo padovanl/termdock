@@ -42,6 +42,7 @@ const (
 	ModeOpener    // type-ahead pick a URL/path spotted on screen; see opener.go
 	ModeQuickJump // display-panes: big numbers overlay, press one to jump; see quickjump.go
 	ModeSettings  // browse/edit the session's settings; see settings.go
+	ModeHistory   // fuzzy picker over every command run this session; see cmdhistory.go
 )
 
 // modeNames drives Mode's String, used by the input log (see logInput) —
@@ -54,6 +55,7 @@ var modeNames = map[Mode]string{
 	ModeHelp: "help", ModeSessions: "sessions", ModeSearch: "search",
 	ModeOverview: "overview", ModeRegisters: "registers", ModePopup: "popup",
 	ModeOpener: "opener", ModeQuickJump: "quickjump", ModeSettings: "settings",
+	ModeHistory: "history",
 }
 
 func (m Mode) String() string {
@@ -177,6 +179,7 @@ type Core struct {
 	opener       openerState
 	help         helpState
 	settings     settingsState
+	history      historyPickerState
 	drag         *dragState
 	tabDrag      *tabDragState
 	contentPress *contentPressState

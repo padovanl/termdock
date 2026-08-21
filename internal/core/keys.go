@@ -82,6 +82,10 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 		c.handleSettingsKey(key, r)
 		c.markDirty()
 		return Result{}
+	case ModeHistory:
+		c.handleHistoryKey(key, r)
+		c.markDirty()
+		return Result{}
 	}
 
 	if !c.prefix {
@@ -277,6 +281,8 @@ func (c *Core) dispatchAction(act action) Result {
 		c.watchDone()
 	case actCopyOutput:
 		res = c.copyLastOutput()
+	case actHistory:
+		c.enterHistoryPicker()
 	case actToggleLogging:
 		c.toggleLogging()
 	case actRenameWindow:

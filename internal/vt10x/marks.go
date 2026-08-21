@@ -59,6 +59,12 @@ type Mark struct {
 	// still in scrollback — while internally it is a counter that never
 	// shifts, so scrolling does not have to renumber anything.
 	Line int
+	// Col is the column the marker was emitted at. It is what makes the
+	// command itself recoverable: MarkInput lands exactly where the
+	// prompt stops and what you typed begins, so the text after it on
+	// that line is the command and the text before it is the prompt —
+	// a distinction nothing else on the line makes visible.
+	Col int
 	// Exit is the command's exit status for MarkDone, or -1 when the
 	// shell didn't report one.
 	Exit int
@@ -112,6 +118,7 @@ func (t *State) addMark(kind MarkKind, exit int) {
 	t.marks = append(t.marks, Mark{
 		Kind: kind,
 		Line: t.scrolledOff + t.cur.Y,
+		Col:  t.cur.X,
 		Exit: exit,
 		At:   time.Now(),
 	})
