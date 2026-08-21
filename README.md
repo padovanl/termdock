@@ -139,6 +139,7 @@ termdock attach [-t NAME] [-r]  # attach to an existing session; -r = read-only
 termdock ls                     # list active sessions
 termdock kill-session -t NAME   # terminate a session (and all its panes)
 termdock themes                 # list the built-in color themes
+termdock shell-init [SHELL]     # print the shell snippet for command marks
 ```
 
 Sessions survive the terminal closing: you can disconnect over SSH, close

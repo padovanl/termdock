@@ -116,6 +116,13 @@ func (c *Core) handleCopyKey(key tcell.Key, r rune) Result {
 	switch {
 	case key == tcell.KeyEsc || r == 'q':
 		c.exitCopyMode()
+	// Jump between commands, which needs the shell's own marks — see
+	// semantic.go. Chosen to echo vim's paragraph motions, the nearest
+	// familiar thing to "move by logical block".
+	case r == '{':
+		c.jumpToMark(-1)
+	case r == '}':
+		c.jumpToMark(1)
 	// v/V toggle off only when already selecting in the *same* mode —
 	// pressing 'v' while a 'V' line-wise selection is active switches it
 	// to character-wise instead of exiting, matching vim's own

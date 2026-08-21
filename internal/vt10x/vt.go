@@ -52,6 +52,11 @@ type View interface {
 	// retained for scrollback.
 	HistoryLen() int
 
+	// Marks returns the OSC 133 semantic prompt marks recorded so far,
+	// with lines in the same absolute-row space HistoryLen and Cell use.
+	// See marks.go.
+	Marks() []Mark
+
 	// HistoryCell returns the glyph at column x of scrollback line n (0 =
 	// oldest retained line).
 	HistoryCell(n, x int) Glyph

@@ -275,6 +275,8 @@ func (c *Core) dispatchAction(act action) Result {
 		c.reopenClosedPane()
 	case actWatchDone:
 		c.watchDone()
+	case actCopyOutput:
+		res = c.copyLastOutput()
 	case actToggleLogging:
 		c.toggleLogging()
 	case actRenameWindow:

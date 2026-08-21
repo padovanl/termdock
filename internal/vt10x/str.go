@@ -133,6 +133,10 @@ func (t *State) handleSTR() {
 			} else {
 				// TODO: redraw
 			}
+		case 133: // semantic prompt marks; see marks.go
+			if len(s.args) > 1 {
+				t.handleSemanticPrompt(s.args[1:])
+			}
 		default:
 			t.logf("unknown OSC command %d\n", d)
 			// TODO: s.dump()

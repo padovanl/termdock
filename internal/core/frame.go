@@ -165,7 +165,7 @@ func (c *Core) paneTitle(idx int, p *pane.Pane) string {
 	if fg := p.ForegroundTitle(); fg != "" {
 		name = fg
 	}
-	return fmt.Sprintf("%d:%s%s", idx, name, c.watchedPaneMarker(p.ID))
+	return fmt.Sprintf("%d:%s%s%s", idx, name, c.lastCommandStatus(p.ID), c.watchedPaneMarker(p.ID))
 }
 
 // cheatSheet is the terse keybinding cheat-sheet shown transiently
