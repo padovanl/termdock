@@ -381,6 +381,15 @@ func (c *Core) breakPaneToNewWindow() {
 	if w.lastActive == leaf {
 		w.lastActive = nil // Ctrl-B ; has nothing to flip back to once it's in a different window
 	}
+	// Zoom is always on the active pane (setActive carries it along), so
+	// the pane being broken out is the zoomed one whenever the window is
+	// zoomed at all. Left set, it would point into the *new* window's
+	// tree: relayout would then resize that pane to this window's
+	// dimensions, and coming back here would render it as this window's
+	// only pane, hiding the ones that actually live here.
+	if w.zoomed == leaf {
+		w.zoomed = nil
+	}
 	leaf.Parent = nil
 
 	nw := &Window{ID: c.nextWindowID, root: leaf, active: leaf}

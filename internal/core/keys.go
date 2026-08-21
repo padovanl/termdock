@@ -176,17 +176,33 @@ func (c *Core) armRepeat() {
 	}
 }
 
+// armRepeatIfMoved opens the repeat window only for a focus move that
+// actually went somewhere. A move with nowhere to go — every arrow in a
+// single-pane window, or the one direction with no neighbour — used to
+// arm it anyway, which meant termdock swallowed every arrow key for the
+// next second on behalf of a command that had done nothing. Arrows are
+// how shell history works, so that is expensive.
+//
+// A failed move deliberately doesn't *close* an open window either:
+// walking across panes and overshooting the last one shouldn't drop you
+// out of navigation just as you reach for the arrow that comes back.
+func (c *Core) armRepeatIfMoved(moved bool) {
+	if moved {
+		c.armRepeat()
+	}
+}
+
 // dispatchAction runs act — the single place every prefix-key command
 // is actually invoked from, whether reached via its default rune, a
 // config "bind" override, or one of the fixed arrow/Tab alternates
 // above. c.mu is already held (handleKey's caller).
 func (c *Core) dispatchAction(act action) Result {
-	// A focus move opens (or extends) the window in which a bare arrow
-	// repeats it; anything else closes it, so an unrelated command can't
-	// leave arrows hijacked afterwards.
+	// Anything that isn't a focus move closes the window in which a bare
+	// arrow repeats one, so an unrelated command can't leave arrows
+	// hijacked afterwards. Focus moves themselves are handled below,
+	// where whether the move actually went anywhere is known.
 	switch act {
 	case actFocusLeft, actFocusRight, actFocusUp, actFocusDown:
-		c.armRepeat()
 	default:
 		c.repeatUntil = time.Time{}
 	}
@@ -197,13 +213,13 @@ func (c *Core) dispatchAction(act action) Result {
 	case actHSplit:
 		c.doSplit(layout.Horizontal)
 	case actFocusLeft:
-		c.moveFocus(-1, 0)
+		c.armRepeatIfMoved(c.moveFocus(-1, 0))
 	case actFocusRight:
-		c.moveFocus(1, 0)
+		c.armRepeatIfMoved(c.moveFocus(1, 0))
 	case actFocusUp:
-		c.moveFocus(0, -1)
+		c.armRepeatIfMoved(c.moveFocus(0, -1))
 	case actFocusDown:
-		c.moveFocus(0, 1)
+		c.armRepeatIfMoved(c.moveFocus(0, 1))
 	case actCycleFocus:
 		c.cycleFocus()
 	case actClosePane:

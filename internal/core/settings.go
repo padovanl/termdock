@@ -153,10 +153,21 @@ func (c *Core) persistSetting(key, value string) error {
 		return err
 	}
 
+	// Whatever line ending the file already uses is the one it keeps.
+	// This config is as likely to have been written from Windows as from
+	// a shell, and rewriting a single line with a bare \n in a CRLF file
+	// leaves it mixed — which every editor and diff then has an opinion
+	// about, for a change the user only meant to be one line.
+	eol := "\n"
+	if strings.Contains(string(existing), "\r\n") {
+		eol = "\r\n"
+	}
+
 	line := key + " " + value
 	var out []string
 	replaced := false
-	for _, l := range strings.Split(strings.TrimRight(string(existing), "\n"), "\n") {
+	for _, l := range strings.Split(strings.TrimRight(string(existing), "\r\n"), "\n") {
+		l = strings.TrimSuffix(l, "\r")
 		fields := strings.Fields(l)
 		if len(fields) > 0 && fields[0] == key && !strings.HasPrefix(strings.TrimSpace(l), "#") {
 			if replaced {
@@ -171,10 +182,14 @@ func (c *Core) persistSetting(key, value string) error {
 	if !replaced {
 		out = append(out, line)
 	}
-	body := strings.Join(out, "\n")
-	body = strings.TrimLeft(body, "\n")
-	if body != "" && !strings.HasSuffix(body, "\n") {
-		body += "\n"
+	// A file that was empty splits to one empty line; dropping it keeps a
+	// brand-new config from starting with a blank line.
+	for len(out) > 0 && strings.TrimSpace(out[0]) == "" {
+		out = out[1:]
+	}
+	body := strings.Join(out, eol)
+	if body != "" {
+		body += eol
 	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {

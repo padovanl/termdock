@@ -290,3 +290,104 @@ func TestBindCommandRebindsLive(t *testing.T) {
 		t.Errorf("status = %q, want it to reject an unknown action", msg)
 	}
 }
+
+// TestFreshCoreHasSaneSettings: a Core starts with the defaults rather
+// than a zero Config, so the settings screen never reports a prefix of
+// "key-0" and a scrollback of 0 lines in the window between the session
+// being created and the server handing it the config file.
+func TestFreshCoreHasSaneSettings(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if got := config.Get(&c.cfg, "prefix"); got != "C-b" {
+		t.Errorf("prefix = %q before ApplyConfig, want the default C-b", got)
+	}
+	if got := config.Get(&c.cfg, "history-limit"); got != "10000" {
+		t.Errorf("history-limit = %q before ApplyConfig, want the default 10000", got)
+	}
+}
+
+// TestPersistKeepsTheFilesLineEndings: this config is as likely to have
+// been written from Windows as from a shell. Rewriting one line with a
+// bare \n inside a CRLF file left it mixed, which every editor and diff
+// then has an opinion about — for a change meant to touch one line.
+func TestPersistKeepsTheFilesLineEndings(t *testing.T) {
+	for _, tc := range []struct{ name, eol string }{{"crlf", "\r\n"}, {"lf", "\n"}} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "termdock.conf")
+			original := "# comment" + tc.eol + "theme nord" + tc.eol + "mouse on" + tc.eol
+			if err := os.WriteFile(path, []byte(original), 0644); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("TERMDOCK_CONFIG", path)
+
+			c := newTestCore(t)
+			c.ApplyConfig(config.Default())
+			setCmd(c, "set -p theme gruvbox")
+
+			saved, _ := os.ReadFile(path)
+			want := "# comment" + tc.eol + "theme gruvbox" + tc.eol + "mouse on" + tc.eol
+			if string(saved) != want {
+				t.Errorf("saved %q, want %q", saved, want)
+			}
+		})
+	}
+}
+
+// TestPersistToAMissingFileStartsClean guards the empty-input edge: a
+// brand-new config shouldn't open with a blank line.
+func TestPersistToAMissingFileStartsClean(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sub", "termdock.conf")
+	t.Setenv("TERMDOCK_CONFIG", path)
+
+	c := newTestCore(t)
+	c.ApplyConfig(config.Default())
+	setCmd(c, "set -p repeat-time 250")
+
+	saved, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("the file (and its directory) should have been created: %v", err)
+	}
+	if string(saved) != "repeat-time 250\n" {
+		t.Errorf("saved %q, want exactly the one setting", saved)
+	}
+}
+
+// TestSetThemeThenAColorDropsTheThemeName: once a colour is picked by
+// hand the theme no longer describes the look, so it stops claiming to.
+func TestSetThemeThenAColorDropsTheThemeName(t *testing.T) {
+	c := newTestCore(t)
+	c.ApplyConfig(config.Default())
+
+	setCmd(c, "set theme dracula")
+	c.mu.Lock()
+	themed := c.cfg.Theme
+	c.mu.Unlock()
+	if themed != "dracula" {
+		t.Fatalf("theme = %q, want dracula", themed)
+	}
+
+	setCmd(c, "set status-bg #ff0000")
+	c.mu.Lock()
+	after := c.cfg.Theme
+	accent := config.Get(&c.cfg, "pane-active-bg")
+	c.mu.Unlock()
+	if after != "" {
+		t.Errorf("theme = %q after setting a color by hand, want it to stop claiming one", after)
+	}
+	if accent == config.Get(ptr(config.Default()), "pane-active-bg") {
+		t.Error("the theme's other colors should survive changing one of them")
+	}
+
+	setCmd(c, "set theme none")
+	c.mu.Lock()
+	back := config.Get(&c.cfg, "pane-active-bg")
+	c.mu.Unlock()
+	if back != config.Get(ptr(config.Default()), "pane-active-bg") {
+		t.Errorf("pane-active-bg = %s after \"theme none\", want the default back", back)
+	}
+}
+
+func ptr(c config.Config) *config.Config { return &c }

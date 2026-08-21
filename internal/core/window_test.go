@@ -199,3 +199,43 @@ func TestBreakPaneAloneInWindowIsANoop(t *testing.T) {
 		t.Fatalf("breaking the only pane in a window should be a no-op, had %d now %d", windowsBefore, windowsAfter)
 	}
 }
+
+// TestBreakPaneWhileZoomedLeavesNoDanglingZoom: zoom follows the active
+// pane, so breaking the active pane out of a zoomed window moves the very
+// pane the window was zoomed on. The zoom pointer was left behind aiming
+// into the *new* window's tree — relayout then resized that pane to this
+// window's dimensions, and switching back here rendered it as this
+// window's only pane, hiding the ones actually in it.
+func TestBreakPaneWhileZoomedLeavesNoDanglingZoom(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.doSplit(layout.Vertical)
+	source := c.win()
+	c.toggleZoom()
+	brokenOutID := source.zoomed.ID
+
+	c.breakPaneToNewWindow()
+
+	if source.zoomed != nil {
+		t.Fatalf("the source window is still zoomed on pane %d, which now lives in another window", source.zoomed.ID)
+	}
+	if findLeafByID(source.root, brokenOutID) != nil {
+		t.Fatal("the broken-out pane should be gone from the source window")
+	}
+
+	// Going back to the source window must show the pane that's really
+	// there, not the one that left.
+	c.setActiveWindowIndex(0)
+	c.mu.Unlock()
+	f := c.Frame()
+	c.mu.Lock()
+
+	if len(f.Panes) != 1 {
+		t.Fatalf("the source window should render its one remaining pane, got %d", len(f.Panes))
+	}
+	if f.Panes[0].ID == brokenOutID {
+		t.Errorf("the source window is rendering pane %d, which was broken out of it", brokenOutID)
+	}
+}

@@ -163,3 +163,60 @@ func TestBareLateralArrowRepeatsFocusMove(t *testing.T) {
 		t.Fatalf("bare Left should have repeated too: active pane %d, want %d", got, ids[2])
 	}
 }
+
+// TestRepeatNotArmedByAMoveThatWentNowhere: a focus move with nowhere to
+// go — every arrow in a single-pane window, or the one direction without
+// a neighbour — used to open the repeat window anyway. termdock then
+// swallowed every arrow key for the next second on behalf of a command
+// that had done nothing, which in a shell means losing history recall.
+func TestRepeatNotArmedByAMoveThatWentNowhere(t *testing.T) {
+	c := newTestCore(t)
+	c.SetRepeatTime(1000)
+
+	pressPrefixThen(c, tcell.KeyLeft, 0) // one pane: nothing to the left
+
+	c.mu.Lock()
+	armed := c.repeatActive()
+	c.mu.Unlock()
+	if armed {
+		t.Fatal("a move that went nowhere should not start hijacking bare arrows")
+	}
+}
+
+// TestRepeatSurvivesOvershooting: walking across panes and pressing once
+// more at the far edge must not drop you out of navigation — the arrow
+// that comes back is the very next thing you reach for.
+func TestRepeatSurvivesOvershooting(t *testing.T) {
+	c := newTestCore(t)
+	c.SetRepeatTime(1000)
+	c.mu.Lock()
+	c.doSplit(layout.Vertical) // two panes, the right one active
+	c.mu.Unlock()
+
+	pressPrefixThen(c, tcell.KeyLeft, 0) // moves: now on the left pane
+	c.mu.Lock()
+	movedOK := c.repeatActive()
+	c.mu.Unlock()
+	if !movedOK {
+		t.Fatal("a move that worked should open the repeat window")
+	}
+
+	// Bare ← again: already at the left edge, so it goes nowhere.
+	c.handleKey(proto.ClientMsg{Kind: "key", KeyCode: int32(tcell.KeyLeft)})
+	c.mu.Lock()
+	stillOpen := c.repeatActive()
+	c.mu.Unlock()
+	if !stillOpen {
+		t.Error("overshooting shouldn't close a repeat window that's already open")
+	}
+
+	// ...and → still comes back.
+	c.handleKey(proto.ClientMsg{Kind: "key", KeyCode: int32(tcell.KeyRight)})
+	c.mu.Lock()
+	active := c.win().active
+	right := layout.Leaves(c.win().root)[1]
+	c.mu.Unlock()
+	if active != right {
+		t.Error("a bare → after overshooting should still move focus back")
+	}
+}

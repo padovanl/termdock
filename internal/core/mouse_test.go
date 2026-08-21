@@ -316,3 +316,46 @@ func TestDragTitleOntoOwnWindowTabIsNoop(t *testing.T) {
 		t.Errorf("dropping a title on its own window's tab should be a no-op: leaves=%d windows=%d", leavesAfter, windowCount)
 	}
 }
+
+// TestGestureOnAClosingPaneIsAbandoned: a shell exiting is asynchronous,
+// so the mouse button can still be down when the pane it was pressed on
+// disappears. The press used to stay armed holding that leaf, and the
+// next mouse move made a node that belongs to no tree the window's active
+// pane — after which nothing rendered as focused, arrow-key navigation
+// worked off stale geometry, and a split would have attached a new pane
+// to an orphaned branch nobody draws.
+func TestGestureOnAClosingPaneIsAbandoned(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.doSplit(layout.Vertical)
+	victim := layout.Leaves(c.win().root)[0]
+	px, py := victim.Rect.X+1, victim.Rect.Y+1
+
+	c.handleNormalMouse(true, false, px, py) // press on the victim
+	if c.contentPress == nil {
+		t.Fatal("test setup: the press should have armed")
+	}
+
+	// Its shell exits while the button is still down.
+	if p, ok := c.panes[victim.ID]; ok {
+		p.Close()
+		delete(c.panes, victim.ID)
+	}
+	c.detachLeafIn(c.win(), victim)
+
+	if c.contentPress != nil {
+		t.Error("a press on a pane that has gone should not stay armed")
+	}
+
+	c.handleNormalMouse(true, false, px+4, py) // ...and then the mouse moves
+
+	active := c.win().active
+	if findLeafByID(c.win().root, active.ID) != active {
+		t.Fatalf("the active pane (id %d) is not a live node of this window's tree", active.ID)
+	}
+	if _, ok := c.panes[active.ID]; !ok {
+		t.Fatalf("the active pane (id %d) has no live pane behind it", active.ID)
+	}
+}

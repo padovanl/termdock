@@ -188,6 +188,12 @@ func (c *Core) handleNormalMouse(primary, released bool, x, y int) {
 func (c *Core) startContentDragSelect(x, y int) {
 	cp := c.contentPress
 	c.contentPress = nil
+	// Belt and braces alongside detachLeafIn clearing the press: never
+	// focus a leaf whose pane has gone, since w.active is assumed
+	// throughout to be a live node of the current window's tree.
+	if _, ok := c.panes[cp.leaf.ID]; !ok {
+		return
+	}
 	c.setActive(cp.leaf)
 	c.enterCopyMode() // sets c.copy.top to the live bottom of the buffer
 	cr := cp.leaf.Rect

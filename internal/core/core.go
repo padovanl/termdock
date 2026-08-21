@@ -233,11 +233,16 @@ func New(sessionName string, cols, rows int) (*Core, error) {
 		hostname:    hostname,
 		prefixKey:   tcell.KeyCtrlB,
 		bindings:    cloneBindings(defaultBindings),
-		cols:        cols,
-		rows:        rows,
-		dirty:       make(chan struct{}, 1),
-		exitCh:      make(chan struct{}),
-		bellCh:      make(chan struct{}, 1),
+		// Sane settings from the very first frame. The server replaces
+		// these with the config file's a moment later (ApplyConfig), but
+		// until it does, a zero Config would have the settings screen
+		// reporting a prefix of "key-0" and a scrollback of 0 lines.
+		cfg:    config.Default(),
+		cols:   cols,
+		rows:   rows,
+		dirty:  make(chan struct{}, 1),
+		exitCh: make(chan struct{}),
+		bellCh: make(chan struct{}, 1),
 	}
 	if snap, ok := persist.Load(sessionName); ok && c.restoreFromSnapshot(snap) {
 		c.relayoutLocked()
@@ -587,6 +592,22 @@ func (c *Core) detachLeafIn(w *Window, n *layout.Node) {
 			c.mode = ModeNormal
 		}
 	}
+	// A mouse gesture in flight can outlive the pane it started on: a
+	// shell exiting is asynchronous, so the button can still be down when
+	// its pane disappears. Left armed, the next mouse move resolved the
+	// press against a leaf no longer in any tree and made *that* the
+	// window's active pane — after which nothing rendered as focused, the
+	// arrow keys had stale geometry to navigate from, and a split would
+	// have attached a brand new pane to an orphaned branch nobody draws.
+	if c.contentPress != nil && c.contentPress.leaf == n {
+		c.contentPress = nil
+	}
+	if c.titleDrag != nil && c.titleDrag.leaf == n {
+		c.titleDrag = nil
+	}
+	// The divider being dragged may be the split that just got collapsed
+	// away; either way the geometry it was dragging against is gone.
+	c.drag = nil
 	newRoot, next := layout.Remove(w.root, n)
 	if newRoot == nil {
 		if idx := c.windowIndex(w); idx >= 0 {
@@ -636,8 +657,10 @@ func (c *Core) cycleFocus() {
 	}
 }
 
-func (c *Core) moveFocus(dx, dy int) {
-	c.moveFocusIn(c.win(), dx, dy)
+// moveFocus moves the visible window's focus one pane in a direction,
+// reporting whether there was anything in that direction to move to.
+func (c *Core) moveFocus(dx, dy int) bool {
+	return c.moveFocusIn(c.win(), dx, dy)
 }
 
 // moveFocusIn moves w's focus to the nearest leaf in the spatial
