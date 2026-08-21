@@ -894,6 +894,19 @@ overhead to every redraw. See
 [⌨️ Custom keybindings](#-custom-keybindings) and
 [🎯 Focus events](#-focus-events) above for `bind` and `focus-events`.
 
+The snapshot includes **the tail of each pane's screen** — the last 200
+lines — written back into the restored pane. A session recovered after a
+reboot therefore opens showing the stack trace you were reading, not
+four blank prompts. What comes back is text, not a live program: the
+same honest limit as the rest of this, and the reason it is stored as
+plain lines rather than styled cells (replaying arbitrary colour into a
+shell already printing its own prompt leaves panes in colours nobody
+chose). It stays a snapshot rather than a log — 200 lines is about 11 KB
+for a busy pane, and it is rewritten continuously.
+
+tmux needs the external `tmux-resurrect` plugin to restore the layout at
+all, and even that does not bring the contents back.
+
 ### ⚙️ Changing settings while it runs
 
 Editing a file and starting the session over is not the only way to

@@ -17,11 +17,16 @@ import (
 // pane IDs, process handles, or computed Rects, all of which are
 // meaningless across a restart.
 type Node struct {
-	Split  int // matches internal/layout.SplitType: 0 leaf, 1 vertical, 2 horizontal
-	Ratio  float64
-	Cwd    string `json:",omitempty"` // leaf only
-	First  *Node  `json:",omitempty"`
-	Second *Node  `json:",omitempty"`
+	Split int // matches internal/layout.SplitType: 0 leaf, 1 vertical, 2 horizontal
+	Ratio float64
+	Cwd   string `json:",omitempty"` // leaf only
+	// Scrollback is the tail of what the pane had on screen, oldest line
+	// first, as plain text. Restored by writing it back into the fresh
+	// pane so a recovered session opens showing what you were reading —
+	// see Core.restoreScrollback for why it is text and not cells.
+	Scrollback []string `json:",omitempty"`
+	First      *Node    `json:",omitempty"`
+	Second     *Node    `json:",omitempty"`
 }
 
 // Window is one snapshotted window: its display name (if the user set
