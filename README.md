@@ -35,7 +35,7 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
 | 🖼️ **See every pane at once** | a live-thumbnail grid overview (`Ctrl-B g`) | no equivalent — one pane at a time |
 | 🔎 **Search the scrollback** | one search across *every* pane in *every* window | copy-mode `/` only ever searches the one pane you're already in |
 | 🔄 **Switch sessions** | fuzzy-picker, no detach required (`Ctrl-B S`) | detach and reattach, or `choose-tree` |
-| 👀 **Screen-share / pair** | a real read-only attach mode (`termdock attach -r`) | everyone who attaches can type |
+| 👀 **Screen-share / pair** | a real read-only attach mode enforced *server-side* (`termdock attach -r`), so a scripted client cannot type either — pair it with an SSH forced command and a colleague can watch without an account of their own (see [🌍 Remote sessions](#-remote-sessions-and-letting-others-watch)) | everyone who attaches can type; watching-only needs the external `wemux` (one machine) or `tmate` (relays through third-party servers) |
 | 📋 **Paste history** | a fuzzy picker over your last 20 yanks (`Ctrl-B =`) | `choose-buffer`, same idea, no fuzzy filter |
 | 🖱️ **Select text** | click-drag on any pane, anywhere, any time | needs `mouse on` + drag-to-select behavior varies by config |
 | 🖱️ **Reorder/move things** | drag a window tab to reorder it, drag a pane's title onto a tab to relocate it | `swap-window`/`join-pane`, typed out by index |
@@ -690,6 +690,61 @@ your terminal's height happens to be. It's the
 same floating box the jump picker uses, just without the type-ahead
 filter, so a long list stays readable instead of getting crammed into
 (and clipped off of) a single status bar line.
+
+### 🌍 Remote sessions, and letting others watch
+
+A session lives in a daemon on the machine that owns the panes, reachable
+through a unix socket there. "Remote" therefore means SSH — and it
+already works, with nothing extra to install or configure:
+
+```sh
+ssh -t server termdock new -s work        # create it there, and attach
+ssh -t server termdock attach -t work     # come back to it from any other machine
+ssh -t server termdock attach -t work -r  # attach as a read-only observer
+```
+
+The `-t` is doing real work: it asks SSH for a pty, which the client
+needs to draw. Detach with `Ctrl-B d` and the panes keep running on the
+server, exactly as they would locally — that is the whole point of the
+client/server split. Close the laptop, open another one, attach again.
+
+#### Letting someone else watch
+
+`-r` is a real read-only attach: every frame streams to that client, and
+every key and mouse event it sends is **dropped by the server** before it
+reaches the session. That is enforced on the daemon's side, not by asking
+the client to behave, so a modified or scripted client cannot type
+either. An observer's terminal size doesn't resize the shared session
+either, so a smaller window on their end disturbs nobody.
+
+The catch is access: the socket is `0600` inside a `0700` directory, so
+attaching means being *you* on that machine. Handing a colleague your
+login to let them watch is not sharing, it is handing over the keys.
+
+SSH already solves this properly, with a **forced command**. Put their
+public key in your `~/.ssh/authorized_keys` restricted to exactly one
+thing:
+
+```
+restrict,pty,command="/usr/local/bin/termdock attach -t work -r" ssh-ed25519 AAAAC3Nz... alice
+```
+
+Now `ssh server` from Alice's machine drops her straight into watching
+that session, read-only, and nothing else — `restrict` denies port
+forwarding, agent forwarding, X11 and user rc files, and `pty` puts back
+the one capability the client actually needs. Delete the line to end the
+sharing.
+
+Use the binary's absolute path: a forced command runs with a minimal
+environment, and `termdock` may not be on `PATH`.
+
+This is deliberately SSH's job rather than termdock's. Authentication and
+encryption are the parts that must not be got wrong, and OpenSSH has had
+twenty years of scrutiny on exactly them; a bespoke listener with a
+hand-rolled token would be a downgrade wearing the word "feature". It
+also compares well with the alternatives: tmux users reach for `wemux`,
+which only works between accounts on one machine, or `tmate`, which
+relays your terminal through someone else's servers.
 
 ### 📋 Copy-mode (scrollback and copying)
 
