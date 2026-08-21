@@ -49,6 +49,13 @@
 //
 // Colors accept any W3C name tcell understands ("black", "teal", ...) or
 // a "#rrggbb" hex value.
+//
+// A "#" starts a comment, either on a line of its own or after a
+// setting's value ("theme dracula   # my favourite"). The one place a "#"
+// is taken literally is a setting's *first* value word, so a hex color
+// like "status-bg #ff0000" still means the color — a comment there would
+// leave the setting with no value at all, which is never what anyone
+// means to write.
 package config
 
 import (
@@ -123,7 +130,7 @@ func Load() Config {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		fields := strings.Fields(line)
+		fields := stripInlineComment(strings.Fields(line))
 		if len(fields) < 2 {
 			continue
 		}
@@ -209,6 +216,29 @@ func applySetting(cfg *Config, key, val string) {
 			}
 		}
 	}
+}
+
+// stripInlineComment drops a trailing "# ..." comment from an already
+// whitespace-split config line. Only a full-line comment used to be
+// recognized, so a trailing one — which every line of the README's own
+// example config has — became part of the value: "theme dracula # ..."
+// asked for a theme whose name was the entire rest of the line and was
+// silently ignored, and "shell /bin/zsh # ..." set the shell to a path
+// that cannot exist, so every pane failed to spawn and the session died
+// on startup with nothing but a timeout to show for it.
+//
+// The cut starts at the second value word. A setting's first value word
+// is always taken literally, which is what keeps "status-bg #ff0000"
+// meaning the color: reading that "#" as a comment would leave the
+// setting with no value at all, and nobody writes a line that way on
+// purpose.
+func stripInlineComment(fields []string) []string {
+	for i := 2; i < len(fields); i++ {
+		if strings.HasPrefix(fields[i], "#") {
+			return fields[:i]
+		}
+	}
+	return fields
 }
 
 // parseBool reads an on/off setting, case-insensitively, reporting

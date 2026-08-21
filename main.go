@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"text/tabwriter"
 	"time"
@@ -163,7 +165,8 @@ func spawnDaemon(name, sock string) error {
 	if err != nil {
 		return err
 	}
-	logFile, err := os.OpenFile(dir+"/"+name+".log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	logPath := filepath.Join(dir, name+".log")
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		return err
 	}
@@ -185,16 +188,53 @@ func spawnDaemon(name, sock string) error {
 	// leaks two descriptors for its lifetime.
 	logFile.Close()
 	devnull.Close()
-	// The daemon fully detaches (new session, stdio elsewhere); don't wait
-	// on it, just poll until its socket answers.
+	// The daemon fully detaches (new session, stdio elsewhere), so there's
+	// nothing to wait on in the normal case — just poll until its socket
+	// answers. Watching for it to exit anyway is what turns a startup
+	// failure into something readable: a daemon that dies before it ever
+	// listens (a "shell" setting pointing at a shell that isn't there is
+	// the easy way to cause it) used to leave the user with nothing but a
+	// three-second pause and "timed out — check this log file".
+	exited := make(chan struct{})
+	go func() {
+		cmd.Wait()
+		close(exited)
+	}()
+
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		if _, ok := server.Probe(sock); ok {
 			return nil
 		}
+		select {
+		case <-exited:
+			if reason := lastLogLine(logPath); reason != "" {
+				return fmt.Errorf("session %q failed to start: %s", name, reason)
+			}
+			return fmt.Errorf("session %q failed to start (check %s)", name, logPath)
+		default:
+		}
 		time.Sleep(30 * time.Millisecond)
 	}
-	return fmt.Errorf("timed out waiting for session %q to start (check %s)", name, dir+"/"+name+".log")
+	return fmt.Errorf("timed out waiting for session %q to start (check %s)", name, logPath)
+}
+
+// lastLogLine returns the final non-blank line of the daemon's log — the
+// message it died with, since the log is where its stderr goes. Best
+// effort: "" if there's nothing useful to read, and the caller falls back
+// to naming the file.
+func lastLogLine(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(string(data), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if l := strings.TrimSpace(lines[i]); l != "" {
+			return strings.TrimPrefix(l, "termdock daemon: ")
+		}
+	}
+	return ""
 }
 
 func runDaemon(args []string) {

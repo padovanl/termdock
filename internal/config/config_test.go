@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
@@ -338,5 +339,113 @@ func TestLoadParsesRepeatTimeIncludingZero(t *testing.T) {
 		if got := Load().RepeatTime; got != tc.want {
 			t.Errorf("%q -> RepeatTime = %d, want %d", tc.line, got, tc.want)
 		}
+	}
+}
+
+// TestInlineCommentsAreStripped: only a whole-line "#" comment used to be
+// recognized, so a trailing one became part of the value. "theme dracula
+// # ..." asked for a theme named after the entire rest of the line and
+// was silently dropped; "shell /bin/zsh # ..." set the shell to a path
+// that cannot exist, which made every pane fail to spawn and took the
+// session down on startup.
+func TestInlineCommentsAreStripped(t *testing.T) {
+	cfg := loadFrom(t, strings.Join([]string{
+		"shell /bin/bash          # shell for new panes (default $SHELL)",
+		"theme dracula            # bundled color preset",
+		"mouse on                 # enable mouse support (default on)",
+		"history-limit 500        # scrollback lines",
+		"bind M jump-picker       # rebind one key",
+		"status-segments git,cpu  # extra segments",
+	}, "\n")+"\n")
+
+	if cfg.Shell != "/bin/bash" {
+		t.Errorf("Shell = %q, want %q — the trailing comment leaked into the value", cfg.Shell, "/bin/bash")
+	}
+	if cfg.PaneActiveBG == Default().PaneActiveBG {
+		t.Error("the theme was not applied: its name still had the comment glued to it")
+	}
+	if !cfg.Mouse {
+		t.Error("mouse should still be on")
+	}
+	if cfg.HistoryLimit != 500 {
+		t.Errorf("HistoryLimit = %d, want 500", cfg.HistoryLimit)
+	}
+	if cfg.BindOverrides['M'] != "jump-picker" {
+		t.Errorf("BindOverrides = %v, want M -> jump-picker", cfg.BindOverrides)
+	}
+	if len(cfg.StatusSegments) != 2 || cfg.StatusSegments[0] != "git" || cfg.StatusSegments[1] != "cpu" {
+		t.Errorf("StatusSegments = %v, want [git cpu]", cfg.StatusSegments)
+	}
+}
+
+// TestHexColorIsNotReadAsAComment is the constraint that shapes where the
+// comment cut starts: a color value legitimately begins with "#", and
+// treating that as a comment would leave the setting with no value at all.
+func TestHexColorIsNotReadAsAComment(t *testing.T) {
+	cfg := loadFrom(t, "status-bg #ff0000\nstatus-fg #00ff00   # with a comment after it\n")
+	if cfg.StatusBG != tcell.GetColor("#ff0000") {
+		t.Errorf("StatusBG = %v, want #ff0000", cfg.StatusBG)
+	}
+	if cfg.StatusFG != tcell.GetColor("#00ff00") {
+		t.Errorf("StatusFG = %v, want #00ff00 with the trailing comment removed", cfg.StatusFG)
+	}
+}
+
+// TestReadmeExampleConfigParses keeps the documentation honest: this is
+// the example block from the README, verbatim. Every line of it was inert
+// before inline comments were understood — and its "shell" line actively
+// broke the session — which is exactly how the bug reached a user.
+func TestReadmeExampleConfigParses(t *testing.T) {
+	const example = `# termdock.conf
+prefix C-a             # prefix key, any Ctrl+letter (default C-b)
+mouse on                # enable mouse support (default on)
+history-limit 10000     # scrollback lines kept per pane (default 10000)
+shell /bin/zsh           # shell for new panes (default $SHELL)
+popup-command lazygit    # what Ctrl-B P runs (default: the shell, see below)
+focus-events on          # forward synthetic pane focus-in/out (default off)
+repeat-time 1000         # ms a bare arrow keeps moving focus (default 1000, 0 off)
+bind M jump-picker        # rebind one key to a different action (repeatable)
+theme dracula            # bundled color preset (default: none, see below)
+status-bg black          # status bar background (default black)
+status-fg silver         # status bar foreground (default silver)
+pane-active-bg teal       # active pane's border/title color (default teal)
+pane-bg default          # background behind unstyled pane content (default: your terminal's)
+pane-fg default          # foreground for unstyled pane content (default: your terminal's)
+status-segments git,battery,cpu,mem  # extra segments in the status bar (default: none)
+`
+	cfg := loadFrom(t, example)
+
+	if cfg.Prefix != tcell.KeyCtrlA {
+		t.Errorf("Prefix = %v, want Ctrl-A", cfg.Prefix)
+	}
+	if !cfg.Mouse {
+		t.Error("mouse should be on")
+	}
+	if cfg.HistoryLimit != 10000 {
+		t.Errorf("HistoryLimit = %d, want 10000", cfg.HistoryLimit)
+	}
+	if cfg.Shell != "/bin/zsh" {
+		t.Errorf("Shell = %q, want %q", cfg.Shell, "/bin/zsh")
+	}
+	if cfg.PopupCommand != "lazygit" {
+		t.Errorf("PopupCommand = %q, want %q", cfg.PopupCommand, "lazygit")
+	}
+	if !cfg.FocusEvents {
+		t.Error("focus-events should be on")
+	}
+	if cfg.BindOverrides['M'] != "jump-picker" {
+		t.Errorf("BindOverrides = %v, want M -> jump-picker", cfg.BindOverrides)
+	}
+	// status-bg/fg and pane-active-bg are set explicitly here, so they
+	// keep their own values rather than the theme's — but the theme still
+	// has to have been recognized, which pane-bg/pane-fg show.
+	if cfg.StatusBG != tcell.ColorBlack {
+		t.Errorf("StatusBG = %v, want black (set explicitly)", cfg.StatusBG)
+	}
+	if cfg.PaneActiveBG != tcell.ColorTeal {
+		t.Errorf("PaneActiveBG = %v, want teal (set explicitly)", cfg.PaneActiveBG)
+	}
+	if len(cfg.StatusSegments) != 4 {
+		t.Errorf("StatusSegments = %v, want 4 of them", cfg.StatusSegments)
 	}
 }

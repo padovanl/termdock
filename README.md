@@ -680,7 +680,10 @@ pane-fg default          # foreground for unstyled pane content (default: your t
 status-segments git,battery,cpu,mem  # extra segments in the status bar (default: none)
 ```
 
-Colors accept any W3C name tcell understands, or `#rrggbb` hex.
+Colors accept any W3C name tcell understands, or `#rrggbb` hex. A `#`
+starts a comment, on a line of its own or after a setting's value as
+above — with the one exception that a setting's *first* value word is
+taken literally, so `status-bg #ff0000` still means the color.
 `prefix`/`history-limit`/`shell`/`popup-command`/`focus-events`/`bind`/
 `repeat-time`
 are read by the **server**, so they take effect when a session is
