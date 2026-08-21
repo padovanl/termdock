@@ -86,6 +86,10 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 		c.handleHistoryKey(key, r)
 		c.markDirty()
 		return Result{}
+	case ModeTimeline:
+		c.handleTimelineKey(key, r)
+		c.markDirty()
+		return Result{}
 	}
 
 	if !c.prefix {
@@ -283,6 +287,8 @@ func (c *Core) dispatchAction(act action) Result {
 		res = c.copyLastOutput()
 	case actHistory:
 		c.enterHistoryPicker()
+	case actTimeline:
+		c.enterTimeline()
 	case actToggleLogging:
 		c.toggleLogging()
 	case actRenameWindow:
