@@ -263,7 +263,7 @@ func (c *Core) statusHint() (hint, style string) {
 		hint = "type to search every pane's scrollback (regex or text), ↑↓ select, enter jump, esc cancel"
 	case c.mode == ModeOverview:
 		style = "mode"
-		hint = "arrows/hjkl move, click or enter jump, esc cancel"
+		hint = "arrows/hjkl move, space picks panes for synchronized input, enter jump, esc cancel"
 	case c.mode == ModePopup:
 		style = "mode"
 		hint = "typing goes to the popup — Ctrl-B P hides it, Ctrl-B d/q still work"
@@ -316,10 +316,7 @@ func (c *Core) statusLeftText(hint, style string) string {
 		return " " + hint
 	}
 	w := c.win()
-	sync := ""
-	if w.syncPanes {
-		sync = " [SYNC]"
-	}
+	sync := c.broadcastLabel(w)
 	return fmt.Sprintf(" | active pane: %d%s | %s", activePaneIndex(w), sync, hint)
 }
 

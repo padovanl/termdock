@@ -325,7 +325,7 @@ func (c *Core) forwardKey(key tcell.Key, r rune) {
 	}
 	w := c.win()
 	if w.syncPanes {
-		for _, l := range layout.Leaves(w.root) {
+		for _, l := range c.broadcastTargets(w) {
 			if p, ok := c.panes[l.ID]; ok {
 				p.Write(b)
 			}

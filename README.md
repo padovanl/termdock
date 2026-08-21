@@ -71,6 +71,7 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
 | ⏳ **"Tell me when this finishes"** | `Ctrl-B m` marks a pane; the moment its command exits you get a bell and a message naming it. No shell setup, and it can be armed *after* the command is already running | `monitor-silence` watches for output going quiet: it fires on a build that pauses to think, and stays silent on one that ends without a final line |
 | 🧠 **Knows where your commands are** | `termdock shell-init` teaches your shell to mark prompts (OSC 133), which termdock records in its own VT emulator: `{`/`}` jump between commands, `Ctrl-B O` copies one command's *entire* output exactly, and a pane whose last command failed shows its exit status and how long it took | no equivalent, and no way to add one — tmux sees an undifferentiated stream of characters and has no emulator of its own to record marks in |
 | 🕮 **Session-wide command history** | `Ctrl-B H` fuzzy-searches every command run in *any* pane of the session, showing how each one exited and how long it took; Enter types it back into the current pane | your shell's history only, which is per-pane, records what you typed but not what happened, and isn't written until that shell exits |
+| 📡 **Type into several panes at once** | `Ctrl-B y` syncs the whole window, or pick exactly which panes in the overview with `space` — the status bar then reads `[SYNC 3/7]` | `synchronize-panes` is all-or-nothing over a window: the pane you need to *keep* out of it has to be moved elsewhere first |
 | 🔎 **Regex search** | copy-mode `/` and global search both accept a regex (falls back to a literal substring if it doesn't compile) | copy-mode search is a plain substring only |
 
 Every "tmux needs the external `tmux-whatever` plugin" above is describing **tmux**, not termdock: everything in the termdock column is built into the single `termdock` binary. There's no plugin manager, no plugin API, and nothing here — themes, status segments, logging, the popup, any of it — ever needs an external plugin, script, or program to work. The one narrow exception is the `git` status segment, which shells out to your system's own `git` binary the same way any git integration would (not a termdock plugin, just using the tool that's already there) — everything else is pure Go, self-contained.
@@ -183,7 +184,7 @@ them to a different key.
 | `[` | enter **copy-mode** (scroll the scrollback, see below) |
 | `]` | paste the most recently copied (yanked) text into the active pane |
 | `=` | 📋 **paste register picker**: fuzzy-pick one of your last 20 yanks to paste (see below) |
-| `y` | toggle **sync-panes**: keystrokes get sent to every pane in this window at once |
+| `y` | 📡 toggle **sync-panes**: keystrokes go to every pane in this window at once — or to just the ones you pick (see below) |
 | `c` | create a new **window** (tab) |
 | `n` / `p` | switch to the next / previous window |
 | `w` | 🔍 **jump picker**: type to fuzzy-filter every window/pane, ↑↓/Tab to select, Enter to jump (see below) |

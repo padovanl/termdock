@@ -646,6 +646,7 @@ func (c *Core) detachLeafIn(w *Window, n *layout.Node) {
 	// read off the live process — that path is the whole value of the
 	// undo (see undoclose.go).
 	c.recordClosedPane(w, n)
+	defer c.pruneBroadcast(w) // after the tree loses it, so the set stops naming a pane that is gone
 	newRoot, next := layout.Remove(w.root, n)
 	if newRoot == nil {
 		if idx := c.windowIndex(w); idx >= 0 {

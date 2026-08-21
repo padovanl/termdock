@@ -66,6 +66,14 @@ func (c *Core) handleOverviewKey(key tcell.Key, r rune) {
 		c.overview.sel = clampi(c.overview.sel-cols, 0, maxi(0, n-1))
 	case key == tcell.KeyDown || r == 'j':
 		c.overview.sel = clampi(c.overview.sel+cols, 0, maxi(0, n-1))
+	case r == ' ':
+		// Choose which panes synchronized input reaches; see broadcast.go.
+		if c.overview.sel < len(c.overview.tiles) {
+			t := c.overview.tiles[c.overview.sel]
+			if t.windowIdx < len(c.windows) {
+				c.toggleBroadcastPane(c.windows[t.windowIdx], t.paneID)
+			}
+		}
 	}
 }
 
@@ -152,6 +160,11 @@ func (c *Core) overviewFrame() *proto.Overview {
 		title := "?"
 		if tl.target.windowIdx < len(c.windows) {
 			title = fmt.Sprintf("%d:%s", tl.target.windowIdx, c.pickerPaneTitle(tl.target.paneID))
+			// Which panes synchronized input reaches has to be visible
+			// here, since here is where it is chosen.
+			if c.inBroadcast(c.windows[tl.target.windowIdx], tl.target.paneID) {
+				title += " [SYNC]"
+			}
 		}
 		innerW, innerH := maxi(0, tl.rect.W-2), maxi(0, tl.rect.H-2)
 		tiles[i] = proto.OverviewTile{
