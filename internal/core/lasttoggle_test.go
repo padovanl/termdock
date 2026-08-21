@@ -177,3 +177,64 @@ func TestToggleLastPaneClearedWhenMovedToAnotherWindow(t *testing.T) {
 		t.Fatal("lastActive should be cleared once the pane it pointed to moved to a different window")
 	}
 }
+
+// The jump picker switches window *and* pane in one step, so it can't go
+// through setActive — it used to assign w.active directly, which skipped
+// the lastActive bookkeeping and left Ctrl-B ; a no-op after any jump.
+func TestToggleLastPaneAfterPickerJump(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	c.doSplit(layout.Vertical)
+	leaves := layout.Leaves(c.win().root)
+	c.setActive(leaves[0])
+	from := c.win().active.ID
+	target := leaves[1].ID
+
+	c.enterPicker()
+	for fi, idx := range c.picker.filtered {
+		if c.picker.items[idx].paneID == target {
+			c.picker.sel = fi
+		}
+	}
+	c.confirmPicker()
+	landed := c.win().active.ID
+
+	c.toggleLastPane()
+	back := c.win().active.ID
+	c.mu.Unlock()
+
+	if landed != target {
+		t.Fatalf("picker jumped to pane %d, want %d", landed, target)
+	}
+	if back != from {
+		t.Fatalf("Ctrl-B ; after a picker jump landed on pane %d, want %d (the one we left)", back, from)
+	}
+}
+
+// Same contract via the Ctrl-B g overview, the other path that switches
+// window and pane together.
+func TestToggleLastPaneAfterOverviewJump(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	c.doSplit(layout.Vertical)
+	leaves := layout.Leaves(c.win().root)
+	c.setActive(leaves[0])
+	from := c.win().active.ID
+	target := leaves[1].ID
+
+	c.enterOverview()
+	for i, tl := range c.overview.tiles {
+		if tl.paneID == target {
+			c.overview.sel = i
+		}
+	}
+	c.confirmOverview()
+
+	c.toggleLastPane()
+	back := c.win().active.ID
+	c.mu.Unlock()
+
+	if back != from {
+		t.Fatalf("Ctrl-B ; after an overview jump landed on pane %d, want %d (the one we left)", back, from)
+	}
+}

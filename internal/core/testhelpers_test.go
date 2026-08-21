@@ -1,7 +1,9 @@
 package core
 
 import (
+	"fmt"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -33,16 +35,24 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// newTestCore creates a Core under a session name unique to the calling
-// test and registers cleanup for its panes. The unique name still
-// matters even with TestMain's isolation above: two tests sharing a
-// session name within the same run would have the later one silently
-// *restore* the earlier one's leftover windows/panes instead of starting
-// fresh — an order-dependent flake that's easy to introduce by accident
-// once a test creates more than one window or pane.
+// testCoreSeq makes every newTestCore session name unique, including
+// across repeated runs of the same test (go test -count=N) and multiple
+// Cores within one test. Deriving the name from t.Name() alone is not
+// enough: a Core's panes keep writing snapshots asynchronously off their
+// pump goroutines (see persist.go) well after the test that made them
+// has moved on, so a later Core created under the same name can find a
+// half-torn-down snapshot from the previous one and silently *restore*
+// it — e.g. coming up with a leftover window already named "deploy"
+// instead of a single fresh "bash". That surfaced as a rare, genuinely
+// confusing flake in the jump-picker filter test, where an extra
+// restored window matched the query alongside the intended one.
+var testCoreSeq atomic.Int64
+
+// newTestCore creates a Core under a session name unique to this
+// instance and registers cleanup for its panes.
 func newTestCore(t *testing.T) *Core {
 	t.Helper()
-	name := "test-" + t.Name()
+	name := fmt.Sprintf("test-%s-%d", t.Name(), testCoreSeq.Add(1))
 	c, err := New(name, 80, 24)
 	if err != nil {
 		t.Fatalf("New: %v", err)

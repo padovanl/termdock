@@ -110,6 +110,15 @@ type Core struct {
 
 	bindings map[rune]action // defaultBindings, overridden per-key by config's "bind" setting; see SetBindOverrides
 
+	// bindOverridden marks which runes came from an explicit config
+	// "bind" line rather than defaultBindings. Only the digits need it:
+	// handleKey gives 0-9 their built-in "jump to window N" meaning
+	// before ever consulting the bindings map, so without knowing a digit
+	// was deliberately rebound there'd be no way to let the config win —
+	// and `bind 5 vsplit` would be accepted, listed in the help screen,
+	// and then silently never fire.
+	bindOverridden map[rune]bool
+
 	pendingConfirm func() // what ModeConfirm's y/n prompt runs on 'y'; see confirmKillWindow/confirmQuit/handleConfirmKey
 
 	focusEvents   bool // config's "focus-events"; see SetFocusEvents
@@ -251,6 +260,10 @@ func (c *Core) SetBindOverrides(overrides map[rune]string) {
 	for r, name := range overrides {
 		if act := action(name); validActions[act] {
 			c.bindings[r] = act
+			if c.bindOverridden == nil {
+				c.bindOverridden = map[rune]bool{}
+			}
+			c.bindOverridden[r] = true
 		}
 	}
 }
@@ -556,17 +569,28 @@ func (c *Core) moveFocusIn(w *Window, dx, dy int) bool {
 }
 
 func (c *Core) setActive(n *layout.Node) {
-	w := c.win()
-	if w.active != n {
-		w.lastActive = w.active // for Ctrl-B ;; see toggleLastPane
-	}
-	if w.zoomed != nil {
-		w.zoomed = n
-	}
-	w.active = n
+	c.setWindowActiveLeaf(c.win(), n)
 	c.touchPane(n.ID)
 	c.updateFocusEvents(n.ID)
 	c.relayoutLocked()
+}
+
+// setWindowActiveLeaf focuses leaf within w, recording the pane being
+// left as w.lastActive (what Ctrl-B ; jumps back to). Split out of
+// setActive because the jump picker, the overview and global search all
+// switch window *and* pane in one step: they can't call setActive, which
+// only ever operates on the currently visible window, and assigning
+// w.active directly — which is what they used to do — skipped the
+// lastActive bookkeeping entirely, quietly breaking Ctrl-B ; after any
+// jump through one of them.
+func (c *Core) setWindowActiveLeaf(w *Window, leaf *layout.Node) {
+	if w.active != leaf {
+		w.lastActive = w.active
+	}
+	if w.zoomed != nil {
+		w.zoomed = leaf
+	}
+	w.active = leaf
 }
 
 // toggleLastPane jumps back to whichever pane was focused right before

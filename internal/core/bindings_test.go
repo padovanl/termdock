@@ -153,3 +153,46 @@ func TestArrowsAndTabAlwaysWorkRegardlessOfRebinding(t *testing.T) {
 		t.Fatal("Tab should still cycle focus, not trigger whatever 'o' was rebound to")
 	}
 }
+
+// A digit is "jump to window N" by default, but handleKey checks that
+// before consulting the bindings map — so an explicit `bind 5 vsplit`
+// used to be accepted by config, listed in the help screen, and then
+// never fire.
+func TestExplicitDigitBindOverridesWindowJump(t *testing.T) {
+	c := newTestCore(t)
+	c.SetBindOverrides(map[rune]string{'5': "vsplit"})
+
+	c.mu.Lock()
+	before := len(layout.Leaves(c.win().root))
+	c.mu.Unlock()
+
+	c.HandleClientMsg(proto.ClientMsg{Kind: "key", KeyCode: int32(tcell.KeyCtrlB)})
+	c.HandleClientMsg(proto.ClientMsg{Kind: "key", KeyCode: int32(tcell.KeyRune), KeyRune: '5'})
+
+	c.mu.Lock()
+	after := len(layout.Leaves(c.win().root))
+	c.mu.Unlock()
+
+	if after != before+1 {
+		t.Fatalf("`bind 5 vsplit` did not split: panes %d -> %d", before, after)
+	}
+}
+
+// ...while a digit left alone must still jump to its window.
+func TestUnboundDigitStillJumpsToWindow(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	c.newWindow() // window 1
+	c.selectWindowIndex(0)
+	c.mu.Unlock()
+
+	c.HandleClientMsg(proto.ClientMsg{Kind: "key", KeyCode: int32(tcell.KeyCtrlB)})
+	c.HandleClientMsg(proto.ClientMsg{Kind: "key", KeyCode: int32(tcell.KeyRune), KeyRune: '1'})
+
+	c.mu.Lock()
+	active := c.activeWindow
+	c.mu.Unlock()
+	if active != 1 {
+		t.Fatalf("Ctrl-B 1 should select window 1, got %d", active)
+	}
+}

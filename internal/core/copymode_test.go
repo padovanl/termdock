@@ -184,7 +184,15 @@ func TestCopyModeSelectedRespectsLineWise(t *testing.T) {
 func TestCopyModeSearchRegexPattern(t *testing.T) {
 	c := newTestCore(t)
 	paneID := c.win().active.ID
-	writeAndWaitEcho(t, c, paneID, "echo status-code-500")
+	// Split "code-500" with an empty-string concatenation (co''de-500), the
+	// same trick the char-wise/line-wise tests above use, so that the only
+	// text on screen matching `code-\d+` is printf's real output. Typing
+	// "echo status-code-500" instead would put a matching substring on the
+	// echoed command line too — and since the shell wraps that echo to the
+	// pane width, the tail of it ("tus-code-500") lands on its own row
+	// *above* the output, so a forward search from the top correctly stops
+	// there and the test would be asserting against the wrong row.
+	writeAndWaitEcho(t, c, paneID, "printf '%s\\n' status-co''de-500")
 	y := findAbsRow(t, c, paneID, "status-code-500")
 
 	c.mu.Lock()

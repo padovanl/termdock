@@ -1,6 +1,8 @@
 package client
 
 import (
+	"strings"
+
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/padovanl/termdock/internal/config"
@@ -319,26 +321,57 @@ func drawPaneTitle(screen tcell.Screen, r proto.Rect, title string, style tcell.
 // answer to tmux's choose-tree, but type-ahead filterable instead of a
 // static list you page through. When the selected item has a live
 // preview, a second box is drawn alongside it (see drawPreviewBox).
+// minOverlayInnerW is the narrowest a modal list box may get squeezed to
+// when making room for a preview beside it — below this the list stops
+// being readable and giving the preview more width is a net loss.
+const minOverlayInnerW = 24
+
 func drawOverlay(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	ov := f.Overlay
 
-	innerW := len([]rune(ov.Title)) + 2
+	// The list box and the preview box beside it share one row of screen
+	// width, so size them together rather than letting the list take
+	// whatever it likes first. A picker's title is a full sentence of
+	// instructions (~70 characters): on a wide terminal there's room for
+	// it on one line *and* a full preview, which reads best, so it sets
+	// the list's preferred width. When both don't fit, the list gives
+	// ground first — down to what its items actually need, with the title
+	// wrapping onto extra lines — because an unreadably narrow preview is
+	// worth less than a wrapped title. Only if that still isn't enough
+	// does the preview itself get cropped (and eventually dropped, see
+	// below).
+	itemsW := 0
 	for _, it := range ov.Items {
-		if l := len([]rune(it)) + 2; l > innerW {
-			innerW = l
+		if l := len([]rune(it)) + 2; l > itemsW {
+			itemsW = l
+		}
+	}
+	preferredW := maxi(itemsW, len([]rune(ov.Title))+2)
+
+	rawPreviewW, previewH := 0, 0
+	if len(ov.PreviewCells) > 0 {
+		previewH = len(ov.PreviewCells) + 2
+		rawPreviewW = len(ov.PreviewCells[0]) + 2
+	}
+
+	innerW := preferredW
+	if rawPreviewW > 0 {
+		if room := f.Cols - 2 - 1 - rawPreviewW; innerW > room {
+			innerW = maxi(room, maxi(itemsW, minOverlayInnerW))
 		}
 	}
 	if maxW := f.Cols - 4; innerW > maxW {
 		innerW = maxW
 	}
-	if innerW < 24 {
-		innerW = 24
+	if innerW < minOverlayInnerW {
+		innerW = minOverlayInnerW
 	}
 	w := innerW + 2 // + left/right border
 
-	headerRows := 1 // title
+	titleLines := wordWrap(ov.Title, innerW-1, 3) // -1 for the leading space drawn with it
+	headerRows := len(titleLines)
 	if ov.ShowQuery {
-		headerRows = 3 // + query + separator
+		headerRows += 2 // + query + separator
 	}
 	listRows := len(ov.Items)
 	if maxList := f.Rows - headerRows - 3; listRows > maxList {
@@ -356,23 +389,30 @@ func drawOverlay(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 		h = f.Rows
 	}
 
-	// The preview, if any, is a second box bolted onto the right edge of
-	// the list box — figure out how much room it needs before centering
-	// the pair as one unit, so both boxes stay visually joined instead
-	// of the list sliding around independently as the selection (and so
-	// the preview's presence/size) changes.
-	previewW, previewH := 0, 0
-	if len(ov.PreviewCells) > 0 {
-		previewH = len(ov.PreviewCells) + 2
-		previewW = len(ov.PreviewCells[0]) + 2
+	// The preview is a second box bolted onto the right edge of the list
+	// box — centered as one unit with it, so both stay visually joined
+	// instead of the list sliding around independently as the selection
+	// (and so the preview's presence/size) changes. Crop it to whatever
+	// room the list left rather than dropping it outright: an
+	// all-or-nothing preview on a narrow terminal is always "nothing",
+	// and a narrow peek beats none. Below minPreviewW there's nothing
+	// legible left, so at that point it does drop.
+	const minPreviewW = 12
+	previewW := rawPreviewW
+	if previewW > 0 {
+		if room := f.Cols - w - 1; previewW > room {
+			previewW = room
+		}
+		if previewW < minPreviewW+2 {
+			previewW = 0
+		}
+	}
+	if previewH > f.Rows {
+		previewH = f.Rows
 	}
 	totalW := w
 	if previewW > 0 {
 		totalW = w + 1 + previewW
-	}
-	if totalW > f.Cols {
-		previewW = 0 // no room for it alongside the list; drop it rather than truncate
-		totalW = w
 	}
 	totalH := maxi(h, previewH)
 
@@ -387,11 +427,14 @@ func drawOverlay(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	drawFloatingBorder(screen, x0, y0, w, h, accent)
 
 	innerX, maxX := x0+1, x0+1+innerW
-	overlayText(screen, innerX, y0+1, maxX, dim, " "+ov.Title)
+	for i, line := range titleLines {
+		overlayText(screen, innerX, y0+1+i, maxX, dim, " "+line)
+	}
 	if ov.ShowQuery {
-		overlayText(screen, innerX, y0+2, maxX, bg.Bold(true), " > "+ov.Query+"_")
+		queryY := y0 + len(titleLines) + 1
+		overlayText(screen, innerX, queryY, maxX, bg.Bold(true), " > "+ov.Query+"_")
 		for x := innerX; x < maxX; x++ {
-			screen.SetContent(x, y0+3, '─', nil, dim)
+			screen.SetContent(x, queryY+1, '─', nil, dim)
 		}
 	}
 
@@ -431,6 +474,54 @@ func drawOverlay(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	}
 }
 
+// wordWrap splits text into lines of at most width runes, breaking on
+// spaces rather than mid-word — used for a picker's title, which is
+// always a fixed instructional sentence, not user data, so this doesn't
+// need to handle pathological input beyond a single word longer than
+// width (hard-broken as a fallback). At most maxLines are returned; any
+// remaining words are dropped rather than growing the box further.
+func wordWrap(text string, width, maxLines int) []string {
+	if width < 1 {
+		width = 1
+	}
+	var lines []string
+	var cur []rune
+	flush := func() {
+		if len(cur) > 0 {
+			lines = append(lines, string(cur))
+			cur = cur[:0]
+		}
+	}
+	for _, word := range strings.Fields(text) {
+		w := []rune(word)
+		for len(w) > width { // a single word wider than the whole box
+			flush()
+			lines = append(lines, string(w[:width]))
+			w = w[width:]
+		}
+		if len(cur) == 0 {
+			cur = append(cur, w...)
+		} else if len(cur)+1+len(w) <= width {
+			cur = append(cur, ' ')
+			cur = append(cur, w...)
+		} else {
+			flush()
+			cur = append(cur, w...)
+		}
+		if len(lines) >= maxLines {
+			return lines[:maxLines]
+		}
+	}
+	flush()
+	if len(lines) > maxLines {
+		lines = lines[:maxLines]
+	}
+	if len(lines) == 0 {
+		lines = []string{""}
+	}
+	return lines
+}
+
 // fillRect blank-fills a rectangle in the given style.
 func fillRect(screen tcell.Screen, x0, y0, w, h int, style tcell.Style) {
 	for y := y0; y < y0+h; y++ {
@@ -465,8 +556,17 @@ func drawPreviewBox(screen tcell.Screen, x0, y0, w, h int, cells [][]proto.Cell,
 	accent := tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(cfg.PaneActiveBG).Bold(true)
 	fillRect(screen, x0, y0, w, h, tcell.StyleDefault.Background(tcell.ColorBlack))
 	drawFloatingBorder(screen, x0, y0, w, h, accent)
+	// The box may have been cropped narrower/shorter than the cells the
+	// server sent (see drawOverlay), so clip rather than drawing over the
+	// border and whatever's beyond it.
 	for y, row := range cells {
+		if y >= h-2 { // -2 for the top/bottom border rows
+			break
+		}
 		for x, cell := range row {
+			if x >= w-2 { // likewise for the left/right border columns
+				break
+			}
 			screen.SetContent(x0+1+x, y0+1+y, cellRune(cell), nil, cellStyle(cell))
 		}
 	}

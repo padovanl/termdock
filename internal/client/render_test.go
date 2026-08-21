@@ -117,6 +117,56 @@ func TestDrawHelpOverlayDoesNotPanic(t *testing.T) {
 	}
 }
 
+// TestPickerOverlayLeavesRoomForPreviewOnAn80ColTerminal is a regression
+// test for the picker box swallowing an 80-column terminal almost
+// whole: with the real title (a ~70-character instruction sentence) and
+// short items, the preview must still get a legible amount of width —
+// not the single-digit sliver it got back when the title's raw length
+// set the box's width floor (see drawOverlay).
+func TestPickerOverlayLeavesRoomForPreviewOnAn80ColTerminal(t *testing.T) {
+	preview := make([][]proto.Cell, 8)
+	for y := range preview {
+		row := make([]proto.Cell, 48)
+		for x := range row {
+			row[x] = proto.Cell{Ch: 'x'}
+		}
+		preview[y] = row
+	}
+	f := proto.Frame{
+		Cols: 80, Rows: 24,
+		ShowStatus:   true,
+		StatusPrefix: " termdock:test ",
+		Overlay: &proto.Overlay{
+			Title:        "jump to window/pane — type to filter, ↑↓ select, enter jump, esc cancel",
+			ShowQuery:    true,
+			Query:        "",
+			Selectable:   true,
+			Items:        []string{"0:bash › 1:bash", "0:bash › 2:bash"},
+			Selected:     0,
+			PreviewCells: preview,
+		},
+	}
+	screen := simScreen(t, 80, 24)
+	draw(screen, f, config.Default())
+
+	cells, w, h := screen.GetContents()
+	xCount := 0
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if c := cells[y*w+x]; len(c.Runes) > 0 && c.Runes[0] == 'x' {
+				xCount++
+			}
+		}
+	}
+	// 8 rows x 48 cols of preview content exists server-side; demand at
+	// least a third of it actually made it to screen, proving the box
+	// split didn't starve the preview down to nothing.
+	const wantAtLeast = 8 * 48 / 3
+	if xCount < wantAtLeast {
+		t.Fatalf("only %d preview cells reached the screen on an 80-col terminal, want at least %d — the picker box is starving the preview of width", xCount, wantAtLeast)
+	}
+}
+
 func TestDrawPickerOverlayWithPreviewDoesNotPanic(t *testing.T) {
 	sizes := []struct{ cols, rows int }{
 		{80, 24}, {40, 24}, {20, 10}, {200, 60},
@@ -253,5 +303,39 @@ func TestSelectableOverlayStillKeepsSelectionVisible(t *testing.T) {
 	}
 	if !screenContains(screen, "entry-00") {
 		t.Errorf("selection 3 fits on the first page, so the list should not have scrolled; got:\n%s", strings.Join(screenText(screen), "\n"))
+	}
+}
+
+func TestWordWrapBreaksOnSpacesNotMidWord(t *testing.T) {
+	lines := wordWrap("jump to window/pane — type to filter, enter jump, esc cancel", 20, 5)
+	for _, l := range lines {
+		if len([]rune(l)) > 20 {
+			t.Errorf("line %q exceeds width 20", l)
+		}
+	}
+	joined := strings.Join(lines, " ")
+	for _, word := range strings.Fields("jump to window/pane type to filter enter jump esc cancel") {
+		if !strings.Contains(joined, word) {
+			t.Errorf("word %q lost from wrapped output: %v", word, lines)
+		}
+	}
+}
+
+func TestWordWrapCapsAtMaxLines(t *testing.T) {
+	lines := wordWrap("one two three four five six seven eight nine ten", 5, 2)
+	if len(lines) > 2 {
+		t.Fatalf("expected at most 2 lines, got %d: %v", len(lines), lines)
+	}
+}
+
+func TestWordWrapHardBreaksAWordWiderThanWidth(t *testing.T) {
+	lines := wordWrap("supercalifragilisticexpialidocious", 10, 5)
+	for _, l := range lines {
+		if len([]rune(l)) > 10 {
+			t.Errorf("line %q exceeds width 10", l)
+		}
+	}
+	if len(lines) < 3 {
+		t.Fatalf("expected the long word to be hard-broken across multiple lines, got %v", lines)
 	}
 }

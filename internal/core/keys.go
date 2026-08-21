@@ -108,7 +108,11 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 		res = c.dispatchAction(actFocusDown)
 	case key == tcell.KeyTab:
 		res = c.dispatchAction(actCycleFocus)
-	case r >= '0' && r <= '9':
+	// Digits jump straight to window N unless the config deliberately
+	// rebound that digit, in which case the explicit "bind" wins — this
+	// case is checked before the bindings map below, so without the
+	// override test a `bind 5 …` line could never fire at all.
+	case r >= '0' && r <= '9' && !c.bindOverridden[r]:
 		c.selectWindowIndex(int(r - '0'))
 	default:
 		if act, ok := c.bindings[r]; ok {

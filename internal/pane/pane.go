@@ -36,6 +36,15 @@ type Pane struct {
 	cmd  *exec.Cmd
 	term vt10x.Terminal
 
+	// ptyMu guards operations that hand the pty's raw file descriptor to
+	// an ioctl (Resize's winsize, ForegroundTitle's TIOCGPGRP) against a
+	// concurrent Close. os.File makes Read/Write safe across a Close on
+	// its own — they go through the runtime poller's reference count and
+	// just return an error — but File.Fd(), which every ioctl here needs,
+	// bypasses that entirely and races with the descriptor being torn
+	// down. Close takes the write side; the ioctl paths take the read
+	// side and re-check `closed` under it.
+	ptyMu  sync.RWMutex
 	closed int32
 
 	logMu   sync.Mutex
@@ -135,10 +144,25 @@ func newPaneOpts(id, cols, rows int, command, dir string) (*Pane, error) {
 // Callers must hold Lock/Unlock around reads, same as during Pump.
 func (p *Pane) Term() vt10x.Terminal { return p.term }
 
+// withPTY runs fn with the pty file, serialized against Close so the
+// descriptor can't be torn down mid-ioctl (see ptyMu). A no-op once the
+// pane is closed, which is what every caller wants anyway: there's
+// nothing meaningful to resize or query about a dead pane.
+func (p *Pane) withPTY(fn func(f *os.File)) {
+	p.ptyMu.RLock()
+	defer p.ptyMu.RUnlock()
+	if atomic.LoadInt32(&p.closed) != 0 {
+		return
+	}
+	fn(p.pty)
+}
+
 // ForegroundTitle returns the name of the process currently running in the
 // foreground of this pane (e.g. "vim"), or "" if unknown/idle-at-shell.
 func (p *Pane) ForegroundTitle() string {
-	return foregroundName(p.pty)
+	var name string
+	p.withPTY(func(f *os.File) { name = foregroundName(f) })
+	return name
 }
 
 // Cwd returns this pane's shell process's current working directory
@@ -245,7 +269,9 @@ func (p *Pane) Resize(cols, rows int) {
 	// (as we do for Cell/Cursor reads, which don't self-lock) would
 	// deadlock on its non-reentrant mutex.
 	p.term.Resize(cols, rows)
-	_ = pty.Setsize(p.pty, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
+	p.withPTY(func(f *os.File) {
+		_ = pty.Setsize(f, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
+	})
 }
 
 // Write sends raw input bytes (already translated from key events) to the
@@ -267,7 +293,11 @@ func (p *Pane) Close() {
 		_ = p.cmd.Process.Kill()
 		_, _ = p.cmd.Process.Wait()
 	}
+	// Held only around the close itself, not the kill/wait above, which
+	// can block for a while and needs no exclusion.
+	p.ptyMu.Lock()
 	_ = p.pty.Close()
+	p.ptyMu.Unlock()
 	p.logMu.Lock()
 	if p.logFile != nil {
 		_ = p.logFile.Close()

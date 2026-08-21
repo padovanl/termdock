@@ -238,8 +238,13 @@ in a session with a dozen windows is a few keystrokes instead of hunting
 through a list by eye. `↑`/`↓`/`Tab` move the selection, `Enter` jumps
 straight to it — switching windows and focusing that exact pane in one
 step — `Esc` cancels. The selected entry also gets a live preview box
-next to the list, a small peek at that pane's actual content that updates
-as you move the selection — no need to jump blind. With an empty query
+next to the list — a **minimap** of that pane, the whole thing shrunk
+down rather than a crop of one corner, drawn with braille glyphs as a
+2×4 pixel grid per cell. A terminal can't shrink its font, so this is
+what "the same pane, smaller" actually looks like: you see the shape of
+what's in it — where the text sits, how long the lines run, how much has
+scrolled — updating live as you move the selection, so you're never
+jumping blind. With an empty query
 (the moment it opens, or after clearing it) the list is ordered
 most-recently-used first instead, so `Ctrl-B w` then `Enter` is a fast
 "jump back to whatever I was just looking at," Alt-Tab style.
@@ -432,6 +437,11 @@ stale the moment you customize something. Scoped to the top-level
 picker's type-ahead, and so on aren't rebindable. Arrow keys and `Tab`
 are always-available alternates for movement/cycling regardless of any
 rebind, the same way they were before this existed.
+
+The digits `0`-`9` are "jump to window N" by default, but an explicit
+`bind` on one wins: `bind 5 vsplit` really does make `Ctrl-B 5` split,
+at the cost of no longer being able to jump straight to window 5. Only
+digits you actually rebind are affected; the rest keep jumping.
 
 ### 🎯 Focus events
 

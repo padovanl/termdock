@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -126,4 +127,41 @@ func TestClosePaneStopsLoggingWithoutHanging(t *testing.T) {
 		t.Fatalf("StartLogging: %v", err)
 	}
 	p.Close() // must not hang or panic while a log file is still open
+}
+
+// TestCloseRacesWithResizeAndTitle hammers the two pty ioctl paths
+// (Resize's winsize, ForegroundTitle's TIOCGPGRP) against Close on the
+// same pane. Both reach the raw descriptor through os.File.Fd(), which —
+// unlike Read/Write — has no protection against the file being closed
+// underneath it, so before ptyMu this reliably tripped the race detector
+// (and in the worst case an ioctl on a reused descriptor). Only
+// meaningful under -race; without it this just checks nothing panics.
+func TestCloseRacesWithResizeAndTitle(t *testing.T) {
+	for i := 0; i < 20; i++ {
+		p, err := New(1, 80, 24)
+		if err != nil {
+			t.Fatalf("New: %v", err)
+		}
+
+		var wg sync.WaitGroup
+		wg.Add(3)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 50; j++ {
+				p.Resize(40+j%20, 20)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 50; j++ {
+				_ = p.ForegroundTitle()
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			p.Close()
+		}()
+		wg.Wait()
+		p.Close() // idempotent
+	}
 }

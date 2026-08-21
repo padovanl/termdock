@@ -6,11 +6,25 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+
+	"github.com/padovanl/termdock/internal/pane"
 )
 
 // writeAndWaitEcho writes text (plus a newline) to p's pty and waits
 // until it shows up in the pane's terminal buffer, so tests have
 // something deterministic to search for instead of racing the shell.
+//
+// It matches against the buffer with row boundaries removed, not row by
+// row, because the shell's echo of the typed command is *wrapped* to the
+// pane width: with a long prompt (the test binary runs deep inside the
+// repo, and $PWD is in the default bash prompt), "echo some-marker"
+// lands on screen as "…/internal/core$ echo some-" + "marker" across two
+// rows, and never appears contiguously on any single one. Row-by-row
+// matching happened to work anyway only via the pty's own raw echo of
+// the input line, which sits unwrapped on its own row — but that only
+// shows up before bash's readline takes the terminal over, i.e. for the
+// first command or two of a session, so a test whose 4th command was the
+// one it waited on would time out.
 func writeAndWaitEcho(t *testing.T, c *Core, paneID int, text string) {
 	t.Helper()
 	c.mu.Lock()
@@ -23,32 +37,40 @@ func writeAndWaitEcho(t *testing.T, c *Core, paneID int, text string) {
 
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		t := p.Term()
-		t.Lock()
-		cols, rows := t.Size()
-		hl := t.HistoryLen()
-		found := false
-		for y := 0; y < hl+rows && !found; y++ {
-			var sb strings.Builder
-			for x := 0; x < cols; x++ {
-				g := cellAt(t, hl, y, x)
-				ch := g.Char
-				if ch == 0 {
-					ch = ' '
-				}
-				sb.WriteRune(ch)
-			}
-			if strings.Contains(sb.String(), text) {
-				found = true
-			}
-		}
-		t.Unlock()
-		if found {
+		if strings.Contains(paneTextUnwrapped(p), text) {
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	t.Fatalf("text %q never showed up in pane %d's buffer within the deadline", text, paneID)
+	t.Fatalf("text %q never showed up in pane %d's buffer within the deadline;\nbuffer was:\n%s",
+		text, paneID, paneTextUnwrapped(p))
+}
+
+// paneTextUnwrapped renders a pane's whole buffer (history + live grid)
+// as one string with each row's trailing blanks dropped and no separator
+// between rows, so text the terminal wrapped across a row boundary reads
+// back as the single logical line it was typed as. Only suitable for
+// looking for a distinctive marker — with no separators, adjacent
+// unrelated rows do run together.
+func paneTextUnwrapped(p *pane.Pane) string {
+	term := p.Term()
+	term.Lock()
+	defer term.Unlock()
+	cols, rows := term.Size()
+	hl := term.HistoryLen()
+	var sb strings.Builder
+	for y := 0; y < hl+rows; y++ {
+		var row strings.Builder
+		for x := 0; x < cols; x++ {
+			ch := cellAt(term, hl, y, x).Char
+			if ch == 0 {
+				ch = ' '
+			}
+			row.WriteRune(ch)
+		}
+		sb.WriteString(strings.TrimRight(row.String(), " "))
+	}
+	return sb.String()
 }
 
 func TestGlobalSearchFindsTextAndJumpsToIt(t *testing.T) {

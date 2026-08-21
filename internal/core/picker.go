@@ -122,7 +122,7 @@ func (c *Core) confirmPicker() {
 		if it.windowIdx < len(c.windows) {
 			w := c.windows[it.windowIdx]
 			if leaf := findLeafByID(w.root, it.paneID); leaf != nil {
-				w.active = leaf // before setActiveWindowIndex, so its afterWindowSwitch/touchPane stamps the pane we're jumping *to*
+				c.setWindowActiveLeaf(w, leaf) // before setActiveWindowIndex, so its afterWindowSwitch/touchPane stamps the pane we're jumping *to*
 				c.setActiveWindowIndex(it.windowIdx)
 			}
 		}
@@ -192,10 +192,15 @@ func fuzzyMatch(query, target string) (ok bool, at int) {
 	return false, 0
 }
 
-// previewCols/previewRows bound the picker's live preview pane — a peek,
-// not a full pane, so it's kept fixed and small rather than sized to
-// match whatever's selected.
-const previewCols, previewRows = 36, 8
+// previewCols/previewRows are the picker's live preview box, in cells.
+// Fixed, never sized to the selected pane: a preview that grew and shrank
+// with each pane's dimensions made the whole centered overlay jump around
+// the screen as you moved the selection. The client crops it to whatever
+// room is left beside the list rather than dropping it, so asking for
+// more here can't cost a narrow terminal its preview entirely (see
+// drawOverlay). Each cell is a braille glyph covering 2x4 of the pane's
+// own cells (see buildThumbnail), so this shows a 112x56 pane whole.
+const previewCols, previewRows = 56, 14
 
 // pickerOverlay builds the client-facing snapshot of the picker, or nil
 // when it isn't open.
@@ -217,18 +222,40 @@ func (c *Core) pickerOverlay() *proto.Overlay {
 	}
 	if c.picker.sel < len(c.picker.filtered) {
 		it := c.picker.items[c.picker.filtered[c.picker.sel]]
-		ov.PreviewCells = c.buildPreview(it.paneID, previewCols, previewRows)
+		ov.PreviewCells = c.buildThumbnail(it.paneID, previewCols, previewRows)
 	}
 	return ov
 }
 
-// buildPreview snapshots the bottom-left corner of paneID's current
-// terminal content — the most recently active rows, generally more
-// telling at a glance than whatever scrolled to the top — cropped to at
-// most maxW x maxH, or nil if the pane's gone or there's no room at all.
-// Shared by the jump picker's single preview box (see pickerOverlay) and
-// the Ctrl-B g overview's whole grid of them (see overview.go).
+// brailleDots maps an (x, y) position inside a braille cell's 2x4 pixel
+// grid to the bit it occupies in the U+2800 block. The column-major,
+// non-obvious ordering is the Unicode standard's, not ours: the first
+// six dots follow the original 6-dot braille layout and the bottom row
+// was appended later, which is why it jumps to bits 6 and 7.
+var brailleDots = [4][2]rune{
+	{0x01, 0x08},
+	{0x02, 0x10},
+	{0x04, 0x20},
+	{0x40, 0x80},
+}
+
+// buildPreview renders a maxW x maxH window of paneID's real characters,
+// used where the box is big enough for text to actually be readable —
+// the Ctrl-B g overview's tiles (see overview.go). The jump picker's
+// much smaller box uses buildThumbnail instead.
+//
+// The window is anchored on the cursor rather than the bottom of the
+// grid. Anchoring on the bottom is equivalent for a pane that's already
+// scrolled, but renders an entirely blank preview for the most common
+// case there is: a freshly split shell, whose prompt sits at the *top* of
+// an otherwise empty grid.
+//
+// Always exactly maxH x maxW, blank-padded for a pane smaller than the
+// box, so a tile never comes back ragged.
 func (c *Core) buildPreview(paneID int, maxW, maxH int) [][]proto.Cell {
+	if maxW <= 0 || maxH <= 0 {
+		return nil
+	}
 	p, ok := c.panes[paneID]
 	if !ok {
 		return nil
@@ -237,18 +264,113 @@ func (c *Core) buildPreview(paneID int, maxW, maxH int) [][]proto.Cell {
 	t.Lock()
 	defer t.Unlock()
 	cols, rows := t.Size()
-	w, h := minInt(maxW, cols), minInt(maxH, rows)
-	if w <= 0 || h <= 0 {
+	if cols <= 0 || rows <= 0 {
 		return nil
 	}
-	yOff := rows - h
-	cells := make([][]proto.Cell, h)
-	for y := 0; y < h; y++ {
-		row := make([]proto.Cell, w)
-		for x := 0; x < w; x++ {
-			row[x] = glyphToCell(t.Cell(x, yOff+y))
+	// Scroll just far enough to keep the cursor row in view, clamped to
+	// the grid: prompt-at-the-top shows the top, a scrolled pane still
+	// shows its most recent rows.
+	yOff := t.Cursor().Y - maxH + 1
+	if yOff < 0 {
+		yOff = 0
+	}
+	if maxOff := rows - maxH; yOff > maxOff {
+		yOff = maxOff
+	}
+	cells := make([][]proto.Cell, maxH)
+	for y := 0; y < maxH; y++ {
+		row := make([]proto.Cell, maxW)
+		for x := 0; x < maxW; x++ {
+			if x < cols && yOff+y < rows {
+				row[x] = glyphToCell(t.Cell(x, yOff+y))
+				continue
+			}
+			row[x] = proto.Cell{Ch: ' '}
 		}
 		cells[y] = row
+	}
+	return cells
+}
+
+// buildThumbnail renders paneID's entire screen as a maxW x maxH minimap
+// — the whole pane shrunk, not a crop of it. Used for the jump picker's
+// preview box (see pickerOverlay), which is far too small to show a
+// useful amount of real text.
+//
+// A terminal can't shrink its font, so "the whole pane, smaller" has to
+// come out of resolution instead: each output cell is a braille glyph
+// whose 2x4 dot grid is used as pixels, giving 8 samples per cell and
+// letting a 112x56 pane fit into 56x14 while keeping its actual shape —
+// where the text sits, how long the lines run, where the blank regions
+// are. A crop of real characters could only ever show one corner, so
+// every pane's preview looked alike (a prompt, then nothing), which is
+// the opposite of what a preview is for.
+//
+// The result is always exactly maxH x maxW, blank-padded for a pane
+// smaller than the thumbnail. Returning fewer rows for a shorter pane
+// made the client's centered overlay resize and jump around the screen
+// as the selection moved between panes of different heights.
+func (c *Core) buildThumbnail(paneID int, maxW, maxH int) [][]proto.Cell {
+	if maxW <= 0 || maxH <= 0 {
+		return nil
+	}
+	p, ok := c.panes[paneID]
+	if !ok {
+		return nil
+	}
+	t := p.Term()
+	t.Lock()
+	defer t.Unlock()
+	cols, rows := t.Size()
+	if cols <= 0 || rows <= 0 {
+		return nil
+	}
+
+	// Never magnify: a pane smaller than the thumbnail's pixel grid is
+	// drawn at 1 cell per pixel-pair and simply leaves the rest blank,
+	// rather than being stretched into a blocky mess.
+	pixW, pixH := maxW*2, maxH*4
+	scaleX, scaleY := float64(cols)/float64(pixW), float64(rows)/float64(pixH)
+	if scaleX < 1 {
+		scaleX = 1
+	}
+	if scaleY < 1 {
+		scaleY = 1
+	}
+
+	cells := make([][]proto.Cell, maxH)
+	for cy := 0; cy < maxH; cy++ {
+		row := make([]proto.Cell, maxW)
+		for cx := 0; cx < maxW; cx++ {
+			var dots rune
+			var fg uint32
+			var haveFG bool
+			for dy := 0; dy < 4; dy++ {
+				for dx := 0; dx < 2; dx++ {
+					sx := int(float64(cx*2+dx) * scaleX)
+					sy := int(float64(cy*4+dy) * scaleY)
+					if sx >= cols || sy >= rows {
+						continue
+					}
+					g := t.Cell(sx, sy)
+					if g.Char == 0 || g.Char == ' ' {
+						continue
+					}
+					dots |= brailleDots[dy][dx]
+					if !haveFG {
+						fg, haveFG = glyphToCell(g).FG, true
+					}
+				}
+			}
+			cell := proto.Cell{Ch: ' '}
+			if dots != 0 {
+				// Colored from the first bit of real text in the block, so
+				// a green prompt still reads as green at thumbnail scale.
+				cell = proto.Cell{Ch: 0x2800 | dots, FG: fg}
+			}
+			row[cx] = cell
+		}
+		cells[cy] = row
 	}
 	return cells
 }
