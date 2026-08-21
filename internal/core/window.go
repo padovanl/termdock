@@ -17,8 +17,16 @@ type Window struct {
 	renamed bool // true once the user has explicitly set Name
 
 	root, active, zoomed *layout.Node
-	lastActive           *layout.Node // previously active pane in this window, for Ctrl-B ;; see toggleLastPane
-	syncPanes            bool
+	// lastActivePane is the pane Ctrl-B ; jumps back to, held as an id
+	// rather than a *layout.Node (0 means none). A node pointer would
+	// not survive: layout.Split rewrites the leaf it splits *in place*,
+	// so the node stops being a leaf while the pane it named is still
+	// running, and cycling the layout throws every node away and builds
+	// new ones around the same panes. Ids are unique for the life of the
+	// process and never reused, so resolving one against the live tree
+	// is always either the right pane or nothing at all.
+	lastActivePane int
+	syncPanes      bool
 
 	activity bool // output arrived while this window wasn't the active one
 
@@ -237,7 +245,10 @@ func (c *Core) confirmKillWindow() {
 		plural = ""
 	}
 	c.mode = ModeConfirm
-	c.statusMsg = fmt.Sprintf("kill window %q and its %d pane%s? (y/n)", c.windowDisplayName(w), n, plural)
+	// The name is whatever the user called it (or whatever is running in
+	// it), so it's unbounded — and this prompt has to stay readable on
+	// one status row, where anything past the end is simply not drawn.
+	c.statusMsg = fmt.Sprintf("kill window %q (%d pane%s)? (y/n)", truncateRunes(c.windowDisplayName(w), 24), n, plural)
 	c.pendingConfirm = c.killWindow
 }
 
@@ -258,7 +269,10 @@ func (c *Core) confirmQuit() {
 		panePlural = ""
 	}
 	c.mode = ModeConfirm
-	c.statusMsg = fmt.Sprintf("quit termdock? this closes %d window%s and %d pane%s (y/n)", windowN, windowPlural, paneN, panePlural)
+	// Kept short on purpose: this has to fit on one status row next to
+	// the session name, and it's the end of it — "(y/n)" — that says what
+	// to press. You already know it's termdock asking.
+	c.statusMsg = fmt.Sprintf("quit? %d window%s, %d pane%s (y/n)", windowN, windowPlural, paneN, panePlural)
 	c.pendingConfirm = c.requestQuit
 }
 
@@ -335,8 +349,8 @@ func (c *Core) movePaneToWindow(leaf *layout.Node, from, to *Window) bool {
 	if from.zoomed == leaf {
 		from.zoomed = nil
 	}
-	if from.lastActive == leaf {
-		from.lastActive = nil // Ctrl-B ; has nothing to flip back to once it's in a different window
+	if from.lastActivePane == leaf.ID {
+		from.lastActivePane = 0 // Ctrl-B ; has nothing to flip back to once it's in a different window
 	}
 	newRoot, next := layout.Remove(from.root, leaf)
 	if newRoot == nil {
@@ -378,8 +392,8 @@ func (c *Core) breakPaneToNewWindow() {
 	if w.active == leaf {
 		w.active = next
 	}
-	if w.lastActive == leaf {
-		w.lastActive = nil // Ctrl-B ; has nothing to flip back to once it's in a different window
+	if w.lastActivePane == leaf.ID {
+		w.lastActivePane = 0 // Ctrl-B ; has nothing to flip back to once it's in a different window
 	}
 	// Zoom is always on the active pane (setActive carries it along), so
 	// the pane being broken out is the zoomed one whenever the window is

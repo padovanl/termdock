@@ -89,9 +89,17 @@ type tabDragState struct {
 // screen coordinates, that a text selection would be anchored at if this
 // turns into a drag (see startContentDragSelect) rather than a plain
 // click (see handleNormalMouse's released branch).
+//
+// The pane is remembered by id, not by *layout.Node. A press is held
+// across other events — and layout.Split rewrites the very node it
+// splits *in place*, turning that leaf into the new split and giving the
+// pane a freshly made leaf of its own. A stored pointer therefore stops
+// being a leaf at all while the pane it named is still perfectly alive,
+// so it has to be resolved against the live tree at the moment it's
+// used, not held onto.
 type contentPressState struct {
-	leaf *layout.Node
-	x, y int
+	paneID int
+	x, y   int
 }
 
 // titleDragState tracks a press-and-hold on a pane's title bar, armed
@@ -583,8 +591,8 @@ func (c *Core) detachLeafIn(w *Window, n *layout.Node) {
 	if w.zoomed == n {
 		w.zoomed = nil
 	}
-	if w.lastActive == n {
-		w.lastActive = nil // Ctrl-B ; has nothing to flip back to once it's closed
+	if w.lastActivePane == n.ID {
+		w.lastActivePane = 0 // Ctrl-B ; has nothing to flip back to once it's closed
 	}
 	if c.copy.active && c.copy.paneID == n.ID {
 		c.copy = copyState{}
@@ -599,7 +607,7 @@ func (c *Core) detachLeafIn(w *Window, n *layout.Node) {
 	// window's active pane — after which nothing rendered as focused, the
 	// arrow keys had stale geometry to navigate from, and a split would
 	// have attached a brand new pane to an orphaned branch nobody draws.
-	if c.contentPress != nil && c.contentPress.leaf == n {
+	if c.contentPress != nil && c.contentPress.paneID == n.ID {
 		c.contentPress = nil
 	}
 	if c.titleDrag != nil && c.titleDrag.leaf == n {
@@ -723,7 +731,7 @@ func (c *Core) setActive(n *layout.Node) {
 // jump through one of them.
 func (c *Core) setWindowActiveLeaf(w *Window, leaf *layout.Node) {
 	if w.active != leaf {
-		w.lastActive = w.active
+		w.lastActivePane = w.active.ID
 	}
 	if w.zoomed != nil {
 		w.zoomed = leaf
@@ -733,15 +741,21 @@ func (c *Core) setWindowActiveLeaf(w *Window, leaf *layout.Node) {
 
 // toggleLastPane jumps back to whichever pane was focused right before
 // the current one, within this window — tmux's Ctrl-B ;. A no-op if
-// there's no recorded last pane, or it's since closed or moved to
-// another window (lastActive is cleared wherever that can happen; see
-// detachLeafIn, movePaneToWindow, breakPaneToNewWindow).
+// there's no recorded last pane, or it isn't in this window's tree any
+// more: resolving the id here rather than trusting a stored node is what
+// makes it safe against everything that rewrites the tree underneath it
+// (see Window.lastActivePane).
 func (c *Core) toggleLastPane() {
 	w := c.win()
-	if w.lastActive == nil || w.lastActive == w.active {
+	if w.lastActivePane == 0 || w.lastActivePane == w.active.ID {
 		return
 	}
-	c.setActive(w.lastActive)
+	leaf := findLeafByID(w.root, w.lastActivePane)
+	if leaf == nil {
+		w.lastActivePane = 0
+		return
+	}
+	c.setActive(leaf)
 }
 
 // touchPane stamps id as just having become the one the user's looking

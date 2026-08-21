@@ -1,6 +1,7 @@
 package core
 
 import (
+	"math/rand"
 	"testing"
 
 	"github.com/padovanl/termdock/internal/layout"
@@ -357,5 +358,123 @@ func TestGestureOnAClosingPaneIsAbandoned(t *testing.T) {
 	}
 	if _, ok := c.panes[active.ID]; !ok {
 		t.Fatalf("the active pane (id %d) has no live pane behind it", active.ID)
+	}
+}
+
+// TestClickReleasedAfterASplitFocusesTheRightPane is the sharp edge of
+// holding a *layout.Node across events: layout.Split rewrites the very
+// leaf it splits *in place*, turning it into the new split node and
+// giving the pane a freshly made leaf of its own. So a press held while
+// anything splits — a keystroke, or a scripted split-window arriving on
+// its own connection — came back on release pointing at a split node
+// while the pane it named was perfectly alive.
+//
+// Releasing then made that split node the window's active "pane", and
+// the next break-pane called layout.Remove on a node with no parent,
+// got a nil tree back, and dereferenced it: a nil-pointer panic that
+// takes down the daemon and every session in it.
+func TestClickReleasedAfterASplitFocusesTheRightPane(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	leaf := c.win().root
+	pressedID := leaf.ID
+	x, y := leaf.Rect.X+1, leaf.Rect.Y+1
+
+	c.handleNormalMouse(true, false, x, y) // press
+	c.doSplit(layout.Vertical)             // the pressed leaf is rewritten in place
+	c.handleNormalMouse(false, true, x, y) // release
+
+	active := c.win().active
+	if !active.IsLeaf() {
+		t.Fatal("releasing the click focused a split node, not a pane")
+	}
+	if findLeafByID(c.win().root, active.ID) != active {
+		t.Fatalf("the active pane (id %d) is not a live leaf of the window's tree", active.ID)
+	}
+	if active.ID != pressedID {
+		t.Errorf("focused pane %d, want the one that was clicked (%d)", active.ID, pressedID)
+	}
+
+	// The crash this caused: break-pane on a rootless node.
+	c.breakPaneToNewWindow()
+	for i, w := range c.windows {
+		if w.root == nil {
+			t.Fatalf("window %d has a nil root", i)
+		}
+	}
+}
+
+// TestActivePaneInvariantSurvivesMixedInput drives the operations that
+// rewrite the layout tree against the mouse gestures that hold state
+// across events, checking after every step that each window's active
+// pane is still a live leaf of its own tree. Everything downstream
+// assumes that — rendering marks the active pane by pointer identity,
+// focus moves read its Rect, splits attach to it — so once it stops
+// being true the damage shows up somewhere else entirely.
+func TestActivePaneInvariantSurvivesMixedInput(t *testing.T) {
+	c := newTestCore(t)
+	rng := rand.New(rand.NewSource(11))
+
+	check := func(step int, what string) {
+		for wi, w := range c.windows {
+			if w.root == nil {
+				t.Fatalf("step %d (%s): window %d has a nil root", step, what, wi)
+			}
+			if w.active == nil || !w.active.IsLeaf() {
+				t.Fatalf("step %d (%s): window %d's active pane is not a leaf", step, what, wi)
+			}
+			if findLeafByID(w.root, w.active.ID) != w.active {
+				t.Fatalf("step %d (%s): window %d's active pane (id %d) is not in its own tree", step, what, wi, w.active.ID)
+			}
+			if w.lastActivePane != 0 && findLeafByID(w.root, w.lastActivePane) == nil {
+				t.Fatalf("step %d (%s): window %d's last-active pane (id %d) is not in its own tree", step, what, wi, w.lastActivePane)
+			}
+			if w.zoomed != nil && findLeafByID(w.root, w.zoomed.ID) != w.zoomed {
+				t.Fatalf("step %d (%s): window %d's zoomed pane is not in its own tree", step, what, wi)
+			}
+		}
+	}
+
+	ops := []struct {
+		name string
+		run  func()
+	}{
+		{"vsplit", func() { c.doSplit(layout.Vertical) }},
+		{"hsplit", func() { c.doSplit(layout.Horizontal) }},
+		{"new-window", func() { c.newWindow() }},
+		{"kill-pane", func() { c.killActive() }},
+		{"cycle", func() { c.cycleFocus() }},
+		{"break-pane", func() { c.breakPaneToNewWindow() }},
+		{"zoom", func() { c.toggleZoom() }},
+		{"layout", func() { c.cycleLayout() }},
+		{"last-pane", func() { c.toggleLastPane() }},
+		{"next-window", func() { c.switchWindow(1) }},
+		{"press", func() {
+			l := c.win().active
+			c.handleNormalMouse(true, false, l.Rect.X+1, l.Rect.Y+1)
+		}},
+		{"release", func() {
+			l := c.win().active
+			c.handleNormalMouse(false, true, l.Rect.X+1, l.Rect.Y+1)
+		}},
+		{"drag", func() {
+			l := c.win().active
+			c.handleNormalMouse(true, false, l.Rect.X+3, l.Rect.Y+2)
+		}},
+		{"esc-copy", func() {
+			if c.mode == ModeCopy {
+				c.exitCopyMode()
+			}
+		}},
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for i := 0; i < 1500; i++ {
+		op := ops[rng.Intn(len(ops))]
+		op.run()
+		check(i, op.name)
 	}
 }

@@ -167,15 +167,15 @@ func TestCycleLayoutKeepsLastPaneToggleValid(t *testing.T) {
 	leaves := layout.Leaves(w.root)
 	c.setActive(leaves[0])
 	c.setActive(leaves[2]) // lastActive is now leaves[0]
-	if w.lastActive != leaves[0] {
-		t.Fatalf("test setup: lastActive = %p, want %p", w.lastActive, leaves[0])
+	if w.lastActivePane != leaves[0].ID {
+		t.Fatalf("test setup: last-active pane = %d, want %d", w.lastActivePane, leaves[0].ID)
 	}
-	wantLastID := w.lastActive.ID
+	wantLastID := w.lastActivePane
 
 	c.cycleLayout()
 
-	if w.lastActive != nil && findLeafByID(w.root, w.lastActive.ID) != w.lastActive {
-		t.Fatal("lastActive points at a node that is no longer in the window's tree")
+	if w.lastActivePane != 0 && findLeafByID(w.root, w.lastActivePane) == nil {
+		t.Fatal("the last-active pane is no longer in the window's tree")
 	}
 	c.toggleLastPane()
 	if findLeafByID(w.root, w.active.ID) != w.active {

@@ -150,7 +150,7 @@ func TestToggleLastPaneClearedWhenTargetCloses(t *testing.T) {
 	// Close leaves[0] (the recorded lastActive) directly, same path a
 	// shell exiting on its own takes.
 	c.detachLeafIn(c.win(), leaves[0])
-	stillHasLastActive := c.win().lastActive != nil
+	stillHasLastActive := c.win().lastActivePane != 0
 	c.mu.Unlock()
 
 	if stillHasLastActive {
@@ -170,7 +170,7 @@ func TestToggleLastPaneClearedWhenMovedToAnotherWindow(t *testing.T) {
 	dst := c.windows[len(c.windows)-1]
 
 	c.movePaneToWindow(leaves[0], src, dst)
-	stillHasLastActive := src.lastActive != nil
+	stillHasLastActive := src.lastActivePane != 0
 	c.mu.Unlock()
 
 	if stillHasLastActive {

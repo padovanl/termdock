@@ -95,7 +95,9 @@ func (c *Core) handleNormalMouse(primary, released bool, x, y int) {
 			// a plain click, so give that pane focus same as always.
 			cp := c.contentPress
 			c.contentPress = nil
-			c.setActive(cp.leaf)
+			if leaf := c.pressedLeaf(cp); leaf != nil {
+				c.setActive(leaf)
+			}
 			return
 		}
 		drag := c.drag
@@ -166,7 +168,7 @@ func (c *Core) handleNormalMouse(primary, released bool, x, y int) {
 	// startContentDragSelect, triggered by the *next* event once it
 	// shows real movement.
 	if leaf := c.leafAt(x, y); leaf != nil {
-		c.contentPress = &contentPressState{leaf: leaf, x: x, y: y}
+		c.contentPress = &contentPressState{paneID: leaf.ID, x: x, y: y}
 		return
 	}
 	c.focusAt(x, y)
@@ -188,15 +190,13 @@ func (c *Core) handleNormalMouse(primary, released bool, x, y int) {
 func (c *Core) startContentDragSelect(x, y int) {
 	cp := c.contentPress
 	c.contentPress = nil
-	// Belt and braces alongside detachLeafIn clearing the press: never
-	// focus a leaf whose pane has gone, since w.active is assumed
-	// throughout to be a live node of the current window's tree.
-	if _, ok := c.panes[cp.leaf.ID]; !ok {
+	leaf := c.pressedLeaf(cp)
+	if leaf == nil {
 		return
 	}
-	c.setActive(cp.leaf)
+	c.setActive(leaf)
 	c.enterCopyMode() // sets c.copy.top to the live bottom of the buffer
-	cr := cp.leaf.Rect
+	cr := leaf.Rect
 	cols, rows, total, ok := c.copyPaneDims()
 	if !ok {
 		c.exitCopyMode()
@@ -212,6 +212,19 @@ func (c *Core) startContentDragSelect(x, y int) {
 	c.copy.curX, c.copy.curY = toAbs(x, y)
 	c.mouseDown = true
 	c.mouseDownX, c.mouseDownY = cp.x, cp.y
+}
+
+// pressedLeaf resolves a press back to the pane it landed on, against
+// the tree as it is now rather than as it was when the button went down.
+// Returns nil if that pane has since closed, or has left this window —
+// w.active is assumed everywhere to be a live leaf of the visible
+// window's tree, and a press is exactly the kind of state that outlives
+// the thing it points at.
+func (c *Core) pressedLeaf(cp *contentPressState) *layout.Node {
+	if _, ok := c.panes[cp.paneID]; !ok {
+		return nil
+	}
+	return findLeafByID(c.win().root, cp.paneID)
 }
 
 // clickAt handles a divider press-and-release with no movement in
@@ -293,12 +306,18 @@ func (c *Core) updateTabDrag(x int) {
 // place on release.
 func (c *Core) tabIndexNear(x int) int {
 	tabs := c.windowTabs()
+	if len(tabs) == 0 {
+		return 0
+	}
 	for _, t := range tabs {
 		if x < t.X+t.W/2 {
 			return t.Index
 		}
 	}
-	return len(tabs) - 1
+	// The last tab's *window index*, which is only the same as its
+	// position in the slice while every window has a tab — no longer true
+	// now that the strip can show a run around the active window.
+	return tabs[len(tabs)-1].Index
 }
 
 // endTabDrag resolves a tab press on release: if it never actually moved
