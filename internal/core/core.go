@@ -42,6 +42,25 @@ const (
 	ModeQuickJump // display-panes: big numbers overlay, press one to jump; see quickjump.go
 )
 
+// modeNames drives Mode's String, used by the input log (see logInput) —
+// "mode=copy" is worth a great deal more than "mode=1" when the whole
+// point of reading that log is working out why a key went somewhere
+// unexpected.
+var modeNames = map[Mode]string{
+	ModeNormal: "normal", ModeCopy: "copy", ModeResize: "resize",
+	ModeInput: "input", ModeConfirm: "confirm", ModePicker: "picker",
+	ModeHelp: "help", ModeSessions: "sessions", ModeSearch: "search",
+	ModeOverview: "overview", ModeRegisters: "registers", ModePopup: "popup",
+	ModeOpener: "opener", ModeQuickJump: "quickjump",
+}
+
+func (m Mode) String() string {
+	if s, ok := modeNames[m]; ok {
+		return s
+	}
+	return fmt.Sprintf("Mode(%d)", int(m))
+}
+
 const resizeStep = 2
 
 // doubleClickWindow is how close together two clicks on the same pane's
@@ -375,6 +394,7 @@ type Result struct {
 // HandleClientMsg applies one input message from an attached client.
 // "hello"/"query"/"kill" are handled by the server, not here.
 func (c *Core) HandleClientMsg(m proto.ClientMsg) Result {
+	defer c.logInput(m)
 	switch m.Kind {
 	case "key":
 		return c.handleKey(m)
@@ -384,6 +404,46 @@ func (c *Core) HandleClientMsg(m proto.ClientMsg) Result {
 		c.Resize(m.Cols, m.Rows)
 	}
 	return Result{}
+}
+
+// logInput appends one line per input message to $TERMDOCK_INPUT_LOG,
+// when that's set — the raw key/mouse event as it arrived, plus the
+// prefix/mode state it left behind. Off (and free) otherwise.
+//
+// Input bugs in a multiplexer are otherwise near-impossible to pin down:
+// what the terminal emulator actually sends for a chord, whether a key
+// arrived at all, and whether the prefix was armed when it did are all
+// invisible from the outside, and every layer in between (terminal,
+// tcell, client, server) is a plausible culprit. This makes the answer a
+// file you can read.
+func (c *Core) logInput(m proto.ClientMsg) {
+	path := os.Getenv("TERMDOCK_INPUT_LOG")
+	if path == "" {
+		return
+	}
+	c.mu.Lock()
+	prefix, mode := c.prefix, c.mode
+	c.mu.Unlock()
+
+	var what string
+	switch m.Kind {
+	case "key":
+		what = fmt.Sprintf("key code=%d rune=%q mod=%d", m.KeyCode, m.KeyRune, m.KeyMod)
+	case "mouse":
+		what = fmt.Sprintf("mouse x=%d y=%d buttons=%d mod=%d", m.MouseX, m.MouseY, m.MouseButtons, m.MouseMod)
+	case "resize":
+		what = fmt.Sprintf("resize %dx%d", m.Cols, m.Rows)
+	default:
+		what = m.Kind
+	}
+
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "%s %-44s -> prefix=%v mode=%v\n",
+		time.Now().Format("15:04:05.000"), what, prefix, mode)
 }
 
 // --- pane lifecycle (within the active window) ---------------------------

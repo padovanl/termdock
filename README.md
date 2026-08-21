@@ -674,6 +674,25 @@ you'd expect. An unknown theme name is silently ignored, the same
 leniency every other setting in `termdock.conf` already has, falling
 back to the plain defaults.
 
+### 🐞 Debugging input
+
+Set `TERMDOCK_INPUT_LOG=/path/to/file` when starting the *server* (i.e.
+on the first `termdock` invocation that creates the session) and every
+key, mouse and resize event the daemon receives gets appended there,
+along with the prefix/mode state it left behind:
+
+```
+02:47:54.598 key code=66 rune='\x00' mod=0    -> prefix=true mode=normal
+02:47:54.598 key code=257 rune='\x00' mod=0   -> prefix=false mode=normal
+```
+
+Input problems in a multiplexer are otherwise very hard to pin down —
+what your terminal emulator actually sends for a given chord, whether a
+key reached the daemon at all, and whether the prefix was armed when it
+did are all invisible from the outside, with the terminal, tcell, the
+client and the server each a plausible culprit. Unset (the default) it
+costs nothing.
+
 ## 📁 Code layout
 
 - `main.go` — CLI: subcommands (`new`/`attach`/`ls`/`kill-session`) and
