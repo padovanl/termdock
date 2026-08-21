@@ -272,3 +272,37 @@ func TestPopupKeysFollowRebinding(t *testing.T) {
 		t.Errorf("the rebound quit key should reach confirmQuit from the popup, mode=%v", modeAfterK)
 	}
 }
+
+// TestPopupNeverDrawnOffScreen: the minimum popup size is a floor on
+// what's worth showing, not a licence to exceed the screen. Taking it
+// unconditionally drew the box, border and title past the edge of a
+// small terminal, sized the shell inside to a width that could never be
+// displayed, and left "click outside to dismiss" hit-testing against a
+// rectangle partly beyond the screen.
+func TestPopupNeverDrawnOffScreen(t *testing.T) {
+	for _, sz := range [][2]int{{80, 24}, {40, 12}, {20, 8}, {10, 5}, {5, 4}, {3, 3}, {2, 2}, {1, 1}} {
+		c := newTestCore(t)
+		c.Resize(sz[0], sz[1])
+		c.mu.Lock()
+		c.togglePopup()
+		c.mu.Unlock()
+
+		f := c.Frame()
+		if f.Popup == nil {
+			continue // too small to hold a bordered box at all, which is fine
+		}
+		r := f.Popup.Rect
+		if r.X < 0 || r.Y < 0 || r.X+r.W > f.Cols || r.Y+r.H > f.Rows {
+			t.Errorf("%dx%d: popup rect %+v is outside the screen", sz[0], sz[1], r)
+		}
+		if len(f.Popup.Cells) != r.H {
+			t.Errorf("%dx%d: popup has %d rows for a rect %d tall", sz[0], sz[1], len(f.Popup.Cells), r.H)
+		}
+		for _, row := range f.Popup.Cells {
+			if len(row) != r.W {
+				t.Errorf("%dx%d: popup row is %d wide in a rect %d wide", sz[0], sz[1], len(row), r.W)
+			}
+		}
+		closeAllPanes(c)
+	}
+}

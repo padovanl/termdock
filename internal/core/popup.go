@@ -60,19 +60,41 @@ func (c *Core) togglePopup() {
 // popup pane and to re-fit an existing one when the terminal resizes
 // while it's up.
 func (c *Core) popupSize() (w, h int) {
-	availW, availH := c.cols, maxi(0, c.rows-c.statusRows())
-	w = maxi(popupMinW, int(float64(availW)*popupWidthFrac)) - 2
-	h = maxi(popupMinH, int(float64(availH)*popupHeightFrac)) - 2
+	availW, availH := c.popupArea()
+	// The minimum is a floor on what's worth showing, not a licence to
+	// exceed the screen: taking it unconditionally drew the popup — box,
+	// border, title and all — off the edge of a small terminal, sized the
+	// shell inside it to a width that could never be displayed, and left
+	// "click outside to dismiss" hit-testing against a rectangle partly
+	// beyond the screen.
+	w = clampi(int(float64(availW)*popupWidthFrac), minInt(popupMinW, availW), availW) - 2
+	h = clampi(int(float64(availH)*popupHeightFrac), minInt(popupMinH, availH), availH) - 2
 	return maxi(1, w), maxi(1, h)
+}
+
+// popupArea is the region the popup has to fit inside: the pane area, so
+// it never covers the status bar.
+func (c *Core) popupArea() (w, h int) {
+	return maxi(c.cols, 0), maxi(c.rows-c.statusRows(), 0)
+}
+
+// popupFits reports whether the terminal can hold a bordered box at all.
+// Below that the popup simply isn't drawn — it keeps running, and comes
+// back the moment there's room.
+func (c *Core) popupFits() bool {
+	availW, availH := c.popupArea()
+	r := c.popupRect()
+	return availW >= 3 && availH >= 3 && r.X >= 0 && r.Y >= 0 && r.X+r.W <= availW && r.Y+r.H <= availH
 }
 
 // popupRect returns the popup's full box (border included), in the same
 // coordinate space as everything else in the pane area.
 func (c *Core) popupRect() proto.Rect {
+	availW, availH := c.popupArea()
 	contentW, contentH := c.popupSize()
 	w, h := contentW+2, contentH+2
-	x := maxi(0, (c.cols-w)/2)
-	y := maxi(0, (maxi(0, c.rows-c.statusRows())-h)/2)
+	x := maxi(0, (availW-w)/2)
+	y := maxi(0, (availH-h)/2)
 	return proto.Rect{X: x, Y: y, W: w, H: h}
 }
 
@@ -162,7 +184,7 @@ func (c *Core) writeToPopup(key tcell.Key, r rune) {
 // close it" convention windowing systems use. Clicks and drags inside it
 // (for text selection, say) aren't wired up in this first cut.
 func (c *Core) handlePopupMouse(primary, released bool, x, y int) {
-	if !primary || released {
+	if !primary || released || !c.popupFits() {
 		return
 	}
 	r := c.popupRect()
@@ -175,7 +197,7 @@ func (c *Core) handlePopupMouse(primary, released bool, x, y int) {
 // popupFrame builds the client-facing snapshot of the popup, or nil when
 // it isn't showing.
 func (c *Core) popupFrame() *proto.PaneFrame {
-	if !c.popupVisible || c.popup == nil {
+	if !c.popupVisible || c.popup == nil || !c.popupFits() {
 		return nil
 	}
 	r := c.popupRect()
