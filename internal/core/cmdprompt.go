@@ -93,6 +93,12 @@ func (c *Core) runCommand(line string) {
 			}
 		}
 
+	case "set", "set-option":
+		c.runSet(args)
+
+	case "bind", "bind-key":
+		c.runBind(args)
+
 	case "kill-pane":
 		c.killActive()
 

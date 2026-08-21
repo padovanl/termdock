@@ -77,7 +77,7 @@ func Run(sockPath string, cfg config.Config, readOnly bool) error {
 	defer signal.Stop(sigCh)
 
 	for {
-		bye, switchTo, err := attachOnce(screen, sockPath, cfg, readOnly, events, sigCh)
+		bye, switchTo, err := attachOnce(screen, sockPath, cfg, readOnly, events, sigCh, &recolored)
 		if err != nil {
 			return err
 		}
@@ -106,7 +106,7 @@ func Run(sockPath string, cfg config.Config, readOnly bool) error {
 // its event stream are owned by the caller and outlive any one
 // connection, since a session switch reuses them rather than
 // reinitializing the terminal.
-func attachOnce(screen tcell.Screen, sockPath string, cfg config.Config, readOnly bool, events <-chan tcell.Event, sigCh <-chan os.Signal) (bye, switchTo string, err error) {
+func attachOnce(screen tcell.Screen, sockPath string, cfg config.Config, readOnly bool, events <-chan tcell.Event, sigCh <-chan os.Signal, recolored *bool) (bye, switchTo string, err error) {
 	conn, dialErr := net.Dial("unix", sockPath)
 	if dialErr != nil {
 		return "", "", fmt.Errorf("could not connect to session: %w", dialErr)
@@ -145,6 +145,13 @@ func attachOnce(screen tcell.Screen, sockPath string, cfg config.Config, readOnl
 			}
 			switch se.msg.Kind {
 			case "frame":
+				// A session where someone has run ":set" sends its own
+				// look-and-feel settings with every frame; until then this
+				// is nil and the client keeps rendering with its own
+				// config file, so per-client themes still work.
+				if s := se.msg.Frame.Settings; s != nil {
+					cfg = adoptSettings(screen, cfg, *s, recolored)
+				}
 				draw(screen, *se.msg.Frame, cfg)
 			case "clipboard":
 				writeClipboard(se.msg.Clipboard)
@@ -185,6 +192,45 @@ func forwardEvent(enc *gob.Encoder, ev tcell.Event) bool {
 		return true
 	}
 	return enc.Encode(m) == nil
+}
+
+// adoptSettings folds a session's own look-and-feel settings into cfg
+// and makes the ones that aren't just drawing — the terminal's own
+// background/foreground, and whether the mouse is grabbed at all — take
+// effect immediately. A no-op when nothing actually differs, which is the
+// common case: these arrive on every single frame, and re-emitting OSC
+// colour sequences dozens of times a second would make some terminals
+// flicker for no reason.
+func adoptSettings(screen tcell.Screen, cfg config.Config, s proto.ClientSettings, recolored *bool) config.Config {
+	next := cfg
+	next.Mouse = s.Mouse
+	next.StatusBG = tcell.Color(s.StatusBG)
+	next.StatusFG = tcell.Color(s.StatusFG)
+	next.PaneActiveBG = tcell.Color(s.PaneActiveBG)
+	next.PaneBG = tcell.Color(s.PaneBG)
+	next.PaneFG = tcell.Color(s.PaneFG)
+	if next.Mouse == cfg.Mouse && next.StatusBG == cfg.StatusBG && next.StatusFG == cfg.StatusFG &&
+		next.PaneActiveBG == cfg.PaneActiveBG && next.PaneBG == cfg.PaneBG && next.PaneFG == cfg.PaneFG {
+		return cfg // unchanged, and these arrive with every frame
+	}
+	if next.Mouse != cfg.Mouse {
+		if next.Mouse {
+			screen.EnableMouse(tcell.MouseButtonEvents | tcell.MouseDragEvents)
+		} else {
+			screen.DisableMouse()
+		}
+	}
+	if next.PaneBG != cfg.PaneBG || next.PaneFG != cfg.PaneFG {
+		if setTerminalColors(next) {
+			*recolored = true
+		} else if *recolored {
+			// Back to "your terminal's own colours": undo ours rather
+			// than leaving the last theme's painted on.
+			resetTerminalColors()
+			*recolored = false
+		}
+	}
+	return next
 }
 
 // writeClipboard pushes text to the real terminal's system clipboard via

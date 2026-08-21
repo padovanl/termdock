@@ -134,10 +134,16 @@ func ThemeNames() []string {
 // wins regardless of which of the two comes first in the file. Unknown
 // theme names are silently ignored, the same "bad setting, keep the
 // default" leniency every other setting in this package already has.
-func applyTheme(cfg *Config, name string, overridden map[string]bool) {
+// applyTheme sets cfg's five colors from the named preset, skipping any
+// the caller marked as explicitly overridden (a nil map overrides
+// nothing). Reports whether the name was one it knows: the config file
+// discards that answer, since an unrecognized setting there is tolerated
+// in silence like any other, while "set theme ..." typed into a running
+// session uses it to say so out loud.
+func applyTheme(cfg *Config, name string, overridden map[string]bool) bool {
 	t, ok := themes[name]
 	if !ok {
-		return
+		return false
 	}
 	if !overridden["status-bg"] {
 		cfg.StatusBG = t.statusBG
@@ -154,4 +160,5 @@ func applyTheme(cfg *Config, name string, overridden map[string]bool) {
 	if !overridden["pane-fg"] {
 		cfg.PaneFG = t.paneFG
 	}
+	return true
 }

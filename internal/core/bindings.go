@@ -54,6 +54,7 @@ const (
 	actPaste         action = "paste"
 	actPastePicker   action = "paste-picker"
 	actDetach        action = "detach"
+	actSettings      action = "settings"
 	actQuit          action = "quit"
 	actHelp          action = "help"
 )
@@ -99,6 +100,7 @@ var defaultBindings = map[rune]action{
 	']': actPaste,
 	'=': actPastePicker,
 	'd': actDetach,
+	'C': actSettings,
 	'q': actQuit,
 	'?': actHelp,
 }
@@ -116,7 +118,7 @@ var actionOrder = []action{
 	actGlobalSearch, actSwitchSession, actPopup, actOpener,
 	actBreakPane, actQuickJump, actCommandPrompt, actCycleLayout,
 	actRespawnPane, actToggleLogging, actRenameWindow, actRenameSession, actKillWindow,
-	actClosePane, actDetach, actQuit, actHelp,
+	actClosePane, actSettings, actDetach, actQuit, actHelp,
 }
 
 // actionDescriptions is the full-sentence description shown on the
@@ -157,6 +159,7 @@ var actionDescriptions = map[action]string{
 	actKillWindow:    "close the current window and every pane in it (asks first)",
 	actClosePane:     "close the active pane",
 	actDetach:        "detach (session keeps running)",
+	actSettings:      "settings: view and change this session's settings live",
 	actQuit:          "quit (asks first; ends the whole session)",
 	actHelp:          "toggle this help screen",
 }
@@ -200,6 +203,7 @@ var actionShort = map[action]string{
 	actKillWindow:    "kill-win",
 	actClosePane:     "close-pane",
 	actDetach:        "detach",
+	actSettings:      "settings",
 	actQuit:          "quit",
 	actHelp:          "help",
 }

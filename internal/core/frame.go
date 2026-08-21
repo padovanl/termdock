@@ -46,7 +46,7 @@ func (c *Core) Frame() proto.Frame {
 	f.Windows = c.windowTabs()
 	f.StatusText, f.StatusRight, f.StatusStyle = c.statusLine()
 	for _, provider := range []func() *proto.Overlay{
-		c.pickerOverlay, c.helpOverlay, c.registersOverlay, c.sessionsOverlay, c.searchOverlay, c.openerOverlay,
+		c.pickerOverlay, c.helpOverlay, c.settingsOverlay, c.registersOverlay, c.sessionsOverlay, c.searchOverlay, c.openerOverlay,
 	} {
 		if f.Overlay = provider(); f.Overlay != nil {
 			break
@@ -55,6 +55,7 @@ func (c *Core) Frame() proto.Frame {
 	f.Overview = c.overviewFrame()
 	f.Popup = c.popupFrame()
 	f.QuickJump = c.quickJumpFrame()
+	f.Settings = c.clientSettings()
 	return f
 }
 
@@ -261,6 +262,9 @@ func (c *Core) statusLine() (text, right, style string) {
 	case c.mode == ModeOpener:
 		style = "mode"
 		hint = "type to filter, ↑↓ select, enter copies to clipboard, esc cancel"
+	case c.mode == ModeSettings:
+		style = "mode"
+		hint = "↑↓ move, enter edit, S edit+save to the config file, esc close"
 	case c.mode == ModeQuickJump:
 		style = "mode"
 		hint = "press a pane's number to jump there, any other key cancels"

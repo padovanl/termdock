@@ -60,9 +60,9 @@ package config
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
@@ -89,6 +89,12 @@ type Config struct {
 	PaneBG         tcell.Color
 	PaneFG         tcell.Color
 	StatusSegments []string // optional status-bar segments; see internal/core/segments.go
+
+	// Theme is the name of the bundled preset the five colors above came
+	// from, or "" if they weren't set from one (no theme line, or a color
+	// has since been set by hand). Purely so the settings UI can say
+	// which theme is in effect — nothing reads it to decide a color.
+	Theme string
 }
 
 // Default returns the built-in settings, used for anything the config
@@ -155,67 +161,23 @@ func Load() Config {
 			}
 		}
 	}
-	if themeName != "" {
-		applyTheme(&cfg, themeName, overridden)
+	if themeName != "" && applyTheme(&cfg, themeName, overridden) {
+		// Recorded so the settings screen can say which theme is in
+		// effect. Only on success: an unrecognized name changes no
+		// colors, so claiming it as the active theme would be a lie.
+		cfg.Theme = themeName
 	}
 	return cfg
 }
 
+// applySetting applies one "key value" pair from the config file. It
+// goes through the very same Set the interactive "set" command uses, so
+// the two can never drift into understanding a key differently — the
+// only difference is what happens when a value is refused: here it's
+// discarded in silence, keeping a bad line in a file non-fatal (see
+// Load), while a user typing it gets told why.
 func applySetting(cfg *Config, key, val string) {
-	switch key {
-	case "prefix":
-		if k, ok := parseKeyChord(val); ok {
-			cfg.Prefix = k
-		}
-	case "mouse":
-		if b, ok := parseBool(val); ok {
-			cfg.Mouse = b
-		}
-	case "focus-events":
-		if b, ok := parseBool(val); ok {
-			cfg.FocusEvents = b
-		}
-	case "history-limit":
-		if n, err := strconv.Atoi(val); err == nil && n > 0 {
-			cfg.HistoryLimit = n
-		}
-	case "repeat-time":
-		// 0 is meaningful here (disables repeating), unlike history-limit.
-		if n, err := strconv.Atoi(val); err == nil && n >= 0 {
-			cfg.RepeatTime = n
-		}
-	case "shell":
-		cfg.Shell = val
-	case "popup-command":
-		cfg.PopupCommand = val
-	case "status-bg":
-		if c, ok := parseColor(val); ok {
-			cfg.StatusBG = c
-		}
-	case "status-fg":
-		if c, ok := parseColor(val); ok {
-			cfg.StatusFG = c
-		}
-	case "pane-active-bg":
-		if c, ok := parseColor(val); ok {
-			cfg.PaneActiveBG = c
-		}
-	case "pane-bg":
-		if c, ok := parseColor(val); ok {
-			cfg.PaneBG = c
-		}
-	case "pane-fg":
-		if c, ok := parseColor(val); ok {
-			cfg.PaneFG = c
-		}
-	case "status-segments":
-		cfg.StatusSegments = nil
-		for _, s := range strings.Split(val, ",") {
-			if s = strings.TrimSpace(s); s != "" {
-				cfg.StatusSegments = append(cfg.StatusSegments, s)
-			}
-		}
-	}
+	_ = Set(cfg, key, val)
 }
 
 // stripInlineComment drops a trailing "# ..." comment from an already
@@ -344,4 +306,76 @@ func Path() string {
 		dir = filepath.Join(home, ".config")
 	}
 	return filepath.Join(dir, "termdock", "termdock.conf")
+}
+
+// CheckShell reports whether the configured shell can actually be run,
+// with a message that says where the setting came from and what to do
+// about it. The shell is what every pane runs, so a bad one isn't a
+// degraded feature — it takes the whole session down before it starts,
+// and the raw failure ("fork/exec /bin/zsh: no such file or directory")
+// names neither the config file nor the setting that put it there.
+//
+// An empty shell means "use $SHELL", which is not this function's
+// problem: nothing in the config file chose it.
+func CheckShell(shell string) error {
+	if shell == "" {
+		return nil
+	}
+	info, err := os.Stat(shell)
+	switch {
+	case os.IsNotExist(err):
+		return fmt.Errorf("the %q setting in %s points at %s, which does not exist%s",
+			"shell", configSource(), shell, availableShellsHint())
+	case err != nil:
+		return fmt.Errorf("the %q setting in %s points at %s, which cannot be used: %v",
+			"shell", configSource(), shell, err)
+	case info.IsDir():
+		return fmt.Errorf("the %q setting in %s points at %s, which is a directory, not a shell%s",
+			"shell", configSource(), shell, availableShellsHint())
+	case info.Mode()&0111 == 0:
+		return fmt.Errorf("the %q setting in %s points at %s, which is not executable",
+			"shell", configSource(), shell)
+	}
+	return nil
+}
+
+func configSource() string {
+	if p := Path(); p != "" {
+		return p
+	}
+	return "your termdock config"
+}
+
+// availableShellsHint lists the shells this machine actually has, read
+// from /etc/shells — the difference between "that's wrong" and "here is
+// what you can write instead". Silently omitted where there's no such
+// file or nothing readable in it.
+func availableShellsHint() string {
+	data, err := os.ReadFile("/etc/shells")
+	if err != nil {
+		return ""
+	}
+	var found []string
+	seen := map[string]bool{}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if info, err := os.Stat(line); err != nil || info.IsDir() {
+			continue
+		}
+		if !seen[line] {
+			seen[line] = true
+			found = append(found, line)
+		}
+	}
+	if len(found) == 0 {
+		return ""
+	}
+	if len(found) > 6 {
+		found = found[:6]
+	}
+	return ". Available here: " + strings.Join(found, ", ") +
+		` (or remove the "shell" line to use $SHELL)`
 }

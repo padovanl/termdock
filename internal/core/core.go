@@ -16,6 +16,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/padovanl/termdock/internal/config"
 	"github.com/padovanl/termdock/internal/layout"
 	"github.com/padovanl/termdock/internal/pane"
 	"github.com/padovanl/termdock/internal/persist"
@@ -40,6 +41,7 @@ const (
 	ModePopup     // the floating scratch terminal is focused; see popup.go
 	ModeOpener    // type-ahead pick a URL/path spotted on screen; see opener.go
 	ModeQuickJump // display-panes: big numbers overlay, press one to jump; see quickjump.go
+	ModeSettings  // browse/edit the session's settings; see settings.go
 )
 
 // modeNames drives Mode's String, used by the input log (see logInput) —
@@ -51,7 +53,7 @@ var modeNames = map[Mode]string{
 	ModeInput: "input", ModeConfirm: "confirm", ModePicker: "picker",
 	ModeHelp: "help", ModeSessions: "sessions", ModeSearch: "search",
 	ModeOverview: "overview", ModeRegisters: "registers", ModePopup: "popup",
-	ModeOpener: "opener", ModeQuickJump: "quickjump",
+	ModeOpener: "opener", ModeQuickJump: "quickjump", ModeSettings: "settings",
 }
 
 func (m Mode) String() string {
@@ -129,6 +131,12 @@ type Core struct {
 
 	bindings map[rune]action // defaultBindings, overridden per-key by config's "bind" setting; see SetBindOverrides
 
+	// cfg is the session's effective settings — seeded from the config
+	// file at startup, then whatever ":set" has changed since. See
+	// settings.go.
+	cfg                 config.Config
+	clientCfgOverridden bool // a look-and-feel setting was changed here, so clients follow the session rather than their own file
+
 	// bindOverridden marks which runes came from an explicit config
 	// "bind" line rather than defaultBindings. Only the digits need it:
 	// handleKey gives 0-9 their built-in "jump to window N" meaning
@@ -160,6 +168,7 @@ type Core struct {
 	overview     overviewState
 	opener       openerState
 	help         helpState
+	settings     settingsState
 	drag         *dragState
 	tabDrag      *tabDragState
 	contentPress *contentPressState
@@ -323,6 +332,10 @@ func (c *Core) Name() string {
 func (c *Core) SetRepeatTime(ms int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.setRepeatTimeLocked(ms)
+}
+
+func (c *Core) setRepeatTimeLocked(ms int) {
 	if ms < 0 {
 		ms = 0
 	}

@@ -205,6 +205,7 @@ them to a different key.
 | `,` | rename the current window |
 | `$` | 🏷️ **rename this session** — the socket and snapshot move with it (see below) |
 | `&` | ⚠️ close the current window and every pane in it (asks `y`/`n` first) |
+| `C` | ⚙️ **settings**: view and change this session's settings live (see below) |
 | `x` | close the active pane |
 | `d` | **detach**: disconnect from the session, which keeps running in the background |
 | `q` | ⚠️ quit termdock — asks `y`/`n` first (closes the whole session and every window) |
@@ -661,6 +662,11 @@ Optional config file at `$XDG_CONFIG_HOME/termdock/termdock.conf`
 command language, unlike tmux.conf. Everything is optional; a missing
 file just means the defaults below.
 
+You don't have to edit the file and restart, though: **`Ctrl-B C` opens a
+settings screen** listing every setting with its current value, and
+everything in it can be changed on a live session — see
+[⚙️ Changing settings while it runs](#-changing-settings-while-it-runs).
+
 ```conf
 # termdock.conf
 prefix C-a             # prefix key, any Ctrl+letter (default C-b)
@@ -700,6 +706,61 @@ first few seconds after being enabled) so nothing here adds real
 overhead to every redraw. See
 [⌨️ Custom keybindings](#-custom-keybindings) and
 [🎯 Focus events](#-focus-events) above for `bind` and `focus-events`.
+
+### ⚙️ Changing settings while it runs
+
+Editing a file and starting the session over is not the only way to
+change how termdock behaves. **`Ctrl-B C`** opens a settings screen — every
+setting, its current value, and what it does:
+
+```
+prefix           C-b            prefix key, any Ctrl+letter
+mouse            on             mouse support (click, drag, wheel)
+history-limit    10000          scrollback lines kept per pane [new panes]
+shell            (your $SHELL)  shell to launch in new panes [new panes]
+theme            dracula        bundled color preset (sets the five colors below)
+...
+```
+
+`↑`/`↓` move, `Enter` opens the command prompt already filled in with
+that setting and its current value so you can edit it in place, `S` does
+the same but saves the result to your config file too, `Esc` closes.
+
+The same thing from the command prompt (`Ctrl-B :`), which is what
+`Enter` above is a shortcut for:
+
+```
+set theme gruvbox          # change it for this session
+set -p theme gruvbox       # ...and save it to termdock.conf
+set history-limit          # with no value: report what it currently is
+set                        # with no key at all: open the settings screen
+bind M jump-picker         # rebind a key, same vocabulary as the config file
+```
+
+Settings use the exact same names and values as the config file — one
+vocabulary, one set of rules — and a value that isn't accepted says why,
+rather than being quietly ignored the way a bad line in the file is:
+
+```
+set theme nonsuch
+  → no bundled theme called "nonsuch" — try one of: catppuccin, dracula, ...
+set shell /bin/zsh
+  → the "shell" setting in ~/.config/termdock/termdock.conf points at
+    /bin/zsh, which does not exist. Available here: /bin/sh, /bin/bash, ...
+```
+
+Two things worth knowing. A few settings are read when a *pane* is
+created (`shell`, `history-limit`) — changing one affects the next pane
+you open and leaves the ones already running alone, and the confirmation
+says so. And **nothing is written to your config file unless you ask**:
+plain `set` changes the running session only, `set -p` (or `S` on the
+settings screen) saves it, rewriting just that one line and leaving your
+comments and ordering exactly as you wrote them.
+
+Colors and `mouse` are normally each client's own business, so two people
+attached to one session can theme it differently (see below). Once
+someone runs `set` on one of them, though, that choice belongs to the
+session, and every attached client follows it immediately.
 
 ### 🎨 Themes
 

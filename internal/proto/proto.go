@@ -97,6 +97,24 @@ type QuickJumpTag struct {
 	Digit rune
 }
 
+// ClientSettings carries the look-and-feel settings a client would
+// otherwise read from its own config file. Sent only once something has
+// changed them *in the running session* (see the "set" command): until
+// then it's nil and each client keeps its own file's colors, so two
+// people attached to one session can still theme it differently. Once a
+// change is made to the session, though, it belongs to the session, and
+// every attached client follows it.
+//
+// Colors are tcell.Color values; the client converts them back.
+type ClientSettings struct {
+	Mouse        bool
+	StatusBG     uint64
+	StatusFG     uint64
+	PaneActiveBG uint64
+	PaneBG       uint64
+	PaneFG       uint64
+}
+
 // Frame is a full snapshot of everything the client needs to paint.
 // The server sends one whenever session state changes.
 type Frame struct {
@@ -112,7 +130,8 @@ type Frame struct {
 	Overlay      *Overlay   // non-nil while a modal (e.g. the jump picker) is open
 	Overview     *Overview  // non-nil while the Ctrl-B g pane grid is open; drawn instead of Panes
 	Popup        *PaneFrame // non-nil while the Ctrl-B P floating scratch terminal is open
-	QuickJump    []QuickJumpTag // non-empty while Ctrl-B Q's display-panes overlay is open
+	QuickJump    []QuickJumpTag  // non-empty while Ctrl-B Q's display-panes overlay is open
+	Settings     *ClientSettings // non-nil once "set" has changed a look-and-feel setting in this session
 }
 
 // WindowInfo and PaneInfo answer the list-windows/list-panes CLI

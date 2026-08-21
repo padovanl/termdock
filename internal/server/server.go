@@ -24,6 +24,15 @@ import (
 // Run starts the daemon for a session and blocks until it shuts down
 // (either the last pane exits, or a client sends a kill message).
 func Run(name, sockPath string, cfg config.Config) error {
+	// Checked up front, because getting it wrong takes the whole session
+	// down: the shell is what every pane runs, so a path that isn't there
+	// means core.New can't create even the first one and the daemon exits
+	// before it ever listens. Left to fail on its own it surfaces as
+	// "fork/exec /bin/zsh: no such file or directory", which says nothing
+	// about where that path came from or what to do about it.
+	if err := config.CheckShell(cfg.Shell); err != nil {
+		return err
+	}
 	// Applies to every pane this process creates; must happen before
 	// core.New spawns the first one.
 	pane.SetDefaults(cfg.Shell, cfg.HistoryLimit)
@@ -32,12 +41,12 @@ func Run(name, sockPath string, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	c.SetPrefixKey(cfg.Prefix)
-	c.SetStatusSegments(cfg.StatusSegments)
-	c.SetPopupCommand(cfg.PopupCommand)
-	c.SetFocusEvents(cfg.FocusEvents)
+	// One call rather than a setter each: the session keeps the whole
+	// config so ":set" can change any of it later (see internal/core's
+	// settings.go). Bind overrides stay separate — they're additive, one
+	// line per key, rather than a single value to replace.
+	c.ApplyConfig(cfg)
 	c.SetBindOverrides(cfg.BindOverrides)
-	c.SetRepeatTime(cfg.RepeatTime)
 	// core deliberately doesn't import server (server already imports
 	// core; Go disallows the cycle), so it can't discover sibling
 	// sessions itself — supplied here instead, for Ctrl-B S.

@@ -449,3 +449,68 @@ status-segments git,battery,cpu,mem  # extra segments in the status bar (default
 		t.Errorf("StatusSegments = %v, want 4 of them", cfg.StatusSegments)
 	}
 }
+
+// TestLoadRecordsTheThemeName: the colors were applied but the name
+// wasn't kept, so the settings screen reported "(none)" for a session
+// that was plainly themed.
+func TestLoadRecordsTheThemeName(t *testing.T) {
+	if cfg := loadFrom(t, "theme nord\n"); cfg.Theme != "nord" {
+		t.Errorf("Theme = %q, want nord", cfg.Theme)
+	}
+	if cfg := loadFrom(t, "theme nonsuch\n"); cfg.Theme != "" {
+		t.Errorf("Theme = %q after an unknown name, want empty — it changed no colors", cfg.Theme)
+	}
+	if cfg := loadFrom(t, ""); cfg.Theme != "" {
+		t.Errorf("Theme = %q with no theme line, want empty", cfg.Theme)
+	}
+}
+
+func TestSettingsVocabularyRoundTrips(t *testing.T) {
+	// Every key's Get must produce something Set accepts back, or the
+	// settings screen would prefill the prompt with a value that then
+	// gets refused.
+	cfg := Default()
+	for _, s := range Settings() {
+		v := Get(&cfg, s.Key)
+		if strings.HasPrefix(v, "(") {
+			continue // a description of "unset", not a literal value
+		}
+		round := cfg
+		if err := Set(&round, s.Key, v); err != nil {
+			t.Errorf("Set(%s, %q) — its own current value — failed: %v", s.Key, v, err)
+			continue
+		}
+		if got := Get(&round, s.Key); got != v {
+			t.Errorf("%s round-tripped %q -> %q", s.Key, v, got)
+		}
+	}
+}
+
+func TestSetIsTheSameVocabularyAsTheFile(t *testing.T) {
+	// Anything the file understands, "set" must understand identically —
+	// they share one implementation precisely so this holds.
+	fromFile := loadFrom(t, "repeat-time 250\nfocus-events on\ntheme dracula\n")
+
+	fromSet := Default()
+	for _, line := range [][2]string{{"repeat-time", "250"}, {"focus-events", "on"}, {"theme", "dracula"}} {
+		if err := Set(&fromSet, line[0], line[1]); err != nil {
+			t.Fatalf("Set(%s %s): %v", line[0], line[1], err)
+		}
+	}
+
+	if fromSet.RepeatTime != fromFile.RepeatTime || fromSet.FocusEvents != fromFile.FocusEvents ||
+		fromSet.PaneActiveBG != fromFile.PaneActiveBG || fromSet.Theme != fromFile.Theme {
+		t.Errorf("set and the config file disagree:\n set  = %+v\n file = %+v", fromSet, fromFile)
+	}
+}
+
+func TestSetUnknownKeyListsTheRealOnes(t *testing.T) {
+	cfg := Default()
+	err := Set(&cfg, "colour-scheme", "dracula")
+	if err == nil {
+		t.Fatal("an unknown key should be refused")
+	}
+	if !strings.Contains(err.Error(), "theme") {
+		t.Errorf("the error should list the keys that do exist, got %q", err)
+	}
+}

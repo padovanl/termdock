@@ -25,18 +25,24 @@ func (c *Core) handleMouse(m proto.ClientMsg) Result {
 		// click shouldn't be able to act on whatever's underneath while
 		// any of them are up.
 		return Result{}
-	case ModeHelp:
-		// Same rule for clicks, but the help screen is a long scrollable
-		// list and the wheel is the first thing anyone reaches for on
+	case ModeHelp, ModeSettings:
+		// Same rule for clicks, but both of these are long scrollable
+		// lists and the wheel is the first thing anyone reaches for on
 		// one — especially on a short terminal, which is exactly where
 		// the list doesn't fit and scrolling matters most.
+		delta := 0
 		switch {
 		case buttons&tcell.WheelUp != 0:
-			c.scrollHelp(-3)
+			delta = -3
 		case buttons&tcell.WheelDown != 0:
-			c.scrollHelp(3)
+			delta = 3
 		default:
 			return Result{}
+		}
+		if c.mode == ModeHelp {
+			c.scrollHelp(delta)
+		} else {
+			c.scrollSettings(delta)
 		}
 		c.markDirty()
 		return Result{}

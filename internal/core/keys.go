@@ -78,6 +78,10 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 		c.handleQuickJumpKey(key, r)
 		c.markDirty()
 		return Result{}
+	case ModeSettings:
+		c.handleSettingsKey(key, r)
+		c.markDirty()
+		return Result{}
 	}
 
 	if !c.prefix {
@@ -267,6 +271,8 @@ func (c *Core) dispatchAction(act action) Result {
 		res.Detach = true
 	case actQuit:
 		c.confirmQuit()
+	case actSettings:
+		c.enterSettings()
 	case actHelp:
 		c.enterHelp()
 	}
