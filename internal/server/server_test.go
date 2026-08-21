@@ -117,6 +117,10 @@ func recvUntil(t *testing.T, dec *gob.Decoder, timeout time.Duration, pred func(
 		err error
 	}
 	ch := make(chan result, 1)
+	// pred is evaluated on both this goroutine and the caller's, so it
+	// must be pure: capturing the matched message from inside it is a
+	// data race (use the returned value instead, which is what it is
+	// for).
 	go func() {
 		for {
 			var m proto.ServerMsg
@@ -549,5 +553,30 @@ func TestRenameSessionRefusesAnExistingName(t *testing.T) {
 	})
 	if _, ok := Probe(sockA); !ok {
 		t.Fatal("session A should still be reachable on its original socket after a refused rename")
+	}
+}
+
+// Quitting from inside the session (Ctrl-B q, confirmed) must tell the
+// attached clients so, rather than leaving them to notice the socket has
+// gone quiet — which the client reports as "connection to session lost",
+// the wording for a dropped link, making a clean exit look like a fault.
+func TestQuitSendsByeToAttachedClients(t *testing.T) {
+	sock, _ := startSession(t, "test-quit-bye-e2e")
+
+	conn, enc, dec := dial(t, sock, false)
+	defer conn.Close()
+
+	sendKey(t, enc, tcell.KeyCtrlB, 0)
+	sendKey(t, enc, tcell.KeyRune, 'q')
+	recvUntil(t, dec, 5*time.Second, func(m proto.ServerMsg) bool {
+		return m.Kind == "frame" && m.Frame != nil && strings.Contains(m.Frame.StatusText, "quit")
+	})
+	sendKey(t, enc, tcell.KeyRune, 'y') // confirm
+
+	bye := recvUntil(t, dec, 5*time.Second, func(m proto.ServerMsg) bool {
+		return m.Kind == "bye"
+	})
+	if bye.Bye == "" {
+		t.Fatal("the bye message should carry a reason for the client to print")
 	}
 }

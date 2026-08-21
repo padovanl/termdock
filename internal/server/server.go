@@ -113,6 +113,14 @@ func Run(name, sockPath string, cfg config.Config) error {
 	var once sync.Once
 	stop := func() {
 		once.Do(func() {
+			// Tell whoever is watching *why* the session is going away,
+			// before the socket disappears under them. Without this an
+			// ordinary Ctrl-B q ended with the client reporting
+			// "connection to session lost" — the wording for a dropped
+			// link — because a deliberate shutdown and a crashed daemon
+			// looked identical from the far end: the connection simply
+			// stopped answering.
+			s.byeAll("session ended")
 			c.Shutdown()
 			ln.Close()
 			liveMu.Lock()
@@ -223,6 +231,18 @@ func (s *Session) broadcastBell() {
 		if err := cc.send(proto.ServerMsg{Kind: "bell"}); err != nil {
 			go cc.conn.Close()
 		}
+	}
+}
+
+// byeAll sends every attached client a parting message, so each one can
+// exit reporting what happened rather than inferring it from the socket
+// going quiet. Best-effort by design: a client that has already gone is
+// nothing to worry about at shutdown.
+func (s *Session) byeAll(reason string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for cc := range s.clients {
+		_ = cc.send(proto.ServerMsg{Kind: "bye", Bye: reason})
 	}
 }
 
