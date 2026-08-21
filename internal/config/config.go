@@ -28,12 +28,13 @@
 //	                       one key per line; <key> is a single character
 //	                       or "Space"; see internal/core/bindings.go for
 //	                       the full list of action names
-//	theme <name>           bundled color preset: dracula, nord, gruvbox,
-//	                       catppuccin, solarized or tokyo-night (run
-//	                       "termdock themes" for the live list). Applied
-//	                       before status-bg/status-fg/pane-active-bg below,
-//	                       so any of those three still overrides it
-//	                       regardless of which comes first in the file.
+//	theme <name>           bundled color preset: catppuccin, dracula,
+//	                       everforest, gruvbox, monokai, nord, one-dark,
+//	                       rose-pine, solarized, tokyo-night or ubuntu
+//	                       (run "termdock themes" for the live list).
+//	                       Applied before status-bg/status-fg/pane-active-bg
+//	                       below, so any of those three still overrides
+//	                       it regardless of which comes first in the file.
 //	                       An unrecognized name is ignored, like every
 //	                       other setting here
 //	status-bg <color>      status bar background (default black)

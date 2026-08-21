@@ -51,6 +51,31 @@ var themes = map[string]theme{
 		statusFG:     tcell.NewHexColor(0xc0caf5), // Tokyo Night foreground
 		paneActiveBG: tcell.NewHexColor(0x7aa2f7), // Tokyo Night blue
 	},
+	"ubuntu": {
+		statusBG:     tcell.NewHexColor(0x300a24), // Ubuntu terminal aubergine
+		statusFG:     tcell.NewHexColor(0xeeeeec), // Ubuntu terminal foreground
+		paneActiveBG: tcell.NewHexColor(0xe95420), // Ubuntu brand orange
+	},
+	"monokai": {
+		statusBG:     tcell.NewHexColor(0x272822), // Monokai background
+		statusFG:     tcell.NewHexColor(0xf8f8f2), // Monokai foreground
+		paneActiveBG: tcell.NewHexColor(0xa6e22e), // Monokai green
+	},
+	"one-dark": {
+		statusBG:     tcell.NewHexColor(0x282c34), // One Dark background
+		statusFG:     tcell.NewHexColor(0xabb2bf), // One Dark foreground
+		paneActiveBG: tcell.NewHexColor(0x61afef), // One Dark blue
+	},
+	"everforest": {
+		statusBG:     tcell.NewHexColor(0x2d353b), // Everforest dark bg0
+		statusFG:     tcell.NewHexColor(0xd3c6aa), // Everforest dark fg
+		paneActiveBG: tcell.NewHexColor(0xa7c080), // Everforest green
+	},
+	"rose-pine": {
+		statusBG:     tcell.NewHexColor(0x191724), // Rosé Pine base
+		statusFG:     tcell.NewHexColor(0xe0def4), // Rosé Pine text
+		paneActiveBG: tcell.NewHexColor(0xc4a7e7), // Rosé Pine iris
+	},
 }
 
 // ThemeNames lists every built-in theme, sorted — what "termdock

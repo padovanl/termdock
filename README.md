@@ -50,7 +50,7 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
 | 🧱 **Preset layouts** | `Ctrl-B Space` cycles tiled / even-columns / even-rows | tmux's `next-layout`, same key, same idea |
 | 🔁 **Respawn a pane** | `Ctrl-B R` restarts the shell in place, no confirmation needed (same as `x`) | tmux's `respawn-pane` has no default binding and needs `-k` to force a live pane |
 | 📝 **Log a pane to a file** | `Ctrl-B L` toggles it, no path to type, `[REC]` on the title | tmux needs the external tmux-logging plugin, or a hand-written `pipe-pane` |
-| 🎨 **Ready-made color themes** | built in — one `theme <name>` config line (Dracula, Nord, Gruvbox, Catppuccin, Solarized, Tokyo Night), no plugin | tmux needs the external tmux-themepack or a per-theme plugin |
+| 🎨 **Ready-made color themes** | built in — 11 of them, one `theme <name>` config line (Dracula, Nord, Gruvbox, Catppuccin, Solarized, Tokyo Night, Ubuntu, Monokai, One Dark, Everforest, Rosé Pine), no plugin | tmux needs the external tmux-themepack or a per-theme plugin |
 | ⏮️ **Toggle the last window** | `Ctrl-B W` flips back to whichever window you were just on | `Ctrl-B l`, same idea (termdock's own `l` is pane-left, vim-style) |
 | ⏮️ **Toggle the last pane** | `Ctrl-B ;` flips back to whichever pane you were just on in this window | `Ctrl-B ;`, same key, same idea |
 | 📈 **CPU / memory segments** | built in, read straight from `/proc`, no subprocess | tmux needs the external `tmux-cpu`/`tmux-mem-cpu-load` plugins |
@@ -703,8 +703,9 @@ from a bundled, accurately-sourced palette built directly into
 termdock — no plugin, no plugin manager, nothing to install: the same
 convenience tmux users need an external plugin
 (tmux-themepack/Catppuccin-for-tmux/dracula-tmux/nord-tmux) for. Built
-in: `dracula`, `nord`, `gruvbox`, `catppuccin`, `solarized`,
-`tokyo-night` (the demo screenshot above is running `theme dracula`). A
+in: `catppuccin`, `dracula`, `everforest`, `gruvbox`, `monokai`,
+`nord`, `one-dark`, `rose-pine`, `solarized`, `tokyo-night`, `ubuntu`
+(the demo screenshot above is running `theme dracula`). A
 theme is always just a *baseline*: an explicit `status-bg`/`status-fg`/
 `pane-active-bg` line in the same config still overrides just that one
 color, regardless of whether it comes before or after the `theme` line —

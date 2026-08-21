@@ -177,6 +177,20 @@ func TestEveryThemeNameAppliesRealColors(t *testing.T) {
 	}
 }
 
+// Two themes with the same three colors would both be listed by
+// "termdock themes" as real choices while being impossible to tell
+// apart — most likely a copy-paste when adding one.
+func TestThemesAreVisuallyDistinct(t *testing.T) {
+	seen := map[theme]string{}
+	for _, name := range ThemeNames() {
+		th := themes[name]
+		if other, dup := seen[th]; dup {
+			t.Errorf("theme %q has exactly the same colors as %q", name, other)
+		}
+		seen[th] = name
+	}
+}
+
 // ThemeNames must stay sorted: it is user-facing output ("termdock
 // themes"), and map iteration order is random.
 func TestThemeNamesAreSorted(t *testing.T) {
