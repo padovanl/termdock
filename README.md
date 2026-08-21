@@ -733,7 +733,16 @@ emulators draw a few pixels of padding around that grid in their own
 background colour — so without this a fully themed session still sat in
 a thin frame of whatever your terminal profile uses. The emulator's own
 colours are put back (`OSC 110`/`111`) when you detach or quit; with no
-theme set, nothing is sent and your terminal is never touched. Output that asks for
+theme set, nothing is sent and your terminal is never touched.
+
+For the two to actually match, termdock also opts tcell into 24-bit
+colour (`TCELL_TRUECOLOR`) when a theme is set. The stock
+`xterm-256color` terminfo entry doesn't advertise RGB, so without it the
+theme's colours get quantised to the nearest of 256 palette slots in the
+*cells* while the emulator receives the exact hex — two almost-matching
+darks with a seam along every pane border. An existing `COLORTERM` or
+`TCELL_TRUECOLOR` is left alone, so `TCELL_TRUECOLOR=disable` keeps the
+old behaviour if your terminal really is 256-colour only. Output that asks for
 a specific colour is never repainted. Want a theme's chrome but your
 own background? `pane-bg default` opts that one piece back out.
 

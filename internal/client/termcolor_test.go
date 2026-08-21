@@ -94,3 +94,55 @@ func captureStdout(t *testing.T, fn func()) string {
 	}
 	return string(out)
 }
+
+// The cells and the OSC background must end up the same colour, which
+// means tcell has to be in 24-bit mode whenever a theme is active —
+// otherwise it quantises the cells to the 256-colour palette while the
+// emulator gets the exact hex, and the two disagree.
+func TestThemeOptsIntoTrueColor(t *testing.T) {
+	t.Setenv("TCELL_TRUECOLOR", "")
+	t.Setenv("COLORTERM", "")
+
+	cfg := config.Default()
+	cfg.PaneBG = tcell.NewHexColor(0x300a24)
+	enableTrueColorForTheme(cfg)
+	if got := os.Getenv("TCELL_TRUECOLOR"); got != "enable" {
+		t.Fatalf("TCELL_TRUECOLOR = %q, want %q", got, "enable")
+	}
+}
+
+// An unthemed session has no exact colours to preserve, so it must not
+// change how anyone's terminal renders.
+func TestNoThemeDoesNotTouchTrueColor(t *testing.T) {
+	t.Setenv("TCELL_TRUECOLOR", "")
+	t.Setenv("COLORTERM", "")
+
+	enableTrueColorForTheme(config.Default())
+	if got := os.Getenv("TCELL_TRUECOLOR"); got != "" {
+		t.Fatalf("TCELL_TRUECOLOR = %q, want it left alone", got)
+	}
+}
+
+// An explicit setting is the user's decision and must win — including
+// "disable", which is how someone keeps the old quantised rendering.
+func TestExplicitColorEnvIsRespected(t *testing.T) {
+	cfg := config.Default()
+	cfg.PaneBG = tcell.NewHexColor(0x300a24)
+
+	t.Run("TCELL_TRUECOLOR=disable", func(t *testing.T) {
+		t.Setenv("TCELL_TRUECOLOR", "disable")
+		t.Setenv("COLORTERM", "")
+		enableTrueColorForTheme(cfg)
+		if got := os.Getenv("TCELL_TRUECOLOR"); got != "disable" {
+			t.Fatalf("TCELL_TRUECOLOR = %q, want it left at %q", got, "disable")
+		}
+	})
+	t.Run("COLORTERM already set", func(t *testing.T) {
+		t.Setenv("TCELL_TRUECOLOR", "")
+		t.Setenv("COLORTERM", "truecolor")
+		enableTrueColorForTheme(cfg)
+		if got := os.Getenv("TCELL_TRUECOLOR"); got != "" {
+			t.Fatalf("TCELL_TRUECOLOR = %q, want it left alone when COLORTERM decides", got)
+		}
+	})
+}

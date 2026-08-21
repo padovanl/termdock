@@ -34,6 +34,7 @@ import (
 // flash-and-redraw on every hop the way exiting and relaunching would
 // cause.
 func Run(sockPath string, cfg config.Config, readOnly bool) error {
+	enableTrueColorForTheme(cfg)
 	screen, err := tcell.NewScreen()
 	if err != nil {
 		return err
@@ -189,6 +190,32 @@ func forwardEvent(enc *gob.Encoder, ev tcell.Event) bool {
 // writeClipboard pushes text to the real terminal's system clipboard via
 // OSC52, bypassing tcell (which has no API for arbitrary escape
 // sequences) by writing straight to stdout.
+// enableTrueColorForTheme opts tcell into 24-bit colour when a theme is
+// in play, unless the environment has already said something about it.
+//
+// Without this the theme's colours arrive by two different routes that
+// disagree. tcell only emits 24-bit sequences if the terminfo entry
+// advertises RGB, and the stock xterm-256color entry does not — so it
+// quantises every theme colour to the nearest of 256 palette slots.
+// setTerminalColors, meanwhile, hands the emulator the exact hex over
+// OSC 11. The result was a session whose padding was the real colour
+// and whose cells were an approximation of it: two almost-but-not-quite
+// matching darks, with a visible seam at the pane borders.
+//
+// TCELL_TRUECOLOR is tcell's own opt-in for exactly this. An existing
+// TCELL_TRUECOLOR or COLORTERM is left alone: both are the user (or
+// their terminal) having already decided, and "TCELL_TRUECOLOR=disable"
+// stays the way to keep the old quantised behaviour.
+func enableTrueColorForTheme(cfg config.Config) {
+	if _, themed := oscColor(cfg.PaneBG); !themed {
+		return
+	}
+	if os.Getenv("TCELL_TRUECOLOR") != "" || os.Getenv("COLORTERM") != "" {
+		return
+	}
+	os.Setenv("TCELL_TRUECOLOR", "enable")
+}
+
 // setTerminalColors asks the terminal emulator itself to adopt the
 // theme's pane colours, via OSC 10 (default foreground) and OSC 11
 // (default background). Reports whether it changed anything, so the
