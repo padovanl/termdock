@@ -576,7 +576,9 @@ func TestQuitSendsByeToAttachedClients(t *testing.T) {
 	bye := recvUntil(t, dec, 5*time.Second, func(m proto.ServerMsg) bool {
 		return m.Kind == "bye"
 	})
-	if bye.Bye == "" {
-		t.Fatal("the bye message should carry a reason for the client to print")
+	// Naming the session matters when several are open: "session ended"
+	// alone leaves you guessing which one you just closed.
+	if !strings.Contains(bye.Bye, "test-quit-bye-e2e") {
+		t.Fatalf("bye message %q should name the session that ended", bye.Bye)
 	}
 }

@@ -304,6 +304,18 @@ func (c *Core) SetBindOverrides(overrides map[rune]string) {
 	}
 }
 
+// Name returns the session's current name, read under the lock: a
+// session can be renamed while it runs (Ctrl-B $, see
+// applySessionRename), from the input goroutine, while the server
+// reads the name on another to answer a query or say goodbye. Reading
+// the field directly from outside core is a data race the moment
+// renaming exists.
+func (c *Core) Name() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.SessionName
+}
+
 // SetRepeatTime sets how long a bare arrow key keeps repeating a focus
 // move after a prefixed one (config's "repeat-time", in milliseconds);
 // 0 disables repeating entirely. Call before the session has any
