@@ -325,6 +325,16 @@ func (s *Session) handleConn(conn net.Conn, stop func()) {
 		conn.Close()
 		return
 
+	case "save-layout":
+		enc.Encode(cliReply(s.core.SaveLayout(hello.CLIName)))
+		conn.Close()
+		return
+
+	case "apply-layout":
+		enc.Encode(cliReply(s.core.ApplyLayout(hello.CLIName)))
+		conn.Close()
+		return
+
 	case "select-pane":
 		err := s.core.CLISelectPane(hello.WindowIdx, hello.WindowName, hello.CLIDirection)
 		enc.Encode(cliReply(err))
