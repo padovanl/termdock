@@ -23,13 +23,18 @@ const (
 )
 
 func draw(screen tcell.Screen, f proto.Frame, cfg config.Config) {
+	// Clear() paints with the screen's default style, which is also what
+	// shows through the margin around the layout and behind the pane
+	// borders — so it has to carry the theme too, or a themed session
+	// sits in a frame of the emulator's own background.
+	screen.SetStyle(tcell.StyleDefault.Foreground(cfg.PaneFG).Background(cfg.PaneBG))
 	screen.Clear()
 
 	if f.Overview != nil {
 		drawOverview(screen, f, cfg)
 	} else {
 		for _, p := range f.Panes {
-			drawPaneContent(screen, p)
+			drawPaneContent(screen, p, cfg)
 		}
 		drawBorders(screen, f, cfg)
 	}
@@ -88,7 +93,7 @@ func drawPopup(screen tcell.Screen, p proto.PaneFrame, cfg config.Config) {
 	fillRect(screen, r.X-1, r.Y-1, r.W+2, r.H+2, tcell.StyleDefault.Background(tcell.ColorBlack))
 	drawFloatingBorder(screen, r.X-1, r.Y-1, r.W+2, r.H+2, accent)
 	overlayText(screen, r.X+1, r.Y-1, r.X+r.W, accent, " "+p.Title+" ")
-	drawPaneContent(screen, p)
+	drawPaneContent(screen, p, cfg)
 }
 
 // drawOverview paints the Ctrl-B g "mission control" grid: every pane's
@@ -108,21 +113,21 @@ func drawOverview(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 		if tile.Active {
 			style = accentStyle
 		}
-		fillRect(screen, r.X, r.Y, r.W, r.H, tcell.StyleDefault)
+		fillRect(screen, r.X, r.Y, r.W, r.H, tcell.StyleDefault.Background(cfg.PaneBG))
 		drawFloatingBorder(screen, r.X, r.Y, r.W, r.H, style)
 		overlayText(screen, r.X+2, r.Y, r.X+r.W-1, style, " "+tile.Title+" ")
 		for y, row := range tile.Cells {
 			for x, cell := range row {
 				cx, cy := r.X+1+x, r.Y+1+y
 				if cx < r.X+r.W-1 && cy < r.Y+r.H-1 {
-					screen.SetContent(cx, cy, cellRune(cell), nil, cellStyle(cell))
+					screen.SetContent(cx, cy, cellRune(cell), nil, cellStyle(cell, cfg))
 				}
 			}
 		}
 	}
 }
 
-func drawPaneContent(screen tcell.Screen, p proto.PaneFrame) {
+func drawPaneContent(screen tcell.Screen, p proto.PaneFrame, cfg config.Config) {
 	r := p.Rect
 	if r.W <= 0 || r.H <= 0 {
 		return
@@ -130,7 +135,7 @@ func drawPaneContent(screen tcell.Screen, p proto.PaneFrame) {
 
 	for y, row := range p.Cells {
 		for x, cell := range row {
-			screen.SetContent(r.X+x, r.Y+y, cellRune(cell), nil, cellStyle(cell))
+			screen.SetContent(r.X+x, r.Y+y, cellRune(cell), nil, cellStyle(cell, cfg))
 		}
 	}
 
@@ -144,11 +149,25 @@ func drawPaneContent(screen tcell.Screen, p proto.PaneFrame) {
 }
 
 // cellStyle and cellRune decode one proto.Cell into what tcell.SetContent
-// wants — shared by real pane content (drawPaneContent) and the picker's
-// preview box (drawPreviewBox), which paints a snapshot of real pane
-// content the same way.
-func cellStyle(cell proto.Cell) tcell.Style {
-	style := tcell.StyleDefault.Foreground(convColor(cell.FG)).Background(convColor(cell.BG))
+// wants — shared by real pane content (drawPaneContent), the overview's
+// tiles and the picker's preview box, which all paint pane content.
+//
+// cellStyle turns one pane cell into a tcell style. A cell the running
+// program never styled comes through as ColorDefault, which tcell hands
+// to the terminal emulator's own default colours; substituting the
+// theme's pane background/foreground there is what makes a theme cover
+// the panes and not just termdock's own chrome. With no theme (and no
+// explicit pane-bg/pane-fg) both are ColorDefault and this is a no-op,
+// leaving the emulator's colours exactly as before.
+func cellStyle(cell proto.Cell, cfg config.Config) tcell.Style {
+	fg, bg := convColor(cell.FG), convColor(cell.BG)
+	if fg == tcell.ColorDefault {
+		fg = cfg.PaneFG
+	}
+	if bg == tcell.ColorDefault {
+		bg = cfg.PaneBG
+	}
+	style := tcell.StyleDefault.Foreground(fg).Background(bg)
 	if cell.Attr&attrBold != 0 {
 		style = style.Bold(true)
 	}
@@ -567,7 +586,7 @@ func drawPreviewBox(screen tcell.Screen, x0, y0, w, h int, cells [][]proto.Cell,
 			if x >= w-2 { // likewise for the left/right border columns
 				break
 			}
-			screen.SetContent(x0+1+x, y0+1+y, cellRune(cell), nil, cellStyle(cell))
+			screen.SetContent(x0+1+x, y0+1+y, cellRune(cell), nil, cellStyle(cell, cfg))
 		}
 	}
 }

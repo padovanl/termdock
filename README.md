@@ -50,7 +50,7 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
 | 🧱 **Preset layouts** | `Ctrl-B Space` cycles tiled / even-columns / even-rows | tmux's `next-layout`, same key, same idea |
 | 🔁 **Respawn a pane** | `Ctrl-B R` restarts the shell in place, no confirmation needed (same as `x`) | tmux's `respawn-pane` has no default binding and needs `-k` to force a live pane |
 | 📝 **Log a pane to a file** | `Ctrl-B L` toggles it, no path to type, `[REC]` on the title | tmux needs the external tmux-logging plugin, or a hand-written `pipe-pane` |
-| 🎨 **Ready-made color themes** | built in — 11 of them, one `theme <name>` config line (Dracula, Nord, Gruvbox, Catppuccin, Solarized, Tokyo Night, Ubuntu, Monokai, One Dark, Everforest, Rosé Pine), no plugin | tmux needs the external tmux-themepack or a per-theme plugin |
+| 🎨 **Ready-made color themes** | built in — 11 of them, colouring the pane backgrounds too, not just the status bar, one `theme <name>` config line (Dracula, Nord, Gruvbox, Catppuccin, Solarized, Tokyo Night, Ubuntu, Monokai, One Dark, Everforest, Rosé Pine), no plugin | tmux needs the external tmux-themepack or a per-theme plugin |
 | ⏮️ **Toggle the last window** | `Ctrl-B W` flips back to whichever window you were just on | `Ctrl-B l`, same idea (termdock's own `l` is pane-left, vim-style) |
 | ⏮️ **Toggle the last pane** | `Ctrl-B ;` flips back to whichever pane you were just on in this window | `Ctrl-B ;`, same key, same idea |
 | 📈 **CPU / memory segments** | built in, read straight from `/proc`, no subprocess | tmux needs the external `tmux-cpu`/`tmux-mem-cpu-load` plugins |
@@ -675,6 +675,8 @@ theme dracula            # bundled color preset (default: none, see below)
 status-bg black          # status bar background (default black)
 status-fg silver         # status bar foreground (default silver)
 pane-active-bg teal       # active pane's border/title color (default teal)
+pane-bg default          # background behind unstyled pane content (default: your terminal's)
+pane-fg default          # foreground for unstyled pane content (default: your terminal's)
 status-segments git,battery,cpu,mem  # extra segments in the status bar (default: none)
 ```
 
@@ -698,20 +700,31 @@ overhead to every redraw. See
 
 ### 🎨 Themes
 
-`theme <name>` sets `status-bg`/`status-fg`/`pane-active-bg` all at once
-from a bundled, accurately-sourced palette built directly into
+`theme <name>` sets `status-bg`/`status-fg`/`pane-active-bg`/`pane-bg`/
+`pane-fg` all at once from a bundled, accurately-sourced palette built directly into
 termdock — no plugin, no plugin manager, nothing to install: the same
 convenience tmux users need an external plugin
 (tmux-themepack/Catppuccin-for-tmux/dracula-tmux/nord-tmux) for. Built
 in: `catppuccin`, `dracula`, `everforest`, `gruvbox`, `monokai`,
 `nord`, `one-dark`, `rose-pine`, `solarized`, `tokyo-night`, `ubuntu`
-(the demo screenshot above is running `theme dracula`). A
-theme is always just a *baseline*: an explicit `status-bg`/`status-fg`/
+(the demo screenshot above is running `theme dracula`).
+
+A theme is always just a *baseline*: an explicit `status-bg`/`status-fg`/
 `pane-active-bg` line in the same config still overrides just that one
 color, regardless of whether it comes before or after the `theme` line —
 so `theme nord` plus a single `pane-active-bg` tweak works exactly like
-you'd expect. An unknown theme name is silently ignored, the same
-leniency every other setting in `termdock.conf` already has, falling
+you'd expect.
+
+A theme covers the **pane backgrounds** too, not just termdock's own
+chrome: `pane-bg`/`pane-fg` colour every cell the program running in a
+pane left unstyled, which is exactly what your terminal emulator's own
+background/foreground would otherwise do — so a themed session looks
+themed all the way out to the margins, instead of a coloured status bar
+floating on whatever your emulator happens to use. Output that asks for
+a specific colour is never repainted. Want a theme's chrome but your
+own background? `pane-bg default` opts that one piece back out.
+
+An unknown theme name is silently ignored, the same leniency every other setting in `termdock.conf` already has, falling
 back to the plain defaults — so if a theme seems not to have applied,
 check the spelling against `termdock themes`, which prints the
 built-in names straight from the binary (and where to put the config

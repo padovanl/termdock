@@ -177,6 +177,39 @@ func TestEveryThemeNameAppliesRealColors(t *testing.T) {
 	}
 }
 
+// Every theme must colour the panes, not just termdock's own chrome —
+// that is what makes a theme look like a theme rather than a differently
+// coloured status bar on your emulator's background.
+func TestEveryThemeSetsPaneColors(t *testing.T) {
+	for _, name := range ThemeNames() {
+		cfg := loadFrom(t, "theme "+name+"\n")
+		if cfg.PaneBG == tcell.ColorDefault || cfg.PaneFG == tcell.ColorDefault {
+			t.Errorf("theme %q leaves pane bg/fg at the terminal default", name)
+		}
+		// The status bar sits on top of the panes, so a theme whose bar is
+		// the same colour as the panes has no bar to speak of.
+		if cfg.StatusBG == cfg.PaneBG {
+			t.Errorf("theme %q uses the same colour for the status bar and the panes", name)
+		}
+	}
+}
+
+// pane-bg/pane-fg must stay overridable, including back to "default"
+// (the emulator's own), which is the opt-out for someone who wants a
+// theme's chrome but their own terminal background.
+func TestExplicitPaneColorsBeatTheTheme(t *testing.T) {
+	cfg := loadFrom(t, "theme dracula\npane-bg default\npane-fg red\n")
+	if cfg.PaneBG != tcell.ColorDefault {
+		t.Errorf("PaneBG = %v, want the explicit ColorDefault to win over the theme", cfg.PaneBG)
+	}
+	if cfg.PaneFG != tcell.ColorRed {
+		t.Errorf("PaneFG = %v, want red", cfg.PaneFG)
+	}
+	if cfg.PaneActiveBG != themes["dracula"].paneActiveBG {
+		t.Error("the rest of the theme should still apply")
+	}
+}
+
 // Two themes with the same three colors would both be listed by
 // "termdock themes" as real choices while being impossible to tell
 // apart — most likely a copy-paste when adding one.

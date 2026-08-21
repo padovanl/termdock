@@ -40,6 +40,10 @@
 //	status-bg <color>      status bar background (default black)
 //	status-fg <color>      status bar foreground (default silver)
 //	pane-active-bg <color> active pane's border/title color (default teal)
+//	pane-bg <color>        background for pane content the running program
+//	                       left unstyled; "default" (the default) means
+//	                       your terminal emulator's own background
+//	pane-fg <color>        likewise for unstyled text
 //	status-segments <list> comma-separated optional status-bar segments,
 //	                       e.g. "git,battery,cpu,mem" (default: none)
 //
@@ -60,17 +64,23 @@ import (
 // Config is every setting termdock reads from the config file, already
 // merged with defaults.
 type Config struct {
-	Prefix         tcell.Key
-	Mouse          bool
-	HistoryLimit   int
-	Shell          string
-	PopupCommand   string          // command to run in the popup instead of an interactive shell; see internal/core/popup.go
-	FocusEvents    bool            // forward synthetic pane focus-in/out; see internal/core/focusevents.go
-	RepeatTime     int             // ms a bare arrow keeps repeating a focus move after the prefixed one; 0 disables. See internal/core/keys.go
-	BindOverrides  map[rune]string // "bind" lines: key -> action name; see internal/core/bindings.go
-	StatusBG       tcell.Color
-	StatusFG       tcell.Color
-	PaneActiveBG   tcell.Color
+	Prefix        tcell.Key
+	Mouse         bool
+	HistoryLimit  int
+	Shell         string
+	PopupCommand  string          // command to run in the popup instead of an interactive shell; see internal/core/popup.go
+	FocusEvents   bool            // forward synthetic pane focus-in/out; see internal/core/focusevents.go
+	RepeatTime    int             // ms a bare arrow keeps repeating a focus move after the prefixed one; 0 disables. See internal/core/keys.go
+	BindOverrides map[rune]string // "bind" lines: key -> action name; see internal/core/bindings.go
+	StatusBG      tcell.Color
+	StatusFG      tcell.Color
+	PaneActiveBG  tcell.Color
+	// PaneBG/PaneFG colour cells the program running in a pane left
+	// unstyled — the terminal background and body text, in other words.
+	// Default tcell.ColorDefault means "whatever your terminal emulator
+	// already uses", which is the behaviour when no theme is set.
+	PaneBG         tcell.Color
+	PaneFG         tcell.Color
 	StatusSegments []string // optional status-bar segments; see internal/core/segments.go
 }
 
@@ -85,6 +95,8 @@ func Default() Config {
 		StatusBG:     tcell.ColorBlack,
 		StatusFG:     tcell.ColorSilver,
 		PaneActiveBG: tcell.ColorTeal,
+		PaneBG:       tcell.ColorDefault,
+		PaneFG:       tcell.ColorDefault,
 	}
 }
 
@@ -126,7 +138,7 @@ func Load() Config {
 		}
 		applySetting(&cfg, key, val)
 		switch key {
-		case "status-bg", "status-fg", "pane-active-bg":
+		case "status-bg", "status-fg", "pane-active-bg", "pane-bg", "pane-fg":
 			// Only a color that actually parsed counts as "the user set
 			// this deliberately"; a typo'd one has to leave the door open
 			// for a "theme" line to fill it in, the same as if the line
@@ -180,6 +192,14 @@ func applySetting(cfg *Config, key, val string) {
 	case "pane-active-bg":
 		if c, ok := parseColor(val); ok {
 			cfg.PaneActiveBG = c
+		}
+	case "pane-bg":
+		if c, ok := parseColor(val); ok {
+			cfg.PaneBG = c
+		}
+	case "pane-fg":
+		if c, ok := parseColor(val); ok {
+			cfg.PaneFG = c
 		}
 	case "status-segments":
 		cfg.StatusSegments = nil

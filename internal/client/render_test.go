@@ -339,3 +339,43 @@ func TestWordWrapHardBreaksAWordWiderThanWidth(t *testing.T) {
 		t.Fatalf("expected the long word to be hard-broken across multiple lines, got %v", lines)
 	}
 }
+
+// With no theme (and no explicit pane-bg/pane-fg) a pane cell the
+// program left unstyled must still come out as ColorDefault, i.e. the
+// emulator's own colors — the whole point of ColorDefault being the
+// default for PaneBG/PaneFG. A regression here would repaint every
+// unthemed user's terminal.
+func TestUnthemedCellsKeepTheTerminalsOwnColors(t *testing.T) {
+	cfg := config.Default()
+	unstyled := proto.Cell{Ch: 'x', FG: 1 << 24, BG: 1 << 24} // convColor's "default" marker
+	fg, bg, _ := cellStyle(unstyled, cfg).Decompose()
+	if fg != tcell.ColorDefault || bg != tcell.ColorDefault {
+		t.Fatalf("unthemed unstyled cell = fg %v / bg %v, want both ColorDefault", fg, bg)
+	}
+}
+
+// ...and with a theme, that same cell picks up the theme's pane colors.
+func TestThemedCellsUseThePaneColors(t *testing.T) {
+	cfg := config.Default()
+	cfg.PaneBG = tcell.NewHexColor(0x300a24)
+	cfg.PaneFG = tcell.NewHexColor(0xeeeeec)
+	unstyled := proto.Cell{Ch: 'x', FG: 1 << 24, BG: 1 << 24}
+	fg, bg, _ := cellStyle(unstyled, cfg).Decompose()
+	if bg != cfg.PaneBG || fg != cfg.PaneFG {
+		t.Fatalf("themed unstyled cell = fg %v / bg %v, want fg %v / bg %v", fg, bg, cfg.PaneFG, cfg.PaneBG)
+	}
+}
+
+// A cell the program *did* style must keep its own colors regardless of
+// the theme: the theme fills in the terminal's defaults, it doesn't
+// repaint output that asked for a specific color.
+func TestThemeDoesNotOverrideExplicitCellColors(t *testing.T) {
+	cfg := config.Default()
+	cfg.PaneBG = tcell.NewHexColor(0x300a24)
+	cfg.PaneFG = tcell.NewHexColor(0xeeeeec)
+	green := proto.Cell{Ch: 'x', FG: 0x00ff00, BG: 0x123456}
+	fg, bg, _ := cellStyle(green, cfg).Decompose()
+	if fg != tcell.NewRGBColor(0, 0xff, 0) || bg != tcell.NewRGBColor(0x12, 0x34, 0x56) {
+		t.Fatalf("explicitly colored cell was altered: fg %v bg %v", fg, bg)
+	}
+}
