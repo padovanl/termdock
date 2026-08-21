@@ -47,7 +47,7 @@ func TestCopyLastOutputTakesExactlyThatCommandsOutput(t *testing.T) {
 		cmdRun{"echo two", []string{"WANTED-A", "WANTED-B"}, "0"},
 	)
 
-	text, _, ok := c.lastCommandOutput(id)
+	text, _, ok := c.commandOutputAt(id, 1<<30)
 	if !ok {
 		t.Fatal("no output found despite marks being present")
 	}
@@ -172,8 +172,49 @@ func TestOutputOfAStillRunningCommandIsWhatItHasPrinted(t *testing.T) {
 	p.Term().Write([]byte(osc133("A") + "$ " + osc133("B") + "build\r\n" +
 		osc133("C") + "PARTIAL-LINE\r\n"))
 
-	text, _, ok := c.lastCommandOutput(id)
+	text, _, ok := c.commandOutputAt(id, 1<<30)
 	if !ok || !strings.Contains(text, "PARTIAL-LINE") {
 		t.Fatalf("output = %q, ok=%v; want what the running command has printed", text, ok)
+	}
+}
+
+// Walking back with { and then copying must give *that* command's
+// output, not the newest one — which is the entire point of being able
+// to walk back. Copying the wrong block would be silently wrong, the
+// worst kind: the paste looks plausible.
+func TestCopyTakesTheCommandTheCursorIsOn(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	id := c.win().active.ID
+
+	writeSession(c, id,
+		cmdRun{"first", []string{"OLDER-OUTPUT"}, "0"},
+		cmdRun{"second", []string{"NEWER-OUTPUT"}, "0"},
+	)
+
+	// At a live prompt (not in copy-mode) it means the newest command.
+	c.copy = copyState{}
+	if text, _, _ := c.commandOutputAt(id, 1<<30); !strings.Contains(text, "NEWER-OUTPUT") {
+		t.Errorf("outside copy-mode got %q, want the newest command's output", text)
+	}
+
+	// Now walk back one command and copy: it must follow the cursor.
+	c.enterCopyMode()
+	_, _, total, _ := c.copyPaneDims()
+	c.copy.curY = total - 1
+	c.jumpToMark(-1) // onto the newest prompt
+	c.jumpToMark(-1) // onto the older one
+
+	c.copyLastOutput()
+	text, _, ok := c.commandOutputAt(id, c.copy.curY)
+	if !ok {
+		t.Fatal("no output found at the cursor")
+	}
+	if !strings.Contains(text, "OLDER-OUTPUT") {
+		t.Errorf("after walking back, copied %q; want the command the cursor is on", text)
+	}
+	if strings.Contains(text, "NEWER-OUTPUT") {
+		t.Errorf("copied %q; it leaked the newer command", text)
 	}
 }

@@ -69,6 +69,7 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
 | ⏩ **Repeating a focus move** | after `Ctrl-B ←`, a bare `←` keeps moving — and only the *arrows* repeat, so it can never swallow the `h` of something you start typing | tmux's `bind -r`, but its repeatable movement keys are `hjkl` too, which does eat typed letters |
 | ↩️ **Reopen a closed pane** | `Ctrl-B Z` brings back the last pane you closed — same window, same working directory, however you closed it (`x`, or an accidental `exit`) | no equivalent: a closed pane is gone |
 | ⏳ **"Tell me when this finishes"** | `Ctrl-B m` marks a pane; the moment its command exits you get a bell and a message naming it. No shell setup, and it can be armed *after* the command is already running | `monitor-silence` watches for output going quiet: it fires on a build that pauses to think, and stays silent on one that ends without a final line |
+| 🧠 **Knows where your commands are** | `termdock shell-init` teaches your shell to mark prompts (OSC 133), which termdock records in its own VT emulator: `{`/`}` jump between commands, `Ctrl-B O` copies one command's *entire* output exactly, and a pane whose last command failed shows its exit status and how long it took | no equivalent, and no way to add one — tmux sees an undifferentiated stream of characters and has no emulator of its own to record marks in |
 | 🔎 **Regex search** | copy-mode `/` and global search both accept a regex (falls back to a literal substring if it doesn't compile) | copy-mode search is a plain substring only |
 
 Every "tmux needs the external `tmux-whatever` plugin" above is describing **tmux**, not termdock: everything in the termdock column is built into the single `termdock` binary. There's no plugin manager, no plugin API, and nothing here — themes, status segments, logging, the popup, any of it — ever needs an external plugin, script, or program to work. The one narrow exception is the `git` status segment, which shells out to your system's own `git` binary the same way any git integration would (not a termdock plugin, just using the tool that's already there) — everything else is pure Go, self-contained.
@@ -199,6 +200,7 @@ them to a different key.
 | `R` | 🔁 **respawn-pane**: restart the shell in the active pane, in place |
 | `Z` | ↩️ **reopen** the last closed pane, back in its window and directory (see below) |
 | `m` | ⏳ **notify me** when this pane's command finishes (see below) |
+| `O` | 🧠 **copy the last command's entire output** — needs [shell integration](#-shell-integration-termdock-knows-where-your-commands-are) |
 | `L` | 📝 toggle **logging** the active pane's output to a file (see below) |
 | `0`-`9` | jump straight to window N |
 | `,` | rename the current window |
@@ -409,6 +411,121 @@ needs a clean restart, without tearing down and rebuilding the split
 around it. Unlike tmux, there's no separate `-k` flag to force it: this
 already replaces a still-running process without asking, the same
 no-confirmation convention `Ctrl-B x` (close pane) already uses.
+
+### 🧠 Shell integration: termdock knows where your commands are
+
+Every terminal has the same blind spot. It receives one long stream of
+characters and has no idea which of them are your prompt, which are the
+command you typed, and which are that command's output. It is all just
+text arriving.
+
+That is why no multiplexer can offer "jump back to the previous command"
+or "copy that command's output" — not because nobody thought of it, but
+because the information genuinely isn't there to act on.
+
+**OSC 133** is the fix the terminal world settled on: the shell announces
+the boundaries as it goes. Four tiny invisible markers per command —
+prompt starts, prompt ends, command started running, command finished
+(with its exit status). termdock records them in **its own** VT
+emulator, which is why this works over SSH, in any terminal, whether or
+not the terminal you're sitting at has ever heard of OSC 133. tmux
+cannot do this at any price: it has no emulator of its own to record
+them in.
+
+#### Turning it on
+
+One line in your shell's startup file:
+
+```sh
+# ~/.bashrc, ~/.zshrc, or ~/.config/fish/config.fish
+eval "$(termdock shell-init)"
+```
+
+`termdock shell-init` detects your shell from `$SHELL`; pass `bash`,
+`zsh` or `fish` explicitly if you'd rather. It **prints** the snippet
+instead of installing it — that file is yours and you should read what
+goes into it; a program that edits your shell rc behind your back is one
+you stop trusting. Run it with no `eval` to just look:
+
+```sh
+termdock shell-init bash | less
+```
+
+Open a new pane afterwards (existing shells are already running, and
+won't pick it up). Nothing about your prompt changes visually — the
+markers are zero-width.
+
+> If your prompt is rebuilt by a theme — oh-my-zsh, powerlevel10k,
+> starship — put the `eval` line **after** that theme's own setup, or the
+> theme will overwrite the marker termdock appends to `PS1`.
+
+#### What you get: a worked example
+
+Say you run a test suite, it fails somewhere in three hundred lines of
+output, and you've since run four more commands while poking at it.
+
+```
+$ go test ./...          ← 300 lines of output, somewhere up there
+$ git status
+$ vim internal/core/foo.go
+$ git diff
+$ go build ./...
+$                        ← you are here
+```
+
+**Without shell integration**, retrieving that failure means: enter
+copy-mode, scroll up by eye past four commands, find where the test run
+started, guess where it ended, drag-select several screens of text, and
+hope you didn't clip the first line.
+
+**With it:**
+
+| You press | What happens |
+|---|---|
+| `Ctrl-B [` then `{` | jumps to the prompt of `go build` |
+| `{` `{` `{` `{` | four more jumps, one per command, landing on `go test ./...` |
+| `Ctrl-B O` | the **entire** output of *that* run — all 300 lines — is on your clipboard |
+
+Three of those keys are the interesting ones:
+
+**`{` and `}` in copy-mode** move by *command*, not by line or page. Each
+jump lands on a prompt with that command's output filling the screen
+below it — which is the thing you were scrolling to find. Repeated
+presses walk back through your history a command at a time.
+
+**`Ctrl-B O`** copies a command's output. Not "roughly this screenful",
+not "what's currently visible" — exactly the lines between where that
+command started printing and where it stopped, whether that's 2 lines or
+3000, with the prompt and the command itself excluded. Paste it straight
+into a bug report, a chat, a file.
+
+*Which* command follows where you are looking: in copy-mode it is the
+one your cursor is sitting in, so walking back with `{` and then copying
+does what it plainly looks like it should. At a live prompt it is the
+most recent one. Press it while a build is still running and you get
+everything it has printed so far.
+
+**Pane titles gain a verdict.** A pane whose last command failed says so:
+
+```
+ 2:go [✗1 47s]        ← exited 1, took 47 seconds
+ 3:npm                ← last command succeeded, quickly: nothing added
+```
+
+The exit status appears only on failure and the duration only when the
+command ran longer than a few seconds — a title is no place for noise,
+and `✗` is the thing worth catching out of the corner of your eye when
+you glance at a pane you left running.
+
+#### Without it
+
+Nothing breaks. There are simply no marks, and each of the three
+features says so and points at the fix rather than silently doing
+nothing:
+
+```
+no command marks in this pane — run `termdock shell-init` for the shell snippet
+```
 
 ### ⏳ Telling you when a command finishes
 

@@ -89,29 +89,46 @@ func (c *Core) jumpToMark(dir int) {
 // feature gets written off as broken.
 const noMarksHint = "no command marks in this pane — run `termdock shell-init` for the shell snippet"
 
-// lastCommandOutput returns the text the most recently finished command
-// printed, and a label for it. It is bounded by the marks themselves:
-// the C that started the output, and the D that ended it — or the
-// bottom of the buffer when the command is still running, so asking
-// mid-build gives you what it has printed so far.
-func (c *Core) lastCommandOutput(paneID int) (text, label string, ok bool) {
+// commandOutputAt returns the text printed by the command whose block
+// contains row, and a label for it. A "block" runs from one prompt to
+// the next, so this answers "the command I am looking at" rather than
+// always the newest one — which matters directly: jumping back five
+// commands with { and then copying is the whole point, and copying the
+// newest one there would be silently wrong.
+//
+// The bounds are the marks themselves: the C that started the output and
+// the D that ended it, or the bottom of the buffer when the command is
+// still running, so asking mid-build gives what it has printed so far.
+func (c *Core) commandOutputAt(paneID, row int) (text, label string, ok bool) {
 	marks := c.paneMarks(paneID)
 	if len(marks) == 0 {
 		return "", "", false
 	}
-	start, end := -1, -1
-	for i := len(marks) - 1; i >= 0; i-- {
-		if marks[i].Kind != vt10x.MarkOutput {
+
+	// The block is the last prompt at or above row, up to the next one.
+	blockStart, blockEnd := 0, len(marks)
+	for i, m := range marks {
+		if m.Kind != vt10x.MarkPrompt {
 			continue
 		}
-		start = marks[i].Line
-		for _, m := range marks[i+1:] {
-			if m.Kind == vt10x.MarkDone {
-				end = m.Line
-				break
-			}
+		if m.Line <= row {
+			blockStart = i
+		} else {
+			blockEnd = i
+			break
 		}
-		break
+	}
+
+	start, end := -1, -1
+	for _, m := range marks[blockStart:blockEnd] {
+		switch m.Kind {
+		case vt10x.MarkOutput:
+			if start < 0 {
+				start = m.Line
+			}
+		case vt10x.MarkDone:
+			end = m.Line
+		}
 	}
 	if start < 0 {
 		return "", "", false
@@ -150,11 +167,21 @@ func (c *Core) lastCommandOutput(paneID int) (text, label string, ok bool) {
 	return out, fmt.Sprintf("%d lines", strings.Count(out, "\n")+1), true
 }
 
-// copyLastOutput is Ctrl-B O: put the last command's output on the
+// copyLastOutput is Ctrl-B O: put a command's whole output on the
 // clipboard and in the paste registers, the same places a copy-mode yank
 // goes.
+//
+// Which command depends on where you are looking. In copy-mode it is the
+// one the cursor sits in, so walking back with { and then copying does
+// what it plainly looks like it should; otherwise it is the most recent,
+// which is what "the last command" means at a live prompt.
 func (c *Core) copyLastOutput() Result {
-	text, label, ok := c.lastCommandOutput(c.win().active.ID)
+	id := c.win().active.ID
+	row := 1 << 30 // past the end: the newest block
+	if c.copy.active && c.copy.paneID == id {
+		row = c.copy.curY
+	}
+	text, label, ok := c.commandOutputAt(id, row)
 	if !ok {
 		if len(c.paneMarks(c.win().active.ID)) == 0 {
 			c.statusMsg = noMarksHint
