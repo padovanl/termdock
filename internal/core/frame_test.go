@@ -339,3 +339,39 @@ func TestTypingALongLineKeepsTheCursorVisible(t *testing.T) {
 		}
 	}
 }
+
+// TestResizeIsBoundedBothWays: the terminal size is just a number a
+// client sends, and nothing bounded it from above. Frame() builds one
+// proto.Cell per character cell of every pane, every frame, and
+// gob-encodes the lot to every attached client — so a client reporting
+// something absurd had the daemon allocating hundreds of megabytes a
+// frame, and past that would take it out of memory along with every pane
+// in every window.
+func TestResizeIsBoundedBothWays(t *testing.T) {
+	c := newTestCore(t)
+
+	for _, tc := range []struct{ cols, rows, wantCols, wantRows int }{
+		{80, 24, 80, 24},
+		{0, 0, 1, 1},
+		{-5, -5, 1, 1},
+		{5000, 3000, maxCols, maxRows},
+		{1 << 20, 1 << 20, maxCols, maxRows},
+	} {
+		c.Resize(tc.cols, tc.rows)
+		f := c.Frame()
+		if f.Cols != tc.wantCols || f.Rows != tc.wantRows {
+			t.Errorf("Resize(%d, %d) -> %dx%d, want %dx%d", tc.cols, tc.rows, f.Cols, f.Rows, tc.wantCols, tc.wantRows)
+		}
+		// Whatever was asked for, the frame it produces has to stay a
+		// size a machine can hold.
+		cells := 0
+		for _, p := range f.Panes {
+			for _, row := range p.Cells {
+				cells += len(row)
+			}
+		}
+		if cells > maxCols*maxRows {
+			t.Errorf("Resize(%d, %d) produced a frame of %d cells", tc.cols, tc.rows, cells)
+		}
+	}
+}

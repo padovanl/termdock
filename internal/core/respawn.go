@@ -21,10 +21,19 @@ func (c *Core) respawnActivePane() {
 		return
 	}
 
-	if old, ok := c.panes[leaf.ID]; ok {
+	oldID := leaf.ID
+	if old, ok := c.panes[oldID]; ok {
 		old.Close()
-		delete(c.panes, leaf.ID)
-		delete(c.paneLastActive, leaf.ID)
+		delete(c.panes, oldID)
+		delete(c.paneLastActive, oldID)
+	}
+	// Respawning is the one operation that changes a live pane's id while
+	// it stays in the same slot, so anything remembering a pane *by id*
+	// has to come along. Ctrl-B ;'s target is the one that does: left
+	// behind, it named a pane that no longer exists anywhere, and the
+	// toggle silently stopped working.
+	if w.lastActivePane == oldID {
+		w.lastActivePane = id
 	}
 
 	leaf.ID = id

@@ -435,6 +435,29 @@ func TestActivePaneInvariantSurvivesMixedInput(t *testing.T) {
 				t.Fatalf("step %d (%s): window %d's zoomed pane is not in its own tree", step, what, wi)
 			}
 		}
+
+		// Pane bookkeeping: every running pane is in exactly one tree,
+		// and every leaf has a pane behind it. A pane that falls out of
+		// every tree is a shell still running, holding a pty, that
+		// nothing can reach or ever close.
+		seen := map[int]int{}
+		for _, w := range c.windows {
+			for _, l := range layout.Leaves(w.root) {
+				seen[l.ID]++
+				if _, ok := c.panes[l.ID]; !ok {
+					t.Fatalf("step %d (%s): leaf %d is in a tree with no pane behind it", step, what, l.ID)
+				}
+			}
+		}
+		for id := range c.panes {
+			switch seen[id] {
+			case 1:
+			case 0:
+				t.Fatalf("step %d (%s): pane %d is running but in no window's tree", step, what, id)
+			default:
+				t.Fatalf("step %d (%s): pane %d appears in %d trees", step, what, id, seen[id])
+			}
+		}
 	}
 
 	ops := []struct {
@@ -444,7 +467,14 @@ func TestActivePaneInvariantSurvivesMixedInput(t *testing.T) {
 		{"vsplit", func() { c.doSplit(layout.Vertical) }},
 		{"hsplit", func() { c.doSplit(layout.Horizontal) }},
 		{"new-window", func() { c.newWindow() }},
-		{"kill-pane", func() { c.killActive() }},
+		{"kill-pane", func() {
+			// Closing the last pane of the last window ends the session,
+			// which is a legitimate outcome but not one there's anything
+			// left to check invariants on.
+			if len(c.windows) > 1 || len(layout.Leaves(c.win().root)) > 1 {
+				c.killActive()
+			}
+		}},
 		{"cycle", func() { c.cycleFocus() }},
 		{"break-pane", func() { c.breakPaneToNewWindow() }},
 		{"zoom", func() { c.toggleZoom() }},
@@ -463,6 +493,28 @@ func TestActivePaneInvariantSurvivesMixedInput(t *testing.T) {
 			l := c.win().active
 			c.handleNormalMouse(true, false, l.Rect.X+3, l.Rect.Y+2)
 		}},
+		{"respawn", func() { c.respawnActivePane() }},
+		{"move-pane", func() {
+			if len(c.windows) > 1 {
+				src := c.win()
+				dst := c.windows[(c.activeWindow+1)%len(c.windows)]
+				c.movePaneToWindow(src.active, src, dst)
+			}
+		}},
+		{"kill-window", func() {
+			if len(c.windows) > 1 {
+				c.killWindow()
+			}
+		}},
+		{"quick-jump", func() {
+			c.enterQuickJump()
+			c.handleQuickJumpKey(0, '2')
+		}},
+		{"title-click", func() {
+			l := c.win().active
+			c.handleNormalMouse(true, false, l.Rect.X, l.Rect.Y-1)
+			c.handleNormalMouse(false, true, l.Rect.X, l.Rect.Y-1)
+		}},
 		{"esc-copy", func() {
 			if c.mode == ModeCopy {
 				c.exitCopyMode()
@@ -475,6 +527,9 @@ func TestActivePaneInvariantSurvivesMixedInput(t *testing.T) {
 	for i := 0; i < 1500; i++ {
 		op := ops[rng.Intn(len(ops))]
 		op.run()
+		if len(c.windows) == 0 {
+			t.Fatalf("step %d (%s): the session ran out of windows", i, op.name)
+		}
 		check(i, op.name)
 	}
 }

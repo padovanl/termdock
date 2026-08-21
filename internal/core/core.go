@@ -400,6 +400,15 @@ func (c *Core) PaneCount() int {
 	return len(c.panes)
 }
 
+// maxCols/maxRows bound a client-reported terminal size. Far beyond any
+// real terminal — a 5120px-wide display at six pixels per character is
+// around 850 columns — while keeping the worst case a frame can cost to
+// something a machine can actually hold.
+const (
+	maxCols = 2000
+	maxRows = 1000
+)
+
 // Resize adapts the whole session — every window, not just the visible
 // one, so a hidden window's panes are already correctly sized by the time
 // you switch to it — to a new client viewport.
@@ -411,6 +420,16 @@ func (c *Core) Resize(cols, rows int) {
 	// slices in Frame().
 	cols = max(cols, 1)
 	rows = max(rows, 1)
+	// And nothing bounds it from above either — the size is just a number
+	// a client sends. Frame() builds one proto.Cell per character cell of
+	// every pane, for every frame, and then gob-encodes the lot to every
+	// attached client: at 5000x3000 that is already ~700MB per frame, and
+	// a client reporting something truly absurd would take the daemon out
+	// of memory, and every pane in every window with it. The pty ioctl
+	// takes a uint16 anyway, so past 65535 the panes and the layout would
+	// silently disagree about their own size regardless.
+	cols = min(cols, maxCols)
+	rows = min(rows, maxRows)
 	if cols == c.cols && rows == c.rows {
 		return
 	}
@@ -645,7 +664,11 @@ func (c *Core) toggleZoomOn(n *layout.Node) {
 	if w.zoomed == n {
 		w.zoomed = nil
 	} else {
-		w.active = n
+		// Through setWindowActiveLeaf rather than assigning directly, so
+		// that zooming a *different* pane (double-clicking its title
+		// bar) records the one being left as Ctrl-B ;'s target, the same
+		// as every other way of changing which pane has focus.
+		c.setWindowActiveLeaf(w, n)
 		w.zoomed = n
 	}
 	c.relayoutLocked()
