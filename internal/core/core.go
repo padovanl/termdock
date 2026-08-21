@@ -30,8 +30,8 @@ const (
 	ModeNormal Mode = iota
 	ModeCopy
 	ModeResize
-	ModeInput   // typing a line for rename or search; see input.go
-	ModeConfirm // a pending destructive action awaiting y/n; see confirmKillWindow
+	ModeInput     // typing a line for rename or search; see input.go
+	ModeConfirm   // a pending destructive action awaiting y/n; see confirmKillWindow
 	ModePicker    // type-ahead jump to any window/pane; see picker.go
 	ModeHelp      // scrollable keybinding reference; see help.go
 	ModeSessions  // type-ahead switch to another session; see sessions.go
@@ -179,7 +179,7 @@ type Core struct {
 	popupVisible bool
 	popupCommand string // command to run in the popup instead of an interactive shell; see SetPopupCommand
 
-	statusSegments []string      // enabled optional status-bar segments ("git", "battery"); see segments.go
+	statusSegments []string // enabled optional status-bar segments ("git", "battery"); see segments.go
 	segCache       segmentCache
 
 	bellCh chan struct{} // non-blocking signal for a background window's *new* activity; see Bell
@@ -204,7 +204,7 @@ type Core struct {
 
 	dragDownX, dragDownY int // press position for the divider drag currently in c.drag, to detect a stationary click on release
 
-	lastTitleClickID int       // pane ID of the last title-bar click, for double-click detection
+	lastTitleClickID int // pane ID of the last title-bar click, for double-click detection
 	lastTitleClickAt time.Time
 
 	cols, rows int

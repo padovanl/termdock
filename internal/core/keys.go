@@ -290,7 +290,6 @@ func (c *Core) requestQuit() {
 	}
 }
 
-
 func (c *Core) forwardKey(key tcell.Key, r rune) {
 	b := keyBytes(key, r)
 	if b == nil {

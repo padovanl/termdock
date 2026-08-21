@@ -127,9 +127,9 @@ type Frame struct {
 	StatusStyle  string      // "normal" | "prefix" | "mode" | "confirm"
 	ShowStatus   bool        // false on a 1-row-tall terminal: no room for it
 	SessionName  string
-	Overlay      *Overlay   // non-nil while a modal (e.g. the jump picker) is open
-	Overview     *Overview  // non-nil while the Ctrl-B g pane grid is open; drawn instead of Panes
-	Popup        *PaneFrame // non-nil while the Ctrl-B P floating scratch terminal is open
+	Overlay      *Overlay        // non-nil while a modal (e.g. the jump picker) is open
+	Overview     *Overview       // non-nil while the Ctrl-B g pane grid is open; drawn instead of Panes
+	Popup        *PaneFrame      // non-nil while the Ctrl-B P floating scratch terminal is open
 	QuickJump    []QuickJumpTag  // non-empty while Ctrl-B Q's display-panes overlay is open
 	Settings     *ClientSettings // non-nil once "set" has changed a look-and-feel setting in this session
 }
@@ -197,12 +197,12 @@ type ClientMsg struct {
 	// window. PaneIndex is a 1-based position *within that window* — the
 	// number the pane shows in its own title bar — and <= 0 means "that
 	// window's active pane".
-	WindowIdx  int
-	WindowName string
-	PaneIndex  int
-	CLIText    string // send-keys: literal text to write to the pane
-	CLIEnter   bool   // send-keys: append a carriage return after CLIText
-	CLICommand string // new-window/split-window: run this instead of the shell
+	WindowIdx    int
+	WindowName   string
+	PaneIndex    int
+	CLIText      string // send-keys: literal text to write to the pane
+	CLIEnter     bool   // send-keys: append a carriage return after CLIText
+	CLICommand   string // new-window/split-window: run this instead of the shell
 	CLIName      string // new-window: initial window name
 	CLIAxis      string // split-window: "v" (side by side) or "s" (stacked)
 	CLIDirection string // select-pane: "L"/"R"/"U"/"D"

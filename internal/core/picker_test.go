@@ -22,7 +22,7 @@ func TestPickerFuzzyFilterAndJump(t *testing.T) {
 	c.startInput("rename", "", "", ModeNormal)
 	c.input.buffer = []rune("deploy")
 	c.confirmInput() // window 1 renamed "deploy"
-	c.newWindow()     // window 2, default name
+	c.newWindow()    // window 2, default name
 	c.doSplit(layout.Vertical)
 	c.enterPicker()
 	itemCount := len(c.picker.items)

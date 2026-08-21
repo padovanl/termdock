@@ -13,7 +13,7 @@ func TestOverviewListsEveryPaneAndSelectsCurrent(t *testing.T) {
 
 	c.mu.Lock()
 	c.doSplit(layout.Vertical) // window 0: 2 panes, right one active
-	c.newWindow()               // window 1: 1 pane
+	c.newWindow()              // window 1: 1 pane
 	activeLeaf := c.win().active
 	c.enterOverview()
 	if c.mode != ModeOverview {

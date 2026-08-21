@@ -174,7 +174,7 @@ type clientConn struct {
 	conn     net.Conn
 	enc      *gob.Encoder
 	mu       sync.Mutex // guards enc.Encode, called from both the broadcaster and this client's own handler
-	readOnly bool // an observer: sees every frame, but its key/mouse/resize input is dropped (see handleConn)
+	readOnly bool       // an observer: sees every frame, but its key/mouse/resize input is dropped (see handleConn)
 }
 
 func (cc *clientConn) send(m proto.ServerMsg) error {
