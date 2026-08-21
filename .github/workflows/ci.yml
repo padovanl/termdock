@@ -1,10 +1,18 @@
 name: CI
 
+# Runs on every push to the two long-lived branches and on every pull
+# request into them, which for this repo's flow (work on develop, PR into
+# master, tag master to release) means nothing reaches master unreviewed
+# by CI, and a release tag is only ever cut from a commit that already
+# went green here.
 on:
   push:
-    branches: [master]
+    branches: [master, develop]
   pull_request:
-    branches: [master]
+    branches: [master, develop]
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -15,6 +23,18 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: true
+
+      - name: Check formatting
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt'd:"
+            echo "$unformatted"
+            echo
+            gofmt -d .
+            exit 1
+          fi
 
       - name: Build
         run: go build ./...
@@ -22,5 +42,43 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # With the race detector: termdock is a daemon with a goroutine per
+      # pane, a broadcast loop and one per attached client, and the suite
+      # includes a stress test that drives a live session from several
+      # clients at once specifically so this has something to find.
       - name: Test
-        run: go test ./... -v
+        run: go test -race ./...
+
+  # Proves the release build actually works without publishing anything,
+  # so a packaging mistake surfaces on the pull request rather than after
+  # the tag is already pushed and the release half-published.
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean --skip=publish
+
+      - name: Show what would be published
+        run: ls -la dist/*.deb dist/*.rpm dist/*.apk dist/*.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-snapshot
+          path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.apk
+            dist/*.tar.gz
+          retention-days: 7

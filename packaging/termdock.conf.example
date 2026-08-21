@@ -1,0 +1,76 @@
+# termdock.conf — example configuration.
+#
+# Copy this to ~/.config/termdock/termdock.conf and edit, or skip it
+# entirely: every setting below is optional and shown at its default, and
+# termdock can write the file for you. Inside a session, Ctrl-B C opens
+# the settings screen — pressing S there saves the setting you're editing
+# to this file, as does ":set -p <key> <value>" from the command prompt
+# (Ctrl-B :). Either one creates the file and its directory.
+#
+# A "#" starts a comment, on a line of its own or after a value. The one
+# exception is a setting's first value word, so "status-bg #ff0000" still
+# means the colour.
+#
+# Anything unrecognised — a key that doesn't exist, a value that doesn't
+# parse — is ignored and the default kept, so a stale config from an
+# older version never stops termdock starting.
+
+# --- keys and input ---------------------------------------------------
+
+# The prefix key, as a Ctrl+letter chord. Everything termdock does is
+# behind it, so Ctrl-B ? for the full list.
+prefix C-b
+
+# Mouse support: click a pane to focus it, drag a border to resize, drag
+# a window tab to reorder, click-drag on pane content to select and copy.
+mouse on
+
+# How long a bare arrow key keeps moving the focus after a prefixed one,
+# in milliseconds — so crossing three panes is Ctrl-B ←←← rather than
+# pressing the prefix each time. 0 turns it off.
+repeat-time 1000
+
+# Rebind one prefix command to a different key. Repeatable, one per line.
+# Run Ctrl-B ? for the action names.
+#bind M jump-picker
+#bind Space respawn-pane
+
+# --- panes ------------------------------------------------------------
+
+# The shell new panes run. The default is your $SHELL, which is almost
+# always what you want — set this only to run something other than your
+# login shell. Read when a pane is created, so it affects the next one
+# you open rather than the ones already running.
+#shell /bin/bash
+
+# Scrollback lines kept per pane, for copy-mode (Ctrl-B [) and search.
+# Also read when a pane is created.
+history-limit 10000
+
+# What the floating popup (Ctrl-B P) runs instead of a shell.
+#popup-command lazygit
+
+# Send applications a terminal focus-in/focus-out event when you switch
+# to or away from their pane — neovim's autoread, for one, acts on it.
+focus-events off
+
+# --- appearance -------------------------------------------------------
+
+# A bundled colour preset. Run "termdock themes" for the full list:
+# catppuccin, dracula, everforest, gruvbox, monokai, nord, one-dark,
+# rose-pine, solarized, tokyo-night, ubuntu.
+#theme dracula
+
+# Individual colours, if you'd rather not use a theme (or want to change
+# one of its choices). A theme sets all five; anything you set explicitly
+# wins over it, whichever order they appear in. Values are a colour name
+# or #rrggbb, and "default" means your terminal's own.
+#status-bg black
+#status-fg silver
+#pane-active-bg teal
+#pane-bg default
+#pane-fg default
+
+# Extra segments on the right of the status bar, comma separated:
+# git (branch of the active pane's directory), battery, cpu, mem.
+#status-segments git,battery

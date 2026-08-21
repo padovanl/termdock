@@ -1,8 +1,13 @@
 # 🐳 termdock
 
-[![CI](https://github.com/padovanl/termdock/actions/workflows/ci.yml/badge.svg)](https://github.com/padovanl/termdock/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Go Reference](https://img.shields.io/badge/go-1.21%2B-00ADD8?logo=go)](go.mod)
+[![ci](https://img.shields.io/github/actions/workflow/status/padovanl/termdock/ci.yml?branch=master&logo=github&label=ci)](https://github.com/padovanl/termdock/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/actions/workflow/status/padovanl/termdock/release.yml?logo=github&label=release)](https://github.com/padovanl/termdock/actions/workflows/release.yml)
+[![release](https://img.shields.io/github/v/release/padovanl/termdock?label=release&color=blue)](https://github.com/padovanl/termdock/releases/latest)
+[![downloads](https://img.shields.io/github/downloads/padovanl/termdock/total?label=downloads&color=orange)](https://github.com/padovanl/termdock/releases)
+[![Go](https://img.shields.io/github/go-mod/go-version/padovanl/termdock?logo=go&label=Go)](go.mod)
+[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+**[padovanl.github.io/termdock](https://padovanl.github.io/termdock/)**
 
 A terminal multiplexer in the tmux/screen tradition — split your terminal
 into panes, run multiple shells side by side, and keep everything running
@@ -83,48 +88,36 @@ This is what makes detach/reattach possible.
 
 ## 📦 Installation
 
+Every [release](https://github.com/padovanl/termdock/releases/latest)
+ships native packages and archives for linux and macOS, amd64 and arm64.
+Pick the one for your system — the version is in the filename, so copy
+the exact link from the release page.
+
 ```sh
-# Homebrew (macOS or Linux)
-brew install padovanl/termdock/termdock
+# Debian / Ubuntu
+sudo apt install ./termdock_<version>_linux_amd64.deb
 
-# prebuilt binary — download the tar.gz for your OS/arch from
-# https://github.com/padovanl/termdock/releases and put the termdock
-# binary somewhere on your $PATH
+# Fedora / RHEL
+sudo dnf install ./termdock_<version>_linux_amd64.rpm
 
-# from source, with Go 1.21+ already installed
+# Alpine
+sudo apk add --allow-untrusted ./termdock_<version>_linux_amd64.apk
+
+# anything else: unpack the tar.gz and put the binary on your $PATH
+tar xf termdock_<version>_linux_amd64.tar.gz && sudo install termdock /usr/local/bin/
+
+# or build it yourself, with Go installed
 go install github.com/padovanl/termdock@latest
 ```
 
-Every [release](https://github.com/padovanl/termdock/releases) ships
-prebuilt binaries for linux/darwin × amd64/arm64, built with
-[goreleaser](https://goreleaser.com) (see `.goreleaser.yml`) —
-`termdock --version` reports exactly which one you're running.
-`.github/workflows/release.yml` is currently manual-only
-(`workflow_dispatch`, no automatic tag trigger) while the project's
-still under active development; see the comment at the top of that file
-for how to switch it back to firing on every pushed `vX.Y.Z` tag once
-you're ready to start cutting real releases.
+`termdock --version` reports exactly which build you're running.
 
-### 🍺 Homebrew tap
-
-`brew install padovanl/termdock/termdock` needs a `homebrew-termdock`
-tap repository to exist under the same GitHub account — Homebrew's own
-naming convention for taps — which goreleaser then pushes an updated
-formula to on every release (see `.goreleaser.yml`'s `brews:` section
-and `.github/workflows/release.yml`). Neither goreleaser nor anything
-running inside *this* repo can create that repo for you; the one-time
-setup is:
-
-1. Create an empty GitHub repo named exactly `homebrew-termdock` under
-   the `padovanl` account.
-2. Generate a fine-grained GitHub personal access token with
-   `contents: write` scoped to just that one repo.
-3. Add it as a secret named `HOMEBREW_TAP_GITHUB_TOKEN` on *this* repo
-   (Settings → Secrets and variables → Actions).
-
-Until both exist, `.github/workflows/release.yml`'s Homebrew publish
-step fails the release run — drop the `brews:` section from
-`.goreleaser.yml` first if you'd rather cut a release without a tap.
+The packages install the binary to `/usr/bin/termdock` and a commented
+example config to `/usr/share/doc/termdock/termdock.conf.example`. That
+example is documentation, not a config file termdock reads: configuration
+is per-user and lives at `~/.config/termdock/termdock.conf`, which
+termdock writes for you when you ask it to (see
+[⚙️ Configuration](#-configuration)).
 
 ## 🔨 Build
 
@@ -132,7 +125,8 @@ step fails the release run — drop the `brews:` section from
 go build -o termdock .
 ```
 
-Requires Go 1.21+ and a POSIX system (Linux/macOS/WSL).
+Requires the Go version in `go.mod` (or newer) and a POSIX system
+(Linux/macOS/WSL).
 
 ## 🚀 Usage
 
@@ -922,12 +916,37 @@ touches — session-snapshot I/O (`$XDG_STATE_HOME`) and session sockets
 (`$XDG_RUNTIME_DIR`) alike — to throwaway temp directories, so a test
 run never touches or gets confused by your actual sessions.
 
-CI (`.github/workflows/ci.yml`) runs build, vet, and the full test suite
-on every push and pull request against `master`. A separate workflow
-(`.github/workflows/release.yml`) runs the test suite once more and then
-cuts a full release — see [📦 Installation](#-installation) — but is
-currently manual-only while the project's under active development,
-rather than firing automatically on every pushed version tag.
+CI (`.github/workflows/ci.yml`) runs gofmt, build, vet and the full test
+suite under the race detector on every push and pull request against
+`master` and `develop`, and builds the release packages in snapshot mode
+so a packaging mistake shows up on the pull request rather than after a
+tag has already been pushed.
+
+## 🚢 Releasing
+
+Work lands on `develop`, reaches `master` by pull request, and a tag on
+`master` is what publishes a release:
+
+```sh
+git switch develop
+# ... commit, push, open a PR into master, merge it ...
+
+git switch master && git pull
+scripts/release.sh v1.2.3
+```
+
+`scripts/release.sh` is the supported way to cut one. It refuses to tag
+anything but `master`, a dirty tree, a branch out of step with the
+remote, or a version that already exists, runs the tests, and asks before
+pushing. Pushing that tag is the only thing that triggers
+`.github/workflows/release.yml`, which runs the suite once more and then
+builds and publishes the `.deb`/`.rpm`/`.apk` packages, the `.tar.gz`
+archives and their checksums against the tag.
+
+A third workflow (`.github/workflows/pages.yml`) publishes
+[padovanl.github.io/termdock](https://padovanl.github.io/termdock/) from
+`site/`. It needs Pages enabled once by hand, with "GitHub Actions" as
+the source (Settings → Pages).
 
 ## 📄 License
 

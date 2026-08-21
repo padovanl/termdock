@@ -446,25 +446,33 @@ func drawOverlay(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 
 	bg := tcell.StyleDefault.Background(cfg.StatusBG).Foreground(cfg.StatusFG)
 	accent := tcell.StyleDefault.Background(cfg.StatusBG).Foreground(cfg.PaneActiveBG).Bold(true)
-	dim := tcell.StyleDefault.Background(cfg.StatusBG).Foreground(tcell.ColorGray)
+	// The title carries the overlay's instructions ("type to filter, ↑↓
+	// select, enter jump, esc cancel") and "no matches" is an answer, so
+	// both are text to read and get the status bar's own foreground —
+	// 8.6:1 against the Dracula palette, where a hardcoded grey managed
+	// 2.3:1 and was the one element in the box that ignored the theme
+	// entirely. The rule under the query is a divider rather than
+	// writing, and is the only thing still drawn faintly.
+	title := tcell.StyleDefault.Background(cfg.StatusBG).Foreground(cfg.StatusFG)
+	rule := tcell.StyleDefault.Background(cfg.StatusBG).Foreground(tcell.ColorGray)
 
 	fillRect(screen, x0, y0, w, h, bg)
 	drawFloatingBorder(screen, x0, y0, w, h, accent)
 
 	innerX, maxX := x0+1, x0+1+innerW
 	for i, line := range titleLines {
-		overlayText(screen, innerX, y0+1+i, maxX, dim, " "+line)
+		overlayText(screen, innerX, y0+1+i, maxX, title, " "+line)
 	}
 	if ov.ShowQuery {
 		queryY := y0 + len(titleLines) + 1
 		overlayText(screen, innerX, queryY, maxX, bg.Bold(true), " > "+ov.Query+"_")
 		for x := innerX; x < maxX; x++ {
-			screen.SetContent(x, queryY+1, '─', nil, dim)
+			screen.SetContent(x, queryY+1, '─', nil, rule)
 		}
 	}
 
 	if len(ov.Items) == 0 {
-		overlayText(screen, innerX, y0+headerRows+1, maxX, dim, " no matches")
+		overlayText(screen, innerX, y0+headerRows+1, maxX, title, " no matches")
 		return
 	}
 

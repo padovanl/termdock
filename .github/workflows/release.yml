@@ -1,49 +1,49 @@
 name: Release
 
-# Deliberately manual-only for now (workflow_dispatch), NOT triggered by
-# pushing a tag — active development, not ready to cut public releases
-# yet. Re-enable the automatic trigger by uncommenting the block below
-# (and removing workflow_dispatch, if you don't want both at once) once
-# you're actually ready to publish; see README.md's "Installation" /
-# "Homebrew tap" sections for the one-time tap-repo setup that needs to
-# happen before the first real release tag goes out.
+# Pushing a version tag is what publishes a release — see
+# scripts/release.sh, which is the supported way to create one (it
+# refuses to tag anything but master, or a tree that doesn't match the
+# remote, or a version that already exists).
+#
+# workflow_dispatch is kept alongside it purely as an escape hatch for
+# re-running a release whose publish step failed; it builds from whatever
+# ref you point it at, so the version it stamps comes from the nearest
+# tag rather than from the run itself.
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
-  # push:
-  #   tags:
-  #     - "v*"
 
 permissions:
   contents: write
 
 jobs:
-  goreleaser:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          # goreleaser derives the version and the changelog from tag
+          # history, so a shallow clone gives it neither.
           fetch-depth: 0
 
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: true
 
+      # The tag is already pushed by the time this runs, so a failure
+      # here means a tag exists with no release behind it — which is
+      # recoverable (delete the tag, fix, tag again) in a way that a
+      # published-but-broken release is not.
       - name: Test
-        run: go test ./...
+        run: go test -race ./...
 
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
-          version: latest
+          version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Needed to push the updated formula to the padovanl/homebrew-termdock
-          # tap repo (see .goreleaser.yml's brews: section and README.md's
-          # "Homebrew tap" section) — a fine-grained PAT with contents:write
-          # on that one repo, added as a secret on *this* repo. Until both the
-          # tap repo and this secret exist, the whole release run fails at
-          # the Homebrew publish step — set both up (see README.md) before
-          # pushing the first version tag, or drop the brews: section from
-          # .goreleaser.yml if you don't want a tap yet.
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
