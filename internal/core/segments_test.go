@@ -87,7 +87,7 @@ func TestReadMemGracefullyReadsARealSystem(t *testing.T) {
 	if got == "" {
 		t.Skip("no /proc/meminfo — not running on Linux")
 	}
-	if !strings.HasPrefix(got, "🧠") || !strings.HasSuffix(got, "%") {
+	if !strings.Contains(got, "mem ") || !strings.HasSuffix(got, "%") {
 		t.Fatalf("unexpected mem segment format: %q", got)
 	}
 }
@@ -108,8 +108,8 @@ func TestReadCPUSampleOnARealSystem(t *testing.T) {
 func TestCPUPercentComputesFromDelta(t *testing.T) {
 	prev := cpuSample{idle: 100, total: 1000}
 	cur := cpuSample{idle: 150, total: 1200} // +200 total, +50 idle -> 150/200 busy = 75%
-	if got := cpuPercent(prev, cur); got != "🖥️ cpu 75%" {
-		t.Fatalf("cpuPercent() = %q, want %q", got, "🖥️ cpu 75%")
+	if got := cpuPercent(prev, cur); !strings.HasSuffix(got, "cpu 75%") {
+		t.Fatalf("cpuPercent() = %q, want it to end with %q", got, "cpu 75%")
 	}
 }
 
@@ -197,5 +197,34 @@ func TestSegmentsAreLabelledNotJustIcons(t *testing.T) {
 	}
 	if got := readBattery(); got != "" && !strings.Contains(got, "bat") {
 		t.Errorf("battery segment %q should carry the word \"bat\"", got)
+	}
+}
+
+// TestStatusSegmentsAreWidthPredictable is not a style rule, it is an
+// alignment one. The client right-aligns the trailing status text by
+// counting *runes* (see drawStatusBar), so any glyph whose rune count
+// differs from the columns it occupies pushes everything after it out of
+// place — the clock drifts sideways depending on which segments are on.
+//
+// Emoji are exactly that: 🧠 and 🔋 are one rune drawn two columns wide,
+// while 🖥️ is two runes (base plus a variation selector) drawn as one.
+// The git segment's  is fine — a Private Use Area glyph, one rune, one
+// column — so this rejects the emoji ranges rather than all non-ASCII.
+func TestStatusSegmentsAreWidthPredictable(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	c.statusSegments = []string{"git", "battery", "cpu", "mem"}
+	c.segCache = segmentCache{}
+	text := c.statusSegmentsText()
+	c.mu.Unlock()
+
+	for _, r := range text {
+		switch {
+		case r == 0xFE0F || r == 0xFE0E: // variation selectors
+			t.Errorf("segment text %q contains a variation selector, which makes its width terminal-dependent", text)
+		case r >= 0x1F300 && r <= 0x1FAFF, // emoji blocks
+			r >= 0x2600 && r <= 0x27BF: // misc symbols & dingbats
+			t.Errorf("segment text %q contains emoji %q, which is drawn wider than its rune count and misaligns the bar", text, r)
+		}
 	}
 }

@@ -42,6 +42,8 @@ const (
 	ModeOpener    // type-ahead pick a URL/path spotted on screen; see opener.go
 	ModeQuickJump // display-panes: big numbers overlay, press one to jump; see quickjump.go
 	ModeSettings  // browse/edit the session's settings; see settings.go
+	ModeHistory   // fuzzy picker over every command run this session; see cmdhistory.go
+	ModeTimeline  // when each command ran, and for how long; see timeline.go
 )
 
 // modeNames drives Mode's String, used by the input log (see logInput) —
@@ -54,6 +56,7 @@ var modeNames = map[Mode]string{
 	ModeHelp: "help", ModeSessions: "sessions", ModeSearch: "search",
 	ModeOverview: "overview", ModeRegisters: "registers", ModePopup: "popup",
 	ModeOpener: "opener", ModeQuickJump: "quickjump", ModeSettings: "settings",
+	ModeHistory: "history", ModeTimeline: "timeline",
 }
 
 func (m Mode) String() string {
@@ -177,11 +180,25 @@ type Core struct {
 	opener       openerState
 	help         helpState
 	settings     settingsState
+	history      historyPickerState
+	timeline     timelineState
 	drag         *dragState
 	tabDrag      *tabDragState
 	contentPress *contentPressState
 	titleDrag    *titleDragState
-	registers    []registerEntry // yanks, most recent first, for Ctrl-B ] and Ctrl-B = (see registers.go)
+	closedPanes  []closedPane // undo stack behind Ctrl-B Z; see undoclose.go
+	// doneWatch maps a watched pane id to whether it was busy last time
+	// we looked; see watchdone.go (Ctrl-B m).
+	doneWatch map[int]bool
+
+	// paneNames holds names the user gave individual panes. A pane is
+	// otherwise titled after whatever process happens to hold its
+	// foreground, which is "bash" for every idle one — useless exactly
+	// when you have six of them and need to tell them apart. Keyed by
+	// pane id so it survives splits and layout changes rebuilding the
+	// tree. See renamePane.
+	paneNames map[int]string
+	registers []registerEntry // yanks, most recent first, for Ctrl-B ] and Ctrl-B = (see registers.go)
 
 	popup        *pane.Pane // the floating scratch terminal (Ctrl-B P), lazily created; see popup.go
 	popupVisible bool
@@ -635,6 +652,11 @@ func (c *Core) detachLeafIn(w *Window, n *layout.Node) {
 	// The divider being dragged may be the split that just got collapsed
 	// away; either way the geometry it was dragging against is gone.
 	c.drag = nil
+	// Before it leaves the tree, while its working directory can still be
+	// read off the live process — that path is the whole value of the
+	// undo (see undoclose.go).
+	c.recordClosedPane(w, n)
+	defer c.pruneBroadcast(w) // after the tree loses it, so the set stops naming a pane that is gone
 	newRoot, next := layout.Remove(w.root, n)
 	if newRoot == nil {
 		if idx := c.windowIndex(w); idx >= 0 {

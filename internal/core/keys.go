@@ -82,6 +82,14 @@ func (c *Core) handleKey(m proto.ClientMsg) Result {
 		c.handleSettingsKey(key, r)
 		c.markDirty()
 		return Result{}
+	case ModeHistory:
+		c.handleHistoryKey(key, r)
+		c.markDirty()
+		return Result{}
+	case ModeTimeline:
+		c.handleTimelineKey(key, r)
+		c.markDirty()
+		return Result{}
 	}
 
 	if !c.prefix {
@@ -271,10 +279,24 @@ func (c *Core) dispatchAction(act action) Result {
 		c.cycleLayout()
 	case actRespawnPane:
 		c.respawnActivePane()
+	case actReopenPane:
+		c.reopenClosedPane()
+	case actWatchDone:
+		c.watchDone()
+	case actCopyOutput:
+		res = c.copyLastOutput()
+	case actHistory:
+		c.enterHistoryPicker()
+	case actTimeline:
+		c.enterTimeline()
 	case actToggleLogging:
 		c.toggleLogging()
+	case actLogWindow:
+		c.promptWindowLogging()
 	case actRenameWindow:
 		c.startInput("rename", "Rename window: ", c.windowDisplayName(c.win()), ModeNormal)
+	case actRenamePane:
+		c.startInput("rename-pane", "Name this pane: ", c.paneNames[c.win().active.ID], ModeNormal)
 	case actRenameSession:
 		c.renameSessionPrompt()
 	case actKillWindow:
@@ -313,7 +335,7 @@ func (c *Core) forwardKey(key tcell.Key, r rune) {
 	}
 	w := c.win()
 	if w.syncPanes {
-		for _, l := range layout.Leaves(w.root) {
+		for _, l := range c.broadcastTargets(w) {
 			if p, ok := c.panes[l.ID]; ok {
 				p.Write(b)
 			}

@@ -429,3 +429,48 @@ func TestThemedFrameLeavesNoDefaultColoredCells(t *testing.T) {
 		}
 	}
 }
+
+// TestTextWidthCountsColumnsNotRunes is the measurement the status bar's
+// right-alignment depends on. A rune count is wrong in both directions:
+// 🔋 is one rune drawn two columns wide, 🖥️ is two runes (base plus a
+// variation selector) drawn as one glyph.
+func TestTextWidthCountsColumnsNotRunes(t *testing.T) {
+	for _, tc := range []struct {
+		s    string
+		want int
+	}{
+		{"cpu 42%", 7},
+		{" main", 6}, // a Nerd Font glyph is one column
+		{"🔋", 2},
+		{"🖥️", 2},
+		{"", 0},
+	} {
+		if got := textWidth(tc.s); got != tc.want {
+			t.Errorf("textWidth(%q) = %d, want %d", tc.s, got, tc.want)
+		}
+	}
+}
+
+// A wide glyph must advance the cursor by two, or whatever follows lands
+// on its second half and both are corrupted.
+func TestWideGlyphsDoNotOverlapWhatFollows(t *testing.T) {
+	screen := simScreen(t, 20, 3)
+	overlayText(screen, 0, 0, 20, tcell.StyleDefault, "🔋ab")
+	screen.Show()
+
+	cells, w, _ := screen.GetContents()
+	// The battery occupies columns 0-1, so 'a' must be at column 2.
+	at := func(x int) rune {
+		r := cells[0*w+x].Runes
+		if len(r) == 0 {
+			return ' '
+		}
+		return r[0]
+	}
+	if got := at(2); got != 'a' {
+		t.Errorf("after a two-column glyph, column 2 = %q, want 'a'", got)
+	}
+	if got := at(3); got != 'b' {
+		t.Errorf("column 3 = %q, want 'b'", got)
+	}
+}

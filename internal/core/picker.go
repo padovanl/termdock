@@ -67,6 +67,12 @@ func (c *Core) buildPickerItems() []pickerItem {
 }
 
 func (c *Core) pickerPaneTitle(id int) string {
+	// A name the user gave the pane is the whole reason they gave it: it
+	// has to be what the picker offers, or renaming buys nothing exactly
+	// where it matters most.
+	if given, ok := c.paneNames[id]; ok && given != "" {
+		return given
+	}
 	if p, ok := c.panes[id]; ok {
 		if fg := p.ForegroundTitle(); fg != "" {
 			return fg

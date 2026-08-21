@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configuration — termdock</title>
+<meta name="description" content="Every termdock setting, the eleven bundled themes, changing settings while a session runs, and termdock doctor for the ones that fail silently.">
+<meta property="og:title" content="Configuration — termdock">
+<meta property="og:description" content="Every termdock setting, the eleven bundled themes, changing settings while a session runs, and termdock doctor for the ones that fail silently.">
+<meta property="og:type" content="article">
+<meta name="theme-color" content="#07100f">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2.5' y='2.5' width='27' height='27' rx='3' fill='none' stroke='%2335e0c8' stroke-width='2.4'/><path d='M16 3.5 V28.5 M16 13 H28.5' stroke='%2335e0c8' stroke-width='2.4' stroke-linecap='round'/></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="crt-veil" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="index.html" style="text-decoration:none;border:0">termdock<span class="cursor">_</span></a>
+    <nav class="navlinks">
+      <a href="getting-started.html">start</a>
+      <a href="keys.html">keys</a>
+      <a href="shell-integration.html">shell</a>
+      <a href="workflow.html">workflow</a>
+      <a href="configuration.html">config</a>
+      <a href="remote.html">remote</a>
+      <a href="https://github.com/padovanl/termdock">github</a>
+    </nav>
+  </div>
+</header>
+
+<main class="manual">
+  <aside class="manual-toc">
+    <h2>On this page</h2>
+    <a href="#where-the-config-lives">Where the config lives</a>
+    <a href="#which-settings-apply-when">Which settings apply when</a>
+    <a href="#themes">Themes</a>
+    <a href="#changing-settings-while-it-runs">Changing settings while it runs</a>
+    <a href="#checking-your-own-setup">Checking your own setup</a>
+    <a href="#crash-recovery">Crash recovery</a>
+    <a href="#debugging-input">Debugging input</a>
+  </aside>
+  <div class="manual-body">
+    <h1 style="margin:0 0 0.5rem;font-size:2rem">Configuration</h1>
+    <p class="page-lede">One optional file of plain key/value lines — and a way to change most of it without restarting anything.</p>
+<h2 id="where-the-config-lives">Where the config lives</h2>
+
+<p><code>$XDG_CONFIG_HOME/termdock/termdock.conf</code>, falling back to
+<code>~/.config/termdock/termdock.conf</code>, or wherever
+<code>$TERMDOCK_CONFIG</code> points. It does not exist until you create
+it, and a missing file simply means defaults.</p>
+
+<p>Plain <code>key value</code> lines, <code>#</code> for comments:</p>
+
+<pre><code># termdock.conf
+prefix C-a               # prefix key, any Ctrl+letter (default C-b)
+mouse on                 # mouse support (default on)
+history-limit 10000      # scrollback lines kept per pane
+shell /bin/zsh           # shell for new panes (default $SHELL)
+popup-command lazygit    # what Ctrl-B P runs (default: the shell)
+focus-events on          # forward synthetic pane focus-in/out (default off)
+repeat-time 1000         # ms a bare arrow keeps moving focus (0 disables)
+bind M jump-picker       # rebind one key; repeatable, one per line
+theme dracula            # bundled color preset
+status-bg black
+status-fg silver
+pane-active-bg teal
+pane-bg default          # background behind unstyled pane content
+pane-fg default
+status-segments git,battery,cpu,mem</code></pre>
+
+<div class="note">
+<strong>A typo never stops a session starting.</strong> A line termdock
+cannot parse is ignored and the default kept. That is the right trade,
+and its cost is that a mistake is invisible — which is what
+<code>termdock doctor</code> below is for.
+</div>
+
+<h2 id="which-settings-apply-when">Which settings apply when</h2>
+
+<p><code>prefix</code>, <code>shell</code>, <code>history-limit</code>,
+<code>popup-command</code>, <code>focus-events</code>,
+<code>repeat-time</code> and <code>bind</code> are read by the
+<strong>server</strong>, so they take effect when a session is
+<em>created</em>.</p>
+
+<p><code>mouse</code>, <code>theme</code> and the colours are read by the
+<strong>client</strong>, so detaching and reattaching is enough.</p>
+
+<h2 id="themes">Themes</h2>
+
+<p>Eleven, built in — no plugin, no plugin manager:</p>
+
+<pre><code>termdock themes
+
+catppuccin  dracula  everforest  gruvbox  monokai  nord
+one-dark    rose-pine  solarized  tokyo-night  ubuntu</code></pre>
+
+<p>A theme sets the status bar, the active pane's accent, <em>and the
+pane backgrounds</em> — so a themed session looks themed all the way out
+to the margins, rather than being a coloured status bar floating on
+whatever your terminal profile uses. termdock also asks the terminal
+emulator itself to adopt the colours, so even the few pixels of padding
+around the character grid match, and puts them back when you detach.</p>
+
+<p>A theme is only a baseline: an explicit <code>pane-active-bg</code>
+line still overrides just that one colour, whichever order the two lines
+come in. <code>pane-bg default</code> opts the pane backgrounds back out
+while keeping the rest.</p>
+
+<h2 id="changing-settings-while-it-runs">Changing settings while it runs</h2>
+
+<p><span class="k">Ctrl-B</span> <span class="k">C</span> opens every
+setting with its current value and what it does.
+<span class="k">←</span> <span class="k">→</span> steps through the
+values a setting can take — all eleven palettes on <code>theme</code>,
+applying each as you land on it, so you choose by looking rather than by
+reading names. <span class="k">Enter</span> types a value for anything
+free-form.</p>
+
+<p><span class="k">S</span> writes the current value to your config file,
+rewriting just that line. Nothing is written unless you ask: silently
+rewriting a file full of your own comments and ordering is not a thing to
+do as a side effect of trying something out.</p>
+
+<p>The same vocabulary works from the command prompt:</p>
+
+<pre><code>Ctrl-B :  set theme nord
+Ctrl-B :  set -p theme nord     # and persist it</code></pre>
+
+<h2 id="checking-your-own-setup">Checking your own setup</h2>
+
+<pre><code>termdock doctor</code></pre>
+
+<p>Checks the things that fail <em>silently</em>:</p>
+
+<pre><code>[ warn ] theme                  "drakula" is not a built-in theme, so the line is being ignored
+                                → check the spelling against `termdock themes`
+[ warn ] shell integration      no `termdock shell-init` line found in your shell startup files
+                                → add: eval "$(termdock shell-init)"</code></pre>
+
+<p>Every check reports what it <em>found</em> rather than a bare verdict,
+so the output is worth pasting into a bug report from a machine you
+cannot see, and every warning names the thing to do about it.</p>
+
+<h2 id="crash-recovery">Crash recovery</h2>
+
+<p>termdock snapshots each session continuously: the layout, every pane's
+working directory and name, <em>and the last 200 lines of each pane's
+screen</em>. If the daemon dies or the machine reboots, starting a
+session with the same name brings it back — including the stack trace you
+were reading, rather than four blank prompts.</p>
+
+<p>What comes back is text, not a live program: nothing can resurrect
+what was running. Quitting deliberately with
+<span class="k">Ctrl-B</span> <span class="k">q</span> deletes the
+snapshot, so a session you ended stays ended.</p>
+
+<h2 id="debugging-input">Debugging input</h2>
+
+<p>If a key does something unexpected, set
+<code>TERMDOCK_INPUT_LOG=/path/to/file</code> when starting the server
+and every key, mouse and resize event is appended there with the state it
+left behind:</p>
+
+<pre><code>02:47:54.598 key code=66 rune='\x00' mod=0    -> prefix=true mode=normal
+02:47:54.598 key code=257 rune='\x00' mod=0   -> prefix=false mode=normal</code></pre>
+
+<p>What your terminal emulator actually sends for a chord, and whether a
+key reached the daemon at all, are otherwise invisible.</p>
+    <nav class="manual-nav">
+      <span>← <a href="workflow.html">Working in it all day</a></span>
+      <span><a href="remote.html">Remote sessions & sharing</a> →</span>
+    </nav>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-chips">
+      <a class="foot-chip" href="index.html">Home</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock">GitHub</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock/releases">Releases</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock/issues">Issues</a>
+    </div>
+    <p class="foot-note">MIT licensed · written from scratch in Go · linux &amp; macOS</p>
+  </div>
+</footer>
+</body>
+</html>

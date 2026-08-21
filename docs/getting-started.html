@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Getting started — termdock</title>
+<meta name="description" content="Install termdock, create your first session, split it into panes, and understand what detaching actually does.">
+<meta property="og:title" content="Getting started — termdock">
+<meta property="og:description" content="Install termdock, create your first session, split it into panes, and understand what detaching actually does.">
+<meta property="og:type" content="article">
+<meta name="theme-color" content="#07100f">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2.5' y='2.5' width='27' height='27' rx='3' fill='none' stroke='%2335e0c8' stroke-width='2.4'/><path d='M16 3.5 V28.5 M16 13 H28.5' stroke='%2335e0c8' stroke-width='2.4' stroke-linecap='round'/></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="crt-veil" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="index.html" style="text-decoration:none;border:0">termdock<span class="cursor">_</span></a>
+    <nav class="navlinks">
+      <a href="getting-started.html">start</a>
+      <a href="keys.html">keys</a>
+      <a href="shell-integration.html">shell</a>
+      <a href="workflow.html">workflow</a>
+      <a href="configuration.html">config</a>
+      <a href="remote.html">remote</a>
+      <a href="https://github.com/padovanl/termdock">github</a>
+    </nav>
+  </div>
+</header>
+
+<main class="manual">
+  <aside class="manual-toc">
+    <h2>On this page</h2>
+    <a href="#install">Install</a>
+    <a href="#your-first-session">Your first session</a>
+    <a href="#splitting-into-panes">Splitting into panes</a>
+    <a href="#windows-are-tabs">Windows are tabs</a>
+    <a href="#detaching-the-whole-point">Detaching: the whole point</a>
+    <a href="#where-to-go-next">Where to go next</a>
+  </aside>
+  <div class="manual-body">
+    <h1 style="margin:0 0 0.5rem;font-size:2rem">Getting started</h1>
+    <p class="page-lede">Ten minutes from installing to knowing why a session survives closing the terminal.</p>
+<h2 id="install">Install</h2>
+
+<p>Prebuilt packages and binaries are on the
+<a href="https://github.com/padovanl/termdock/releases">releases page</a>
+for linux and macOS, amd64 and arm64.</p>
+
+<pre><code># Debian / Ubuntu
+sudo dpkg -i termdock_*_amd64.deb
+
+# Fedora / RHEL
+sudo rpm -i termdock-*.x86_64.rpm
+
+# Homebrew (macOS or Linux)
+brew install padovanl/termdock/termdock
+
+# From source, with Go 1.21+
+go install github.com/padovanl/termdock@latest</code></pre>
+
+<p>Check it landed:</p>
+
+<pre><code>termdock --version</code></pre>
+
+<h2 id="your-first-session">Your first session</h2>
+
+<p>Run <code>termdock</code> with no arguments. It attaches to a session
+called <code>main</code>, creating it if it isn't there yet. You get one
+pane running your shell, and a status bar along the bottom.</p>
+
+<p>Everything termdock does starts with the <strong>prefix key</strong>,
+<span class="k">Ctrl-B</span>, followed by another key. Any key you press
+without the prefix goes straight to the shell, exactly as if termdock
+weren't there.</p>
+
+<div class="note">
+<strong>If you forget everything else, remember two.</strong>
+<span class="k">Ctrl-B</span> <span class="k">?</span> opens a scrollable
+list of every key, always generated from what is <em>actually</em> bound
+right now — so it stays right even if you rebind things.
+<span class="k">Ctrl-B</span> <span class="k">d</span> detaches.
+</div>
+
+<h2 id="splitting-into-panes">Splitting into panes</h2>
+
+<pre><code>Ctrl-B v     split side by side
+Ctrl-B s     split top and bottom
+Ctrl-B x     close the pane you're in
+Ctrl-B z     zoom the pane to fill the screen (again to undo)</code></pre>
+
+<p>Move between them with <span class="k">Ctrl-B</span> and an arrow key,
+or <code>h</code> <code>j</code> <code>k</code> <code>l</code> if you
+think in vim. Moving is the one thing you do repeatedly, so after a
+prefixed arrow a <em>bare</em> arrow keeps moving for a second — crossing
+three panes is <span class="k">Ctrl-B</span> <span class="k">←</span>
+<span class="k">←</span> <span class="k">←</span>, not the prefix three
+times.</p>
+
+<p>Closed the wrong one? <span class="k">Ctrl-B</span>
+<span class="k">Z</span> brings it back, in the window it came from and
+the directory it was sitting in.</p>
+
+<h2 id="windows-are-tabs">Windows are tabs</h2>
+
+<p>A window is a whole separate set of panes, like a browser tab. The
+strip along the bottom left is the window list.</p>
+
+<pre><code>Ctrl-B c     new window
+Ctrl-B n / p next / previous window
+Ctrl-B 0-9   jump straight to window N
+Ctrl-B ,     rename this window
+Ctrl-B &amp;     close the window and everything in it (asks first)</code></pre>
+
+<p>Once you have more than a few, stop counting and start searching:
+<span class="k">Ctrl-B</span> <span class="k">w</span> opens a
+type-ahead list of every pane in every window, with a live minimap of
+the one you're about to jump to.</p>
+
+<h2 id="detaching-the-whole-point">Detaching: the whole point</h2>
+
+<p>Press <span class="k">Ctrl-B</span> <span class="k">d</span>. You are
+back at your ordinary shell, and termdock says:</p>
+
+<pre><code>termdock: ▦ detached from "main" — it is still running; reattach with: termdock attach -t "main"</code></pre>
+
+<p>Nothing stopped. The panes, the shells, the program halfway through
+compiling — all of it is still running inside a daemon that is not
+attached to your terminal any more. Close the terminal window, log out,
+lose your SSH connection: it makes no difference to the session.</p>
+
+<pre><code>termdock ls                    # what's running
+termdock attach -t main        # pick up exactly where you left off
+termdock kill-session -t main  # actually end it</code></pre>
+
+<p>This is what a multiplexer is <em>for</em>, and it is worth trying
+deliberately once — detach, close the terminal entirely, open a new one,
+attach — because until you have seen it, every other feature reads as
+convenience rather than as the point.</p>
+
+<h2 id="where-to-go-next">Where to go next</h2>
+
+<ul>
+<li><a href="keys.html">Every key</a> — the full reference.</li>
+<li><a href="shell-integration.html">Shell integration</a> — one line in
+your shell rc that unlocks command history, jumping between commands,
+and copying a command's whole output. Start here if you only read one
+more page.</li>
+<li><a href="workflow.html">Working in it all day</a> — the features
+that earn their keep once a session has been open for a week.</li>
+<li><a href="configuration.html">Configuration</a> — themes, keys,
+settings you can change while it runs.</li>
+</ul>
+    <nav class="manual-nav">
+      <span></span>
+      <span><a href="keys.html">Every key</a> →</span>
+    </nav>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-chips">
+      <a class="foot-chip" href="index.html">Home</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock">GitHub</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock/releases">Releases</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock/issues">Issues</a>
+    </div>
+    <p class="foot-note">MIT licensed · written from scratch in Go · linux &amp; macOS</p>
+  </div>
+</footer>
+</body>
+</html>

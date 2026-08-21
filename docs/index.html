@@ -11,209 +11,11 @@
 <meta property="og:url" content="https://padovanl.github.io/termdock/">
 <meta property="og:image" content="https://padovanl.github.io/termdock/demo.gif">
 <meta name="theme-color" content="#07100f">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐳</text></svg>">
-<style>
-  :root {
-    --ink: #07100f;
-    --ink-raised: #0e1a19;
-    --ink-raised-2: #142322;
-    --parchment: #e6f4f1;
-    --rust: #6f9a94;
-    --rust-dim: #628a85;
-    /* The tube. pkgtui's is amber (#ffb000); this one is the other
-       classic phosphor, and matches termdock's own default accent. */
-    --phosphor: #35e0c8;
-    --phosphor-dim: #17998a;
-    --hairline: rgba(53, 224, 200, 0.16);
-    --hairline-soft: rgba(53, 224, 200, 0.07);
-    --term-green: #3ddc71;
-    --term-yellow: #f0c674;
-    --term-red: #ff6b5f;
-    --term-purple: #bd93f9;
-    --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, "Liberation Mono", Menlo, monospace;
-    --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, "Liberation Serif", serif;
-  }
-
-  * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
-  body {
-    margin: 0;
-    background: var(--ink);
-    color: var(--parchment);
-    font-family: var(--serif);
-    font-size: 17px;
-    line-height: 1.65;
-    overflow-x: hidden;
-  }
-
-  /* Scanlines and a vignette, over everything, catching nothing. */
-  .crt-veil {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 50;
-    background:
-      repeating-linear-gradient(to bottom, rgba(0,0,0,0.09) 0px, rgba(0,0,0,0.09) 1px, transparent 1px, transparent 3px),
-      radial-gradient(ellipse at 50% 0%, transparent 55%, rgba(0,0,0,0.35) 100%);
-    mix-blend-mode: multiply;
-  }
-  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
-
-  a { color: var(--phosphor); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
-
-  /* --- topbar --- */
-  .topbar {
-    position: sticky; top: 0; z-index: 40;
-    background: rgba(14, 26, 25, .88);
-    border-bottom: 1px solid var(--hairline);
-    backdrop-filter: blur(6px);
-  }
-  .topbar-inner {
-    max-width: 980px; margin: 0 auto; padding: 10px 24px;
-    display: flex; align-items: center; gap: 20px;
-  }
-  .brand { font-family: var(--mono); font-weight: 700; color: var(--phosphor); letter-spacing: .02em; }
-  .brand .cursor { animation: blink 1.2s steps(1) infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
-  @media (prefers-reduced-motion: reduce) { .brand .cursor { animation: none; } }
-  .navlinks { display: flex; gap: 18px; margin-left: auto; flex-wrap: wrap; }
-  .navlinks a { font-family: var(--mono); font-size: .82rem; color: var(--rust); }
-  .navlinks a:hover { color: var(--phosphor); text-decoration: none; }
-  @media (max-width: 620px) { .navlinks a[data-optional] { display: none; } }
-
-  /* --- hero --- */
-  .hero { padding: 70px 0 48px; border-bottom: 1px solid var(--hairline-soft); }
-  .hero-inner { max-width: 980px; margin: 0 auto; padding: 0 24px; text-align: center; }
-  .eyebrow {
-    font-family: var(--mono); color: var(--rust);
-    font-size: .85rem; letter-spacing: .04em; margin: 0 0 18px;
-  }
-  .eyebrow::before { content: "$ "; color: var(--phosphor-dim); }
-  h1 {
-    font-family: var(--mono);
-    font-size: clamp(3rem, 11vw, 5rem);
-    margin: 0 0 .12em; letter-spacing: -.03em; font-weight: 700;
-    color: var(--phosphor);
-    text-shadow: 0 0 26px rgba(53, 224, 200, .35);
-  }
-  .hero-lede {
-    font-size: clamp(1.05rem, 2.4vw, 1.3rem);
-    color: var(--parchment); opacity: .92;
-    max-width: 34em; margin: 0 auto 26px;
-  }
-  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 26px; }
-  .btn {
-    font-family: var(--mono); font-size: .9rem; font-weight: 600;
-    padding: 11px 22px; border-radius: 6px; border: 1px solid var(--phosphor-dim);
-    display: inline-block;
-  }
-  .btn.primary { background: var(--phosphor); color: var(--ink); border-color: var(--phosphor); }
-  .btn.primary:hover { filter: brightness(1.12); text-decoration: none; }
-  .btn.secondary { color: var(--phosphor); background: transparent; }
-  .btn.secondary:hover { background: var(--hairline-soft); text-decoration: none; }
-  .chips { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-  .chips img { height: 20px; }
-
-  /* --- sections --- */
-  .section { padding: 54px 0 10px; }
-  h2 {
-    font-family: var(--serif); font-size: clamp(1.6rem, 4vw, 2.1rem);
-    margin: 0 0 6px; letter-spacing: -.01em;
-  }
-  h2::before { content: "// "; font-family: var(--mono); color: var(--phosphor-dim); font-size: .7em; }
-  .section-lede { color: var(--rust); margin: 0 0 26px; max-width: 46em; }
-
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
-  .card {
-    background: var(--ink-raised); border: 1px solid var(--hairline);
-    border-radius: 8px; padding: 20px 22px;
-  }
-  .card h3 { font-family: var(--mono); font-size: 1.6rem; margin: 0 0 8px; color: var(--phosphor); line-height: 1; }
-  .card .card-title { font-family: var(--serif); font-size: 1.08rem; font-weight: 700; margin: 0 0 6px; }
-  .card p { margin: 0; font-size: .95rem; color: var(--rust); }
-
-  /* --- terminal windows --- */
-  .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
-  .feature-window {
-    background: var(--ink-raised); border: 1px solid var(--hairline);
-    border-radius: 8px; overflow: hidden;
-  }
-  .term-titlebar {
-    display: flex; align-items: center; gap: 8px;
-    padding: 9px 14px; background: var(--ink-raised-2);
-    border-bottom: 1px solid var(--hairline);
-    font-family: var(--mono); font-size: .78rem; color: var(--rust);
-  }
-  .term-dots { display: flex; gap: 6px; margin-right: 4px; }
-  .term-dots i { width: 10px; height: 10px; border-radius: 50%; display: block; }
-  .term-dots i:nth-child(1) { background: var(--term-red); }
-  .term-dots i:nth-child(2) { background: var(--term-yellow); }
-  .term-dots i:nth-child(3) { background: var(--term-green); }
-  .feature-window-body { padding: 16px 18px; font-size: .95rem; color: var(--rust); }
-  .feature-window-body strong { color: var(--parchment); font-weight: 600; }
-
-  /* --- demo --- */
-  .demo-frame {
-    background: var(--ink-raised); border: 1px solid var(--hairline);
-    border-radius: 8px; overflow: hidden; margin-bottom: 14px;
-  }
-  .demo-frame img { width: 100%; height: auto; display: block; }
-  .demo-caption { font-family: var(--mono); font-size: .8rem; color: var(--rust-dim); text-align: center; margin: 0; }
-
-  /* --- install --- */
-  .install-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-  .install-tab {
-    font-family: var(--mono); font-size: .84rem;
-    padding: 7px 15px; border-radius: 5px; cursor: pointer;
-    background: var(--ink-raised); color: var(--rust);
-    border: 1px solid var(--hairline);
-  }
-  .install-tab:hover { color: var(--phosphor); }
-  .install-tab[aria-selected="true"] { background: var(--phosphor); color: var(--ink); border-color: var(--phosphor); font-weight: 700; }
-  .install-tab:focus-visible { outline: 2px solid var(--phosphor); outline-offset: 3px; }
-  .install-panel {
-    background: var(--ink-raised); border: 1px solid var(--hairline);
-    border-radius: 8px; overflow: hidden;
-  }
-  .install-panel[hidden] { display: none; }
-  pre {
-    margin: 0; padding: 16px 18px; overflow-x: auto;
-    font-family: var(--mono); font-size: .86rem; line-height: 1.6;
-    color: var(--parchment);
-  }
-  pre .comment { color: var(--rust-dim); }
-  pre .prompt { color: var(--phosphor-dim); }
-  code { font-family: var(--mono); font-size: .9em; }
-  .install-note { font-size: .9rem; color: var(--rust); margin-top: 14px; }
-
-  /* --- keys --- */
-  .keys { border: 1px solid var(--hairline); border-radius: 8px; overflow: hidden; }
-  table { border-collapse: collapse; width: 100%; font-size: .93rem; }
-  th, td { text-align: left; padding: 9px 16px; border-bottom: 1px solid var(--hairline-soft); }
-  th { background: var(--ink-raised-2); font-family: var(--mono); font-size: .78rem; color: var(--rust); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
-  tr:last-child td { border-bottom: 0; }
-  td:first-child { width: 190px; white-space: nowrap; }
-  td { color: var(--rust); }
-  .k {
-    font-family: var(--mono); font-size: .8rem;
-    background: var(--ink-raised-2); color: var(--phosphor);
-    border: 1px solid var(--hairline); border-radius: 4px;
-    padding: 2px 7px; display: inline-block;
-  }
-  .keys-scroll { overflow-x: auto; }
-
-  /* --- footer --- */
-  footer { margin-top: 64px; border-top: 1px solid var(--hairline); padding: 28px 0 48px; text-align: center; }
-  .foot-chips { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 14px; }
-  .foot-chip {
-    font-family: var(--mono); font-size: .82rem; color: var(--rust);
-    padding: 4px 10px; border-radius: 4px; border: 1px solid var(--hairline);
-  }
-  .foot-chip:hover { color: var(--phosphor); text-decoration: none; }
-  .foot-note { font-family: var(--mono); font-size: .8rem; color: var(--rust-dim); margin: 0; }
-</style>
+<!-- A pane layout, drawn the way termdock draws one: an outer border,
+     one vertical split, one horizontal split in the right half. Replaces
+     the whale, which is Docker's mark and not ours to borrow. -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2.5' y='2.5' width='27' height='27' rx='3' fill='none' stroke='%2335e0c8' stroke-width='2.4'/><path d='M16 3.5 V28.5 M16 13 H28.5' stroke='%2335e0c8' stroke-width='2.4' stroke-linecap='round'/></svg>">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="crt-veil" aria-hidden="true"></div>
@@ -227,6 +29,7 @@
       <a href="#action">in action</a>
       <a href="#install">install</a>
       <a href="#keys" data-optional>keys</a>
+      <a href="getting-started.html">manual</a>
       <a href="https://github.com/padovanl/termdock">github</a>
     </nav>
   </div>
@@ -381,7 +184,146 @@
       </div>
     </div>
 
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Knows where your commands are</div>
+      <div class="feature-window-body">
+        <strong>One line in your shell rc</strong> (<code>eval "$(termdock shell-init)"</code>)
+        and termdock records where every prompt, command and output begins —
+        in <em>its own</em> VT emulator, so it works over SSH in any terminal.
+        Everything below depends on it, and tmux cannot do it at all: it has
+        no emulator to record marks in.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Copy a command's whole output</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B O.</strong> Exactly the lines that command printed —
+        2 or 3000 — with the prompt and the command itself excluded. In
+        copy-mode it takes the command your cursor is on, so walking back
+        with <span class="k">{</span> and copying does what it looks like.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Jump between commands</div>
+      <div class="feature-window-body">
+        <strong>{ and } in copy-mode.</strong> Move by <em>command</em>, not by
+        line or page: each jump lands on a prompt with that run's output
+        below it. Finding where a test run started stops being a scroll hunt.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Session-wide command history</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B H.</strong> Fuzzy-search every command run in <em>any</em>
+        pane, with how it exited and how long it took. Your shell's history is
+        per-pane, records what you typed but not what happened, and isn't
+        written until that shell exits. Enter types it back, without running it.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Session timeline</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B T.</strong> Every command on one shared scale, with a bar
+        for its span — so "was the build still running when I started the
+        migration?" is a glance instead of an archaeology dig across four
+        scrollbacks.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Reopen a closed pane</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B Z.</strong> Brings back the pane you just closed — same
+        window, same working directory — however it went: <code>x</code>, or
+        an <code>exit</code> typed into the wrong one. In tmux a closed pane
+        is simply gone.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Tell me when it finishes</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B m.</strong> Mark a pane; when its command exits you get a
+        bell and a message naming it. No shell setup, and it can be armed
+        <em>after</em> the command is already running — which a
+        <code>; notify-send</code> wrapper fundamentally cannot.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Name your panes</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B .</strong> Six panes all called "bash" tell you nothing.
+        Give one a name and it wins over the process name, shows up in the
+        jump picker, and survives a crash.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Type into the panes you choose</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B y</strong>, or <span class="k">space</span> in the overview
+        to pick exactly which. tmux's synchronize-panes is all-or-nothing over
+        a window — the pane you need to keep <em>out</em> has to be moved
+        elsewhere first.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Saved layouts</div>
+      <div class="feature-window-body">
+        <code>termdock layout save dev</code> / <code>apply dev</code>. Windows,
+        splits, ratios, names and each pane's directory, rebuilt on demand —
+        the job people currently leave for tmuxinator and a YAML file.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Crash recovery that remembers</div>
+      <div class="feature-window-body">
+        Layout, working directories <em>and the last 200 lines of each pane</em>,
+        snapshotted continuously. You reopen looking at the stack trace you
+        were reading. tmux needs tmux-resurrect for the layout alone, and even
+        that brings back nothing of the contents.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>termdock doctor</div>
+      <div class="feature-window-body">
+        Checks the things that fail <em>silently</em>: a misspelled theme being
+        ignored, shell integration that was never set up, a terminal quietly
+        rounding your colours. Every warning names the fix.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Log a whole window</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B A.</strong> Names a directory and logs <em>every</em>
+        pane in the window into it, one file each —
+        <code>deploy-feat_login-api_server.log</code>, named after the session,
+        the window and the pane's own name. The moment before you reproduce
+        something: six panes, one keystroke, a folder you can attach to a
+        ticket. tmux's <code>pipe-pane</code> is one pane at a time, with the
+        filename written out by hand.
+      </div>
+    </div>
+
   </div>
+  <p class="section-lede" style="margin-top:2rem;text-align:center">
+    Each of these is explained properly in the manual —
+    <a href="getting-started.html">getting started</a>,
+    <a href="shell-integration.html">shell integration</a>,
+    <a href="workflow.html">working in it all day</a>,
+    <a href="configuration.html">configuration</a>,
+    <a href="remote.html">remote &amp; sharing</a>,
+    <a href="keys.html">every key</a>.
+  </p>
 </section>
 
 <section class="section" id="action">
@@ -487,7 +429,7 @@
       <a class="foot-chip" href="https://github.com/padovanl/termdock">GitHub</a>
       <a class="foot-chip" href="https://github.com/padovanl/termdock/releases">Releases</a>
       <a class="foot-chip" href="https://github.com/padovanl/termdock/issues">Issues</a>
-      <a class="foot-chip" href="https://github.com/padovanl/termdock/blob/master/README.md">Docs</a>
+      <a class="foot-chip" href="getting-started.html">Manual</a>
       <a class="foot-chip" href="https://github.com/padovanl/termdock/blob/master/LICENSE">License</a>
     </div>
     <p class="foot-note">MIT licensed · written from scratch in Go · linux &amp; macOS</p>

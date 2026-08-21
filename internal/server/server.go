@@ -129,7 +129,7 @@ func Run(name, sockPath string, cfg config.Config) error {
 			// link — because a deliberate shutdown and a crashed daemon
 			// looked identical from the far end: the connection simply
 			// stopped answering.
-			s.byeAll(fmt.Sprintf("🐳 session %q ended — all its panes are closed", s.core.Name()))
+			s.byeAll(fmt.Sprintf("▦ session %q ended — all its panes are closed", s.core.Name()))
 			c.Shutdown()
 			ln.Close()
 			liveMu.Lock()
@@ -288,7 +288,7 @@ func (s *Session) handleConn(conn net.Conn, stop func()) {
 		return
 
 	case "kill":
-		enc.Encode(proto.ServerMsg{Kind: "bye", Bye: fmt.Sprintf("🐳 session %q terminated", s.core.Name())})
+		enc.Encode(proto.ServerMsg{Kind: "bye", Bye: fmt.Sprintf("▦ session %q terminated", s.core.Name())})
 		conn.Close()
 		stop()
 		return
@@ -322,6 +322,16 @@ func (s *Session) handleConn(conn net.Conn, stop func()) {
 	case "select-window":
 		err := s.core.CLISelectWindow(hello.WindowIdx, hello.WindowName)
 		enc.Encode(cliReply(err))
+		conn.Close()
+		return
+
+	case "save-layout":
+		enc.Encode(cliReply(s.core.SaveLayout(hello.CLIName)))
+		conn.Close()
+		return
+
+	case "apply-layout":
+		enc.Encode(cliReply(s.core.ApplyLayout(hello.CLIName)))
 		conn.Close()
 		return
 
@@ -388,7 +398,7 @@ func (s *Session) handleConn(conn net.Conn, stop func()) {
 		}
 		if res.Detach {
 			cc.send(proto.ServerMsg{Kind: "bye", Bye: fmt.Sprintf(
-				"🐳 detached from %q — it is still running; reattach with: termdock attach -t %q",
+				"▦ detached from %q — it is still running; reattach with: termdock attach -t %q",
 				s.core.Name(), s.core.Name())})
 			return
 		}

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Every key — termdock</title>
+<meta name="description" content="The complete termdock keybinding reference: panes, windows, copy-mode, and everything behind the Ctrl-B prefix.">
+<meta property="og:title" content="Every key — termdock">
+<meta property="og:description" content="The complete termdock keybinding reference: panes, windows, copy-mode, and everything behind the Ctrl-B prefix.">
+<meta property="og:type" content="article">
+<meta name="theme-color" content="#07100f">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2.5' y='2.5' width='27' height='27' rx='3' fill='none' stroke='%2335e0c8' stroke-width='2.4'/><path d='M16 3.5 V28.5 M16 13 H28.5' stroke='%2335e0c8' stroke-width='2.4' stroke-linecap='round'/></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="crt-veil" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="index.html" style="text-decoration:none;border:0">termdock<span class="cursor">_</span></a>
+    <nav class="navlinks">
+      <a href="getting-started.html">start</a>
+      <a href="keys.html">keys</a>
+      <a href="shell-integration.html">shell</a>
+      <a href="workflow.html">workflow</a>
+      <a href="configuration.html">config</a>
+      <a href="remote.html">remote</a>
+      <a href="https://github.com/padovanl/termdock">github</a>
+    </nav>
+  </div>
+</header>
+
+<main class="manual">
+  <aside class="manual-toc">
+    <h2>On this page</h2>
+    <a href="#panes">Panes</a>
+    <a href="#windows">Windows</a>
+    <a href="#finding-things">Finding things</a>
+    <a href="#copy-mode">Copy-mode</a>
+    <a href="#session-and-everything-else">Session and everything else</a>
+    <a href="#rebinding">Rebinding</a>
+  </aside>
+  <div class="manual-body">
+    <h1 style="margin:0 0 0.5rem;font-size:2rem">Every key</h1>
+    <p class="page-lede">Everything behind the prefix. All of it rebindable, and all of it also on the Ctrl-B ? screen inside termdock — which is generated from what's actually bound, so it never goes stale.</p>
+<h2 id="panes">Panes</h2>
+
+<table>
+<tr><th>Key</th><th>Does</th></tr>
+<tr><td><code>v</code> or <code>%</code></td><td>Split side by side.</td></tr>
+<tr><td><code>s</code> or <code>"</code></td><td>Split top and bottom.</td></tr>
+<tr><td><code>←→↑↓</code> / <code>hjkl</code></td><td>Move focus. After a prefixed arrow, a bare arrow keeps moving for a second.</td></tr>
+<tr><td><code>o</code> or <code>Tab</code></td><td>Cycle to the next pane.</td></tr>
+<tr><td><code>;</code></td><td>Back to the pane you were just in.</td></tr>
+<tr><td><code>z</code></td><td>Zoom this pane full-screen. Its border turns magenta and the title gains <code>[Z]</code>.</td></tr>
+<tr><td><code>r</code></td><td>Resize mode: arrows resize, any other key leaves.</td></tr>
+<tr><td><code>x</code></td><td>Close this pane.</td></tr>
+<tr><td><code>Z</code></td><td>Reopen the last closed pane, in its window and directory.</td></tr>
+<tr><td><code>!</code></td><td>Break this pane out into a window of its own.</td></tr>
+<tr><td><code>R</code></td><td>Respawn: restart the shell in place.</td></tr>
+<tr><td><code>.</code></td><td>Name this pane. Empty clears it.</td></tr>
+<tr><td><code>Q</code></td><td>Badge every pane with a digit; press one to jump there.</td></tr>
+<tr><td><code>Space</code></td><td>Cycle the window through tiled / even-columns / even-rows.</td></tr>
+</table>
+
+<h2 id="windows">Windows</h2>
+
+<table>
+<tr><th>Key</th><th>Does</th></tr>
+<tr><td><code>c</code></td><td>New window.</td></tr>
+<tr><td><code>n</code> / <code>p</code></td><td>Next / previous window.</td></tr>
+<tr><td><code>0</code>–<code>9</code></td><td>Jump to window N.</td></tr>
+<tr><td><code>W</code></td><td>Back to the window you were just in.</td></tr>
+<tr><td><code>,</code></td><td>Rename this window.</td></tr>
+<tr><td><code>&amp;</code></td><td>Close the window and every pane in it. Asks first.</td></tr>
+<tr><td><code>w</code></td><td>Jump picker: type to filter every window and pane, with a live minimap.</td></tr>
+<tr><td><code>g</code></td><td>Overview: every pane in the session as a grid of live thumbnails.</td></tr>
+</table>
+
+<h2 id="finding-things">Finding things</h2>
+
+<table>
+<tr><th>Key</th><th>Does</th></tr>
+<tr><td><code>/</code></td><td>Search every pane's scrollback at once, plain text or regex.</td></tr>
+<tr><td><code>[</code></td><td>Copy-mode: scroll and select the scrollback.</td></tr>
+<tr><td><code>u</code></td><td>Pick a URL or path visible on screen; copies it to your clipboard.</td></tr>
+<tr><td><code>H</code></td><td>Every command run in this session, fuzzy-searchable. <a href="shell-integration.html">Needs shell integration.</a></td></tr>
+<tr><td><code>T</code></td><td>Session timeline: when each command ran, for how long. <a href="shell-integration.html">Needs shell integration.</a></td></tr>
+<tr><td><code>O</code></td><td>Copy a command's entire output. <a href="shell-integration.html">Needs shell integration.</a></td></tr>
+</table>
+
+<h2 id="copy-mode">Copy-mode</h2>
+
+<p>Enter with <span class="k">Ctrl-B</span> <span class="k">[</span>.
+Inside, the prefix is not needed:</p>
+
+<table>
+<tr><th>Key</th><th>Does</th></tr>
+<tr><td><code>hjkl</code> / arrows</td><td>Move the cursor.</td></tr>
+<tr><td><code>PgUp</code> / <code>PgDn</code> / <code>Ctrl-U</code> / <code>Ctrl-D</code></td><td>Page and half-page.</td></tr>
+<tr><td><code>g</code> / <code>G</code></td><td>Top / bottom of the scrollback.</td></tr>
+<tr><td><code>v</code></td><td>Start a character-wise selection.</td></tr>
+<tr><td><code>V</code></td><td>Whole-line selection. <code>v</code> switches back without losing it.</td></tr>
+<tr><td><code>y</code></td><td>Yank the selection, to the clipboard and the paste registers.</td></tr>
+<tr><td><code>/</code></td><td>Search this pane. Regex, falling back to a literal match.</td></tr>
+<tr><td><code>{</code> / <code>}</code></td><td>Jump to the previous / next command. <a href="shell-integration.html">Needs shell integration.</a></td></tr>
+<tr><td><code>q</code> or <code>Esc</code></td><td>Leave.</td></tr>
+</table>
+
+<h2 id="session-and-everything-else">Session and everything else</h2>
+
+<table>
+<tr><th>Key</th><th>Does</th></tr>
+<tr><td><code>d</code></td><td>Detach. The session keeps running.</td></tr>
+<tr><td><code>q</code></td><td>Quit the whole session. Asks first.</td></tr>
+<tr><td><code>$</code></td><td>Rename this session — socket and snapshot move with it.</td></tr>
+<tr><td><code>S</code></td><td>Switch to another session without detaching.</td></tr>
+<tr><td><code>P</code></td><td>Toggle the floating scratch terminal.</td></tr>
+<tr><td><code>y</code></td><td>Synchronised input: type into every pane at once, or the ones you picked.</td></tr>
+<tr><td><code>]</code> / <code>=</code></td><td>Paste the last yank / pick from the last 20.</td></tr>
+<tr><td><code>L</code></td><td>Log this pane's output to a file.</td></tr>
+<tr><td><code>A</code></td><td>Log <em>every</em> pane in this window to a directory you name.</td></tr>
+<tr><td><code>m</code></td><td>Tell me when this pane's command finishes.</td></tr>
+<tr><td><code>C</code></td><td>Settings screen: every setting, changeable live.</td></tr>
+<tr><td><code>:</code></td><td>Command prompt.</td></tr>
+<tr><td><code>?</code></td><td>This list, inside termdock.</td></tr>
+<tr><td><code>Ctrl-B</code></td><td>Pressed twice: sends a literal Ctrl-B to the shell.</td></tr>
+</table>
+
+<h2 id="rebinding">Rebinding</h2>
+
+<p>Every key above is a default, not a fixture. One line in the config:</p>
+
+<pre><code>bind M jump-picker</code></pre>
+
+<p>Both <code>w</code> and <code>M</code> now open it —
+<code>bind</code> touches only the key you name. Action names are listed
+by the help screen; the full set lives in
+<code>internal/core/bindings.go</code>.</p>
+
+<div class="note">
+<strong>Digits and arrows.</strong> <code>0</code>–<code>9</code> jump to
+a window unless you deliberately rebind that digit, in which case your
+binding wins. Arrow keys always work for movement whatever else you
+bind, so a rebind can never leave you unable to move.
+</div>
+    <nav class="manual-nav">
+      <span>← <a href="getting-started.html">Getting started</a></span>
+      <span><a href="shell-integration.html">Shell integration</a> →</span>
+    </nav>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-chips">
+      <a class="foot-chip" href="index.html">Home</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock">GitHub</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock/releases">Releases</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock/issues">Issues</a>
+    </div>
+    <p class="foot-note">MIT licensed · written from scratch in Go · linux &amp; macOS</p>
+  </div>
+</footer>
+</body>
+</html>

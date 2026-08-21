@@ -87,14 +87,21 @@ const maxHistoryLines = 10000
 type State struct {
 	DebugLogger *log.Logger
 
-	w             io.Writer
-	mu            sync.Mutex
-	changed       ChangeFlag
-	cols, rows    int
-	lines         []line
-	altLines      []line
-	history       []line // scrolled-off primary-screen lines, oldest first
-	historyLimit  int
+	w            io.Writer
+	mu           sync.Mutex
+	changed      ChangeFlag
+	cols, rows   int
+	lines        []line
+	altLines     []line
+	history      []line // scrolled-off primary-screen lines, oldest first
+	historyLimit int
+	// scrolledOff counts every primary-screen line ever archived, and
+	// unlike len(history) it never goes down. It is what lets a prompt
+	// mark name a line once and stay correct as the buffer scrolls (see
+	// marks.go): the alternative, renumbering every mark on every
+	// scroll, is both slower and easy to get subtly wrong.
+	scrolledOff   int
+	marks         []Mark // OSC 133 semantic prompt marks; see marks.go
 	dirty         []bool // line dirtiness
 	anydirty      bool
 	cur, curSaved Cursor
@@ -331,6 +338,11 @@ func (t *State) resize(cols, rows int) bool {
 	if slide > 0 {
 		copy(t.lines, t.lines[slide:slide+rows])
 		copy(t.altLines, t.altLines[slide:slide+rows])
+		// These lines are discarded rather than archived, so every mark's
+		// line number is now off by an amount nothing records. Forget them
+		// instead of pointing at the wrong text; the next command records
+		// a fresh set (see marks.go).
+		t.dropMarks()
 	}
 
 	lines, altLines, tabs := t.lines, t.altLines, t.tabs
@@ -509,6 +521,12 @@ func (t *State) scrollUp(orig, n int) {
 		if excess := len(t.history) - t.historyLimit; excess > 0 {
 			t.history = t.history[excess:]
 		}
+		t.scrolledOff += n
+	} else if t.mode&ModeAltScreen == 0 {
+		// Lines left the primary screen without being archived (a custom
+		// scroll region), so nothing relates a mark's line number to
+		// where its text now is. See dropMarks.
+		t.dropMarks()
 	}
 
 	t.clear(0, orig, t.cols-1, orig+n-1)
