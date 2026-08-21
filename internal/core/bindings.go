@@ -53,6 +53,7 @@ const (
 	actHistory       action = "command-history"
 	actToggleLogging action = "toggle-logging"
 	actRenameWindow  action = "rename-window"
+	actRenamePane    action = "rename-pane"
 	actRenameSession action = "rename-session"
 	actKillWindow    action = "kill-window"
 	actPaste         action = "paste"
@@ -103,6 +104,7 @@ var defaultBindings = map[rune]action{
 	'H': actHistory,
 	'L': actToggleLogging,
 	',': actRenameWindow,
+	'.': actRenamePane,
 	'$': actRenameSession,
 	'&': actKillWindow,
 	']': actPaste,
@@ -125,7 +127,7 @@ var actionOrder = []action{
 	actJumpPicker, actLastWindow, actLastPane, actOverview,
 	actGlobalSearch, actSwitchSession, actPopup, actOpener,
 	actBreakPane, actQuickJump, actCommandPrompt, actCycleLayout,
-	actRespawnPane, actReopenPane, actWatchDone, actCopyOutput, actHistory, actToggleLogging, actRenameWindow, actRenameSession, actKillWindow,
+	actRespawnPane, actReopenPane, actWatchDone, actCopyOutput, actHistory, actToggleLogging, actRenameWindow, actRenamePane, actRenameSession, actKillWindow,
 	actClosePane, actSettings, actDetach, actQuit, actHelp,
 }
 
@@ -167,6 +169,7 @@ var actionDescriptions = map[action]string{
 	actHistory:       "search every command run in this session (needs shell-init)",
 	actToggleLogging: "toggle logging the active pane's output to a file",
 	actRenameWindow:  "rename the current window",
+	actRenamePane:    "name this pane (empty clears it, back to the process name)",
 	actRenameSession: "rename this session (its socket and snapshot move with it)",
 	actKillWindow:    "close the current window and every pane in it (asks first)",
 	actClosePane:     "close the active pane",
@@ -215,6 +218,7 @@ var actionShort = map[action]string{
 	actHistory:       "history",
 	actToggleLogging: "log",
 	actRenameWindow:  "rename",
+	actRenamePane:    "name-pane",
 	actRenameSession: "rename-session",
 	actKillWindow:    "kill-win",
 	actClosePane:     "close-pane",

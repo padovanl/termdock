@@ -188,6 +188,14 @@ type Core struct {
 	// doneWatch maps a watched pane id to whether it was busy last time
 	// we looked; see watchdone.go (Ctrl-B m).
 	doneWatch map[int]bool
+
+	// paneNames holds names the user gave individual panes. A pane is
+	// otherwise titled after whatever process happens to hold its
+	// foreground, which is "bash" for every idle one — useless exactly
+	// when you have six of them and need to tell them apart. Keyed by
+	// pane id so it survives splits and layout changes rebuilding the
+	// tree. See renamePane.
+	paneNames map[int]string
 	registers []registerEntry // yanks, most recent first, for Ctrl-B ] and Ctrl-B = (see registers.go)
 
 	popup        *pane.Pane // the floating scratch terminal (Ctrl-B P), lazily created; see popup.go

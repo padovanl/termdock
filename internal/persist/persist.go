@@ -20,6 +20,7 @@ type Node struct {
 	Split int // matches internal/layout.SplitType: 0 leaf, 1 vertical, 2 horizontal
 	Ratio float64
 	Cwd   string `json:",omitempty"` // leaf only
+	Name  string `json:",omitempty"` // leaf only: a name the user gave this pane
 	// Scrollback is the tail of what the pane had on screen, oldest line
 	// first, as plain text. Restored by writing it back into the fresh
 	// pane so a recovered session opens showing what you were reading —

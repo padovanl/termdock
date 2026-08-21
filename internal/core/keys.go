@@ -287,6 +287,8 @@ func (c *Core) dispatchAction(act action) Result {
 		c.toggleLogging()
 	case actRenameWindow:
 		c.startInput("rename", "Rename window: ", c.windowDisplayName(c.win()), ModeNormal)
+	case actRenamePane:
+		c.startInput("rename-pane", "Name this pane: ", c.paneNames[c.win().active.ID], ModeNormal)
 	case actRenameSession:
 		c.renameSessionPrompt()
 	case actKillWindow:

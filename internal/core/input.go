@@ -57,6 +57,21 @@ func (c *Core) confirmInput() {
 			w.renamed = true
 		}
 		c.persistStateLocked()
+	case "rename-pane":
+		// An empty name clears it, putting the pane back to being titled
+		// after whatever is running in it — which is the sensible way to
+		// undo a rename, and what an empty prompt plainly means.
+		id := c.win().active.ID
+		if text == "" {
+			delete(c.paneNames, id)
+			c.statusMsg = "pane name cleared"
+		} else {
+			if c.paneNames == nil {
+				c.paneNames = map[int]string{}
+			}
+			c.paneNames[id] = text
+		}
+		c.persistStateLocked()
 	case "rename-session":
 		c.applySessionRename(text)
 	case "search":

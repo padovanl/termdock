@@ -165,6 +165,11 @@ func (c *Core) paneTitle(idx int, p *pane.Pane) string {
 	if fg := p.ForegroundTitle(); fg != "" {
 		name = fg
 	}
+	// A name the user chose wins over the process name: they renamed it
+	// precisely because "bash" was not telling them what it was for.
+	if given, ok := c.paneNames[p.ID]; ok && given != "" {
+		name = given
+	}
 	return fmt.Sprintf("%d:%s%s%s", idx, name, c.lastCommandStatus(p.ID), c.watchedPaneMarker(p.ID))
 }
 
