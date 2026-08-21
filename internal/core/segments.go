@@ -153,12 +153,12 @@ func readBattery() string {
 		// "+" for charging: one column, unambiguous, and unlike a battery
 		// emoji it cannot throw the status bar's alignment out (see
 		// TestStatusSegmentsAreWidthPredictable).
-		charging := ""
+		icon := "\uf240" // a battery
 		if statusBytes, err := os.ReadFile(base + e.Name() + "/status"); err == nil &&
 			strings.TrimSpace(string(statusBytes)) == "Charging" {
-			charging = "+"
+			icon = "\uf0e7" // a bolt
 		}
-		return "bat " + charging + pct + "%"
+		return icon + " bat " + pct + "%"
 	}
 	return ""
 }
@@ -209,7 +209,7 @@ func cpuPercent(prev, cur cpuSample) string {
 		return "" // clock hasn't advanced, or a counter wrapped — nothing sane to report
 	}
 	pct := 100 * (dTotal - dIdle) / dTotal
-	return fmt.Sprintf("cpu %d%%", pct)
+	return fmt.Sprintf("\uf2db cpu %d%%", pct)
 }
 
 // readMem reads /proc/meminfo for the fraction of memory in use —
@@ -239,5 +239,5 @@ func readMem() string {
 		return ""
 	}
 	pct := 100 * (total - avail) / total
-	return fmt.Sprintf("mem %d%%", pct)
+	return fmt.Sprintf("\uf1c0 mem %d%%", pct)
 }

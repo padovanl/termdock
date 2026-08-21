@@ -628,7 +628,7 @@ func drawStatusBar(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	drawText(screen, 0, y, f.Cols, style, "") // blank-fill the row
 
 	overlayText(screen, 0, y, f.Cols, style, f.StatusPrefix)
-	suffixX := len([]rune(f.StatusPrefix))
+	suffixX := textWidth(f.StatusPrefix)
 	for _, t := range f.Windows {
 		overlayText(screen, t.X, y, f.Cols, tabStyle(t, cfg), t.Label)
 		if end := t.X + t.W; end > suffixX {
@@ -637,9 +637,9 @@ func drawStatusBar(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	}
 	overlayText(screen, suffixX, y, f.Cols, style, f.StatusText)
 
-	rw := len([]rune(f.StatusRight))
+	rw := textWidth(f.StatusRight)
 	if rw > 0 {
-		leftLen := suffixX + len([]rune(f.StatusText))
+		leftLen := suffixX + textWidth(f.StatusText)
 		if leftLen > f.Cols {
 			leftLen = f.Cols // the left side was itself clipped to the screen width
 		}
@@ -681,7 +681,11 @@ func overlayText(screen tcell.Screen, x, y, cols int, style tcell.Style, text st
 		if x >= 0 {
 			screen.SetContent(x, y, r, nil, style)
 		}
-		x++
+		// Advance by the columns the glyph actually takes: a wide one
+		// occupies two cells, and stepping by one would let the next
+		// character land on its second half. A zero-width mark advances
+		// nothing, attaching to the glyph before it.
+		x += runeWidth(r)
 	}
 }
 
@@ -691,11 +695,12 @@ func drawText(screen tcell.Screen, x, y, w int, style tcell.Style, text string) 
 	}
 	i := 0
 	for _, r := range text {
-		if i >= w {
-			break
+		rw := runeWidth(r)
+		if i+rw > w {
+			break // a wide glyph that would only half fit is not drawn at all
 		}
 		screen.SetContent(x+i, y, r, nil, style)
-		i++
+		i += rw
 	}
 }
 
