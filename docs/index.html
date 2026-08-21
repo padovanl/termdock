@@ -3,278 +3,518 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>termdock — a terminal multiplexer with persistent sessions</title>
-<meta name="description" content="Split your terminal into panes, run several shells side by side, and leave them running in the background to reattach later. Written from scratch in Go, with no dependency on tmux or screen.">
+<title>termdock — panes that outlive the terminal</title>
+<meta name="description" content="A terminal multiplexer in the tmux/screen tradition, written from scratch in Go. Split into panes, detach, reattach from anywhere — with a fuzzy pane picker, a live overview, search across every scrollback and settings you can change while it runs.">
 <meta property="og:title" content="termdock">
-<meta property="og:description" content="A terminal multiplexer in the tmux/screen tradition, written from scratch in Go.">
+<meta property="og:description" content="Panes that outlive the terminal. A multiplexer written from scratch in Go — no tmux, no screen.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://padovanl.github.io/termdock/">
 <meta property="og:image" content="https://padovanl.github.io/termdock/demo.gif">
+<meta name="theme-color" content="#07100f">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐳</text></svg>">
 <style>
   :root {
-    --bg: #ffffff;
-    --bg-soft: #f6f8fa;
-    --bg-code: #f6f8fa;
-    --fg: #1f2328;
-    --fg-muted: #59636e;
-    --border: #d1d9e0;
-    --accent: #0969da;
-    --accent-soft: #ddf4ff;
-    --shadow: 0 1px 3px rgba(31, 35, 40, .12);
+    --ink: #07100f;
+    --ink-raised: #0e1a19;
+    --ink-raised-2: #142322;
+    --parchment: #e6f4f1;
+    --rust: #6f9a94;
+    --rust-dim: #628a85;
+    /* The tube. pkgtui's is amber (#ffb000); this one is the other
+       classic phosphor, and matches termdock's own default accent. */
+    --phosphor: #35e0c8;
+    --phosphor-dim: #17998a;
+    --hairline: rgba(53, 224, 200, 0.16);
+    --hairline-soft: rgba(53, 224, 200, 0.07);
+    --term-green: #3ddc71;
+    --term-yellow: #f0c674;
+    --term-red: #ff6b5f;
+    --term-purple: #bd93f9;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, "Liberation Mono", Menlo, monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, "Liberation Serif", serif;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0d1117;
-      --bg-soft: #151b23;
-      --bg-code: #151b23;
-      --fg: #f0f6fc;
-      --fg-muted: #9198a1;
-      --border: #3d444d;
-      --accent: #4493f8;
-      --accent-soft: #121d2f;
-      --shadow: 0 1px 3px rgba(1, 4, 9, .6);
-    }
-  }
+
   * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
   body {
     margin: 0;
-    background: var(--bg);
-    color: var(--fg);
-    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+    background: var(--ink);
+    color: var(--parchment);
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.65;
+    overflow-x: hidden;
   }
-  .wrap { max-width: 900px; margin: 0 auto; padding: 0 20px; }
-  a { color: var(--accent); text-decoration: none; }
+
+  /* Scanlines and a vignette, over everything, catching nothing. */
+  .crt-veil {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 50;
+    background:
+      repeating-linear-gradient(to bottom, rgba(0,0,0,0.09) 0px, rgba(0,0,0,0.09) 1px, transparent 1px, transparent 3px),
+      radial-gradient(ellipse at 50% 0%, transparent 55%, rgba(0,0,0,0.35) 100%);
+    mix-blend-mode: multiply;
+  }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  a { color: var(--phosphor); text-decoration: none; }
   a:hover { text-decoration: underline; }
-  code, pre { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
-  code { background: var(--bg-code); border-radius: 6px; padding: .15em .4em; font-size: .9em; }
-  pre {
-    background: var(--bg-code);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px 16px;
-    overflow-x: auto;
-    font-size: .875rem;
-    line-height: 1.5;
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+
+  /* --- topbar --- */
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    background: rgba(14, 26, 25, .88);
+    border-bottom: 1px solid var(--hairline);
+    backdrop-filter: blur(6px);
   }
-  pre code { background: none; padding: 0; font-size: inherit; }
+  .topbar-inner {
+    max-width: 980px; margin: 0 auto; padding: 10px 24px;
+    display: flex; align-items: center; gap: 20px;
+  }
+  .brand { font-family: var(--mono); font-weight: 700; color: var(--phosphor); letter-spacing: .02em; }
+  .brand .cursor { animation: blink 1.2s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .brand .cursor { animation: none; } }
+  .navlinks { display: flex; gap: 18px; margin-left: auto; flex-wrap: wrap; }
+  .navlinks a { font-family: var(--mono); font-size: .82rem; color: var(--rust); }
+  .navlinks a:hover { color: var(--phosphor); text-decoration: none; }
+  @media (max-width: 620px) { .navlinks a[data-optional] { display: none; } }
 
-  header { padding: 56px 0 32px; text-align: center; }
-  h1 { font-size: clamp(2.4rem, 7vw, 3.4rem); margin: 0 0 .2em; letter-spacing: -.02em; }
-  .tagline { font-size: clamp(1.05rem, 2.5vw, 1.25rem); color: var(--fg-muted); margin: 0 auto 24px; max-width: 34em; }
-  .badges { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 28px; }
-  .badges img { height: 20px; }
-
-  .cta { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+  /* --- hero --- */
+  .hero { padding: 70px 0 48px; border-bottom: 1px solid var(--hairline-soft); }
+  .hero-inner { max-width: 980px; margin: 0 auto; padding: 0 24px; text-align: center; }
+  .eyebrow {
+    font-family: var(--mono); color: var(--rust);
+    font-size: .85rem; letter-spacing: .04em; margin: 0 0 18px;
+  }
+  .eyebrow::before { content: "$ "; color: var(--phosphor-dim); }
+  h1 {
+    font-family: var(--mono);
+    font-size: clamp(3rem, 11vw, 5rem);
+    margin: 0 0 .12em; letter-spacing: -.03em; font-weight: 700;
+    color: var(--phosphor);
+    text-shadow: 0 0 26px rgba(53, 224, 200, .35);
+  }
+  .hero-lede {
+    font-size: clamp(1.05rem, 2.4vw, 1.3rem);
+    color: var(--parchment); opacity: .92;
+    max-width: 34em; margin: 0 auto 26px;
+  }
+  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 26px; }
   .btn {
+    font-family: var(--mono); font-size: .9rem; font-weight: 600;
+    padding: 11px 22px; border-radius: 6px; border: 1px solid var(--phosphor-dim);
     display: inline-block;
-    padding: 9px 18px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    font-weight: 600;
-    font-size: .95rem;
-    background: var(--bg-soft);
-    color: var(--fg);
   }
-  .btn:hover { text-decoration: none; border-color: var(--accent); }
-  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .btn-primary:hover { filter: brightness(1.08); }
+  .btn.primary { background: var(--phosphor); color: var(--ink); border-color: var(--phosphor); }
+  .btn.primary:hover { filter: brightness(1.12); text-decoration: none; }
+  .btn.secondary { color: var(--phosphor); background: transparent; }
+  .btn.secondary:hover { background: var(--hairline-soft); text-decoration: none; }
+  .chips { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .chips img { height: 20px; }
 
-  .demo { margin: 40px 0; }
-  .demo img {
-    width: 100%;
-    height: auto;
-    display: block;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    box-shadow: var(--shadow);
+  /* --- sections --- */
+  .section { padding: 54px 0 10px; }
+  h2 {
+    font-family: var(--serif); font-size: clamp(1.6rem, 4vw, 2.1rem);
+    margin: 0 0 6px; letter-spacing: -.01em;
   }
-  .demo figcaption { color: var(--fg-muted); font-size: .875rem; text-align: center; margin-top: 10px; }
+  h2::before { content: "// "; font-family: var(--mono); color: var(--phosphor-dim); font-size: .7em; }
+  .section-lede { color: var(--rust); margin: 0 0 26px; max-width: 46em; }
 
-  section { padding: 20px 0 8px; }
-  h2 { font-size: 1.5rem; margin: 32px 0 4px; letter-spacing: -.01em; }
-  h2 + p { margin-top: .4em; color: var(--fg-muted); }
-  h3 { font-size: 1rem; margin: 22px 0 6px; }
-
-  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); margin-top: 18px; }
-  .card { border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; background: var(--bg-soft); }
-  .card h3 { margin: 0 0 4px; font-size: 1rem; }
-  .card p { margin: 0; font-size: .92rem; color: var(--fg-muted); }
-
-  table { border-collapse: collapse; width: 100%; font-size: .92rem; margin-top: 12px; display: block; overflow-x: auto; }
-  th, td { border: 1px solid var(--border); padding: 7px 12px; text-align: left; }
-  th { background: var(--bg-soft); font-weight: 600; }
-  td code { white-space: nowrap; }
-
-  .note {
-    border-left: 3px solid var(--accent);
-    background: var(--accent-soft);
-    border-radius: 0 8px 8px 0;
-    padding: 12px 16px;
-    margin: 18px 0;
-    font-size: .92rem;
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+  .card {
+    background: var(--ink-raised); border: 1px solid var(--hairline);
+    border-radius: 8px; padding: 20px 22px;
   }
-  .note p { margin: 0; }
+  .card h3 { font-family: var(--mono); font-size: 1.6rem; margin: 0 0 8px; color: var(--phosphor); line-height: 1; }
+  .card .card-title { font-family: var(--serif); font-size: 1.08rem; font-weight: 700; margin: 0 0 6px; }
+  .card p { margin: 0; font-size: .95rem; color: var(--rust); }
 
-  footer {
-    margin-top: 56px;
-    padding: 24px 0 40px;
-    border-top: 1px solid var(--border);
-    color: var(--fg-muted);
-    font-size: .875rem;
-    text-align: center;
+  /* --- terminal windows --- */
+  .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+  .feature-window {
+    background: var(--ink-raised); border: 1px solid var(--hairline);
+    border-radius: 8px; overflow: hidden;
   }
+  .term-titlebar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 14px; background: var(--ink-raised-2);
+    border-bottom: 1px solid var(--hairline);
+    font-family: var(--mono); font-size: .78rem; color: var(--rust);
+  }
+  .term-dots { display: flex; gap: 6px; margin-right: 4px; }
+  .term-dots i { width: 10px; height: 10px; border-radius: 50%; display: block; }
+  .term-dots i:nth-child(1) { background: var(--term-red); }
+  .term-dots i:nth-child(2) { background: var(--term-yellow); }
+  .term-dots i:nth-child(3) { background: var(--term-green); }
+  .feature-window-body { padding: 16px 18px; font-size: .95rem; color: var(--rust); }
+  .feature-window-body strong { color: var(--parchment); font-weight: 600; }
+
+  /* --- demo --- */
+  .demo-frame {
+    background: var(--ink-raised); border: 1px solid var(--hairline);
+    border-radius: 8px; overflow: hidden; margin-bottom: 14px;
+  }
+  .demo-frame img { width: 100%; height: auto; display: block; }
+  .demo-caption { font-family: var(--mono); font-size: .8rem; color: var(--rust-dim); text-align: center; margin: 0; }
+
+  /* --- install --- */
+  .install-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .install-tab {
+    font-family: var(--mono); font-size: .84rem;
+    padding: 7px 15px; border-radius: 5px; cursor: pointer;
+    background: var(--ink-raised); color: var(--rust);
+    border: 1px solid var(--hairline);
+  }
+  .install-tab:hover { color: var(--phosphor); }
+  .install-tab[aria-selected="true"] { background: var(--phosphor); color: var(--ink); border-color: var(--phosphor); font-weight: 700; }
+  .install-tab:focus-visible { outline: 2px solid var(--phosphor); outline-offset: 3px; }
+  .install-panel {
+    background: var(--ink-raised); border: 1px solid var(--hairline);
+    border-radius: 8px; overflow: hidden;
+  }
+  .install-panel[hidden] { display: none; }
+  pre {
+    margin: 0; padding: 16px 18px; overflow-x: auto;
+    font-family: var(--mono); font-size: .86rem; line-height: 1.6;
+    color: var(--parchment);
+  }
+  pre .comment { color: var(--rust-dim); }
+  pre .prompt { color: var(--phosphor-dim); }
+  code { font-family: var(--mono); font-size: .9em; }
+  .install-note { font-size: .9rem; color: var(--rust); margin-top: 14px; }
+
+  /* --- keys --- */
+  .keys { border: 1px solid var(--hairline); border-radius: 8px; overflow: hidden; }
+  table { border-collapse: collapse; width: 100%; font-size: .93rem; }
+  th, td { text-align: left; padding: 9px 16px; border-bottom: 1px solid var(--hairline-soft); }
+  th { background: var(--ink-raised-2); font-family: var(--mono); font-size: .78rem; color: var(--rust); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+  tr:last-child td { border-bottom: 0; }
+  td:first-child { width: 190px; white-space: nowrap; }
+  td { color: var(--rust); }
+  .k {
+    font-family: var(--mono); font-size: .8rem;
+    background: var(--ink-raised-2); color: var(--phosphor);
+    border: 1px solid var(--hairline); border-radius: 4px;
+    padding: 2px 7px; display: inline-block;
+  }
+  .keys-scroll { overflow-x: auto; }
+
+  /* --- footer --- */
+  footer { margin-top: 64px; border-top: 1px solid var(--hairline); padding: 28px 0 48px; text-align: center; }
+  .foot-chips { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .foot-chip {
+    font-family: var(--mono); font-size: .82rem; color: var(--rust);
+    padding: 4px 10px; border-radius: 4px; border: 1px solid var(--hairline);
+  }
+  .foot-chip:hover { color: var(--phosphor); text-decoration: none; }
+  .foot-note { font-family: var(--mono); font-size: .8rem; color: var(--rust-dim); margin: 0; }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="crt-veil" aria-hidden="true"></div>
 
-<header>
-  <h1>🐳 termdock</h1>
-  <p class="tagline">
-    Split your terminal into panes, run several shells side by side, and leave
-    them running in the background — reattach later from another terminal, or
-    another machine, without losing a thing.
-  </p>
-
-  <div class="badges">
-    <a href="https://github.com/padovanl/termdock/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/padovanl/termdock/ci.yml?branch=master&amp;logo=github&amp;label=ci" alt="CI status"></a>
-    <a href="https://github.com/padovanl/termdock/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/padovanl/termdock/release.yml?logo=github&amp;label=release" alt="Release status"></a>
-    <a href="https://github.com/padovanl/termdock/releases/latest"><img src="https://img.shields.io/github/v/release/padovanl/termdock?label=release&amp;color=blue" alt="Latest release"></a>
-    <a href="https://github.com/padovanl/termdock/releases"><img src="https://img.shields.io/github/downloads/padovanl/termdock/total?label=downloads&amp;color=orange" alt="Downloads"></a>
-    <a href="https://github.com/padovanl/termdock/blob/master/go.mod"><img src="https://img.shields.io/github/go-mod/go-version/padovanl/termdock?logo=go&amp;label=Go" alt="Go version"></a>
-    <a href="https://github.com/padovanl/termdock/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>
-  </div>
-
-  <div class="cta">
-    <a class="btn btn-primary" href="https://github.com/padovanl/termdock/releases/latest">Download the latest release</a>
-    <a class="btn" href="https://github.com/padovanl/termdock">Source on GitHub</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <span class="brand">termdock<span class="cursor">_</span></span>
+    <nav class="navlinks">
+      <a href="#why">why</a>
+      <a href="#beyond" data-optional>beyond panes</a>
+      <a href="#action">in action</a>
+      <a href="#install">install</a>
+      <a href="#keys" data-optional>keys</a>
+      <a href="https://github.com/padovanl/termdock">github</a>
+    </nav>
   </div>
 </header>
 
-<figure class="demo">
-  <img src="demo.gif" alt="A termdock session: splitting into panes, the live pane overview, the settings screen and the floating popup terminal, in the Dracula colour theme with a git branch in the status bar" loading="lazy">
-  <figcaption>Splitting, the live pane overview, the settings screen and the floating popup — Dracula theme, git branch in the status bar.</figcaption>
-</figure>
-
-<section>
-  <h2>Install</h2>
-  <p>Pick the one for your system. Every release ships packages and archives for linux and macOS, amd64 and arm64.</p>
-
-  <h3>Debian / Ubuntu</h3>
-<pre><code>curl -LO https://github.com/padovanl/termdock/releases/latest/download/termdock_linux_amd64.deb
-sudo apt install ./termdock_linux_amd64.deb</code></pre>
-
-  <h3>Fedora / RHEL</h3>
-<pre><code>sudo dnf install ./termdock_linux_amd64.rpm</code></pre>
-
-  <h3>Alpine</h3>
-<pre><code>sudo apk add --allow-untrusted ./termdock_linux_amd64.apk</code></pre>
-
-  <h3>With Go</h3>
-<pre><code>go install github.com/padovanl/termdock@latest</code></pre>
-
-  <div class="note">
-    <p>The exact filenames carry the version — check the
-    <a href="https://github.com/padovanl/termdock/releases/latest">latest release</a>
-    for the ones to download. Then just run <code>termdock</code>.</p>
-  </div>
-</section>
-
-<section>
-  <h2>What it does that tmux doesn't</h2>
-  <p>Not a tmux wrapper: it manages the pseudo-terminals and runs its own VT100 emulator, scrollback and all.</p>
-
-  <div class="grid">
-    <div class="card">
-      <h3>🔍 Fuzzy jump picker</h3>
-      <p>Type to filter every window and pane in the session, with a live preview of the one you're about to jump to.</p>
+<header class="hero">
+  <div class="hero-inner">
+    <p class="eyebrow">panes that outlive the terminal</p>
+    <h1>termdock</h1>
+    <p class="hero-lede">
+      Split a terminal into panes, run several shells side by side, then walk
+      away — the session keeps running and you pick it up later, from another
+      terminal or another machine. Written from scratch in Go: its own ptys,
+      its own VT100 emulator, no tmux and no screen underneath.
+    </p>
+    <div class="cta">
+      <a class="btn primary" href="#install">Get termdock</a>
+      <a class="btn secondary" href="https://github.com/padovanl/termdock">View source</a>
     </div>
-    <div class="card">
-      <h3>🖼️ Live pane overview</h3>
-      <p>Every pane in the session at once, as a grid of live thumbnails. Click or arrow to the one you want.</p>
-    </div>
-    <div class="card">
-      <h3>🔎 Search everything</h3>
-      <p>One search across every pane's scrollback in every window, plain text or a regex, jumping straight to the hit.</p>
-    </div>
-    <div class="card">
-      <h3>⚙️ Settings, live</h3>
-      <p>Change any setting from inside a running session and see it immediately — optionally saving it back to your config.</p>
-    </div>
-    <div class="card">
-      <h3>🎨 Themes built in</h3>
-      <p>Eleven colour presets compiled into the binary. No plugin manager, nothing to install.</p>
-    </div>
-    <div class="card">
-      <h3>💾 Survives a reboot</h3>
-      <p>Layout and working directories are snapshotted continuously and restored next launch — no plugin required.</p>
-    </div>
-    <div class="card">
-      <h3>🪟 Floating popup</h3>
-      <p>A scratch terminal over whatever you're looking at, that keeps running when you hide it.</p>
-    </div>
-    <div class="card">
-      <h3>🖱️ Mouse throughout</h3>
-      <p>Click to focus, drag borders to resize, drag tabs to reorder, drag a pane's title into another window.</p>
+    <div class="chips">
+      <a href="https://github.com/padovanl/termdock/releases/latest"><img src="https://img.shields.io/github/v/release/padovanl/termdock?label=release&color=35e0c8&labelColor=0e1a19" alt="Latest release"></a>
+      <a href="https://github.com/padovanl/termdock/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/padovanl/termdock/ci.yml?branch=master&label=ci&color=35e0c8&labelColor=0e1a19" alt="CI status"></a>
+      <a href="https://github.com/padovanl/termdock/releases"><img src="https://img.shields.io/github/downloads/padovanl/termdock/total?label=downloads&color=35e0c8&labelColor=0e1a19" alt="Downloads"></a>
+      <a href="https://github.com/padovanl/termdock/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-35e0c8?labelColor=0e1a19" alt="MIT license"></a>
     </div>
   </div>
-</section>
+</header>
 
-<section>
-  <h2>Getting started</h2>
-  <p>Everything is behind the prefix key, <code>Ctrl-B</code>, exactly as in tmux.</p>
+<div class="wrap">
 
-  <table>
-    <thead><tr><th>Keys</th><th>What happens</th></tr></thead>
-    <tbody>
-      <tr><td><code>Ctrl-B ?</code></td><td>Every keybinding there is — start here</td></tr>
-      <tr><td><code>Ctrl-B v</code> / <code>s</code></td><td>Split the pane side by side / stacked</td></tr>
-      <tr><td><code>Ctrl-B</code> then arrows</td><td>Move the focus between panes</td></tr>
-      <tr><td><code>Ctrl-B c</code></td><td>New window</td></tr>
-      <tr><td><code>Ctrl-B g</code></td><td>The live overview of every pane</td></tr>
-      <tr><td><code>Ctrl-B w</code></td><td>Fuzzy-jump to any window or pane</td></tr>
-      <tr><td><code>Ctrl-B /</code></td><td>Search every pane's scrollback</td></tr>
-      <tr><td><code>Ctrl-B C</code></td><td>Settings — change them live</td></tr>
-      <tr><td><code>Ctrl-B P</code></td><td>The floating popup terminal</td></tr>
-      <tr><td><code>Ctrl-B d</code></td><td>Detach; the session keeps running</td></tr>
-    </tbody>
-  </table>
-
-  <p style="margin-top:22px">Back later, from anywhere:</p>
-<pre><code>termdock ls                 # what's still running
-termdock attach -t main     # pick up where you left off</code></pre>
-</section>
-
-<section>
-  <h2>Configuration</h2>
-  <p>Optional, and you never have to write it by hand.</p>
-
-  <p><code>Ctrl-B C</code> lists every setting with its current value; <code>Enter</code> edits
-  one live, <code>S</code> edits it and saves it to
-  <code>~/.config/termdock/termdock.conf</code>. Or write it yourself:</p>
-
-<pre><code># ~/.config/termdock/termdock.conf
-theme dracula            # 11 built in — run "termdock themes"
-mouse on
-history-limit 10000      # scrollback per pane
-status-segments git,battery
-bind M jump-picker       # rebind any command</code></pre>
-
-  <div class="note">
-    <p>A commented example ships with the packages, at
-    <code>/usr/share/doc/termdock/termdock.conf.example</code>.</p>
-  </div>
-</section>
-
-<footer>
-  <p>
-    MIT licensed · <a href="https://github.com/padovanl/termdock">github.com/padovanl/termdock</a>
-    · <a href="https://github.com/padovanl/termdock/blob/master/README.md">full documentation</a>
+<section class="section" id="why">
+  <h2>Why termdock</h2>
+  <p class="section-lede">
+    The everyday work of a multiplexer — splitting, switching, detaching,
+    coming back — done without a plugin manager, a config file you have to
+    write first, or anything else installed alongside it.
   </p>
-</footer>
+  <div class="cards">
+    <div class="card">
+      <h3>●</h3>
+      <p class="card-title">Detach and it keeps going</p>
+      <p>The session lives in a daemon, not in your terminal. Close the window, drop the SSH link, reboot your laptop — reattach and everything is where you left it.</p>
+    </div>
+    <div class="card">
+      <h3>▲</h3>
+      <p class="card-title">Nothing underneath</p>
+      <p>Not a wrapper around tmux. It drives the pseudo-terminals itself and emulates VT100 with scrollback for every pane, in one static binary.</p>
+    </div>
+    <div class="card">
+      <h3>◆</h3>
+      <p class="card-title">Batteries included</p>
+      <p>Eleven colour themes, a git segment, pane logging, session persistence — compiled in. tmux wants a plugin manager and four plugins for the same list.</p>
+    </div>
+    <div class="card">
+      <h3>○</h3>
+      <p class="card-title">Configure it while it runs</p>
+      <p>Every setting is editable from inside a live session and takes effect immediately — saved back to your config only when you ask.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="beyond">
+  <h2>Beyond splitting a terminal</h2>
+  <p class="section-lede">
+    Things tmux either doesn't do, or needs a plugin for — here they're just
+    a keypress away.
+  </p>
+  <div class="feature-grid">
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Fuzzy jump picker</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B w.</strong> Type to filter every window and pane in the
+        session, with a live minimap of the one you're about to jump to —
+        so you pick by what's <em>in</em> a pane, not by remembering its number.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Live pane overview</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B g.</strong> Every pane in the whole session at once, as
+        a grid of live thumbnails. Arrow to one and press enter, or just click it.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Search every scrollback</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B /.</strong> One search across every pane's history in
+        every window, plain text or a regex, jumping straight to the hit.
+        tmux only ever searches the pane you're already in.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Settings, live</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B C.</strong> Every setting with its current value and what
+        it does. Enter edits one and it applies at once; <span class="k">S</span>
+        edits it and writes it to your config file, rewriting just that line.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Survives a reboot</div>
+      <div class="feature-window-body">
+        Layout and each pane's working directory are snapshotted continuously
+        and rebuilt next launch — <strong>no plugin</strong>. A session that
+        ends on purpose cleans up after itself; only a crash leaves one to recover.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Floating popup</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B P.</strong> A scratch terminal over whatever you were
+        looking at. Hiding it doesn't kill it — the shell inside carries on,
+        and comes back exactly as you left it.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Mouse throughout</div>
+      <div class="feature-window-body">
+        Click a pane to focus it, drag a border to resize, drag a tab to
+        reorder, drag a pane's title onto another window's tab to move it
+        there — process and all. Click-drag on content selects and copies.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Switch sessions in place</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B S.</strong> Hop to another running session without
+        detaching from this one first — a type-ahead list rather than a
+        detach-and-reattach round trip.
+      </div>
+    </div>
+
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Drive it from a script</div>
+      <div class="feature-window-body">
+        <code>send-keys</code>, <code>split-window</code>,
+        <code>new-window</code>, <code>select-pane</code>,
+        <code>list-panes</code> — set a whole dev environment up from a shell
+        script, with no client attached.
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section class="section" id="action">
+  <h2>In action</h2>
+  <p class="section-lede">
+    Splitting, the live overview, the settings screen, a theme changed
+    mid-session, search across scrollbacks, the popup, the jump picker —
+    then detaching and picking it straight back up.
+  </p>
+  <figure class="demo-frame" style="margin:0 0 14px">
+    <img src="demo.gif" width="960" height="549" alt="A termdock session: splitting into panes, the live pane overview, the settings screen, a theme changed live, scrollback search, the floating popup and the jump picker, then detaching and reattaching" loading="lazy">
+  </figure>
+  <p class="demo-caption">Dracula theme, git branch in the status bar. Everything shown is a keypress from a fresh install.</p>
+</section>
+
+<section class="section" id="install">
+  <h2>Installation</h2>
+  <p class="section-lede">
+    Native packages for linux, archives for macOS, both amd64 and arm64 —
+    built and published straight from the tag.
+  </p>
+
+  <div class="install-tabs" role="tablist" aria-label="Installation method">
+    <button class="install-tab" role="tab" id="tab-deb" aria-controls="panel-deb" aria-selected="true">.deb</button>
+    <button class="install-tab" role="tab" id="tab-rpm" aria-controls="panel-rpm" aria-selected="false">.rpm</button>
+    <button class="install-tab" role="tab" id="tab-apk" aria-controls="panel-apk" aria-selected="false">.apk</button>
+    <button class="install-tab" role="tab" id="tab-bin" aria-controls="panel-bin" aria-selected="false">binary</button>
+    <button class="install-tab" role="tab" id="tab-src" aria-controls="panel-src" aria-selected="false">from source</button>
+  </div>
+
+  <div class="install-panel" id="panel-deb" role="tabpanel" aria-labelledby="tab-deb">
+<pre><span class="comment"># Debian, Ubuntu, Mint — grab the asset from the latest release</span>
+<span class="prompt">$</span> sudo apt install ./termdock_&lt;version&gt;_linux_amd64.deb</pre>
+  </div>
+  <div class="install-panel" id="panel-rpm" role="tabpanel" aria-labelledby="tab-rpm" hidden>
+<pre><span class="comment"># Fedora, RHEL, openSUSE</span>
+<span class="prompt">$</span> sudo dnf install ./termdock_&lt;version&gt;_linux_amd64.rpm</pre>
+  </div>
+  <div class="install-panel" id="panel-apk" role="tabpanel" aria-labelledby="tab-apk" hidden>
+<pre><span class="comment"># Alpine</span>
+<span class="prompt">$</span> sudo apk add --allow-untrusted ./termdock_&lt;version&gt;_linux_amd64.apk</pre>
+  </div>
+  <div class="install-panel" id="panel-bin" role="tabpanel" aria-labelledby="tab-bin" hidden>
+<pre><span class="comment"># anything else, including macOS — one static binary, no runtime deps</span>
+<span class="prompt">$</span> tar xf termdock_&lt;version&gt;_linux_amd64.tar.gz
+<span class="prompt">$</span> sudo install termdock /usr/local/bin/</pre>
+  </div>
+  <div class="install-panel" id="panel-src" role="tabpanel" aria-labelledby="tab-src" hidden>
+<pre><span class="comment"># with Go already installed</span>
+<span class="prompt">$</span> go install github.com/padovanl/termdock@latest</pre>
+  </div>
+
+  <p class="install-note">
+    Filenames carry the version — copy the exact link from the
+    <a href="https://github.com/padovanl/termdock/releases/latest">latest release</a>.
+    Then run <code>termdock</code>; <span class="k">Ctrl-B</span> <span class="k">?</span>
+    lists every key there is. The packages also drop a commented example config at
+    <code>/usr/share/doc/termdock/termdock.conf.example</code> — though you never
+    have to write one by hand.
+  </p>
+</section>
+
+<section class="section" id="keys">
+  <h2>Every key, one prefix</h2>
+  <p class="section-lede">
+    Everything sits behind <span class="k">Ctrl-B</span>, as in tmux. The full
+    reference is in the app at any time with
+    <span class="k">Ctrl-B</span> <span class="k">?</span> — and it's generated
+    from your actual bindings, so it stays true if you rebind anything.
+  </p>
+  <div class="keys keys-scroll">
+    <table>
+      <thead><tr><th>Keys</th><th>What happens</th></tr></thead>
+      <tbody>
+        <tr><td><span class="k">Ctrl-B</span> <span class="k">?</span></td><td>The whole keybinding reference — start here</td></tr>
+        <tr><td><span class="k">Ctrl-B</span> <span class="k">v</span> / <span class="k">s</span></td><td>Split the pane side by side, or stacked</td></tr>
+        <tr><td><span class="k">Ctrl-B</span> <span class="k">←↓↑→</span></td><td>Move the focus; keep pressing arrows to keep going</td></tr>
+        <tr><td><span class="k">Ctrl-B</span> <span class="k">z</span></td><td>Zoom the active pane full screen, and back</td></tr>
+        <tr><td><span class="k">Ctrl-B</span> <span class="k">c</span></td><td>New window</td></tr>
+        <tr><td><span class="k">Ctrl-B</span> <span class="k">w</span></td><td>Fuzzy-jump to any window or pane, with a preview</td></tr>
+        <tr><td><span class="k">Ctrl-B</span> <span class="k">g</span></td><td>Live overview of every pane in the session</td></tr>
+        <tr><td><span class="k">Ctrl-B</span> <span class="k">/</span></td><td>Search every pane's scrollback at once</td></tr>
+        <tr><td><span class="k">Ctrl-B</span> <span class="k">[</span></td><td>Copy-mode: scroll, select, yank to the system clipboard</td></tr>
+        <tr><td><span class="k">Ctrl-B</span> <span class="k">C</span></td><td>Settings — change any of them live</td></tr>
+        <tr><td><span class="k">Ctrl-B</span> <span class="k">P</span></td><td>The floating popup terminal</td></tr>
+        <tr><td><span class="k">Ctrl-B</span> <span class="k">S</span></td><td>Switch to another session without detaching</td></tr>
+        <tr><td><span class="k">Ctrl-B</span> <span class="k">u</span></td><td>Pick a URL or path off the screen, straight to the clipboard</td></tr>
+        <tr><td><span class="k">Ctrl-B</span> <span class="k">d</span></td><td>Detach — the session carries on without you</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="install-note">
+    Coming back later is <code>termdock ls</code> to see what's still running,
+    then <code>termdock attach -t main</code>.
+  </p>
+</section>
 
 </div>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-chips">
+      <a class="foot-chip" href="https://github.com/padovanl/termdock">GitHub</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock/releases">Releases</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock/issues">Issues</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock/blob/master/README.md">Docs</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock/blob/master/LICENSE">License</a>
+    </div>
+    <p class="foot-note">MIT licensed · written from scratch in Go · linux &amp; macOS</p>
+  </div>
+</footer>
+
+<script>
+  // Tabbed install instructions. Without JS every panel but the first is
+  // hidden by the markup, so the .deb one still shows — and the release
+  // page linked below covers the rest.
+  (function () {
+    var tabs = Array.prototype.slice.call(document.querySelectorAll('.install-tab'));
+    function select(tab) {
+      tabs.forEach(function (t) {
+        var panel = document.getElementById(t.getAttribute('aria-controls'));
+        var on = t === tab;
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        if (panel) { panel.hidden = !on; }
+      });
+    }
+    tabs.forEach(function (tab, i) {
+      tab.addEventListener('click', function () { select(tab); });
+      tab.addEventListener('keydown', function (e) {
+        var next = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : -1;
+        if (next < 0 || next >= tabs.length) { return; }
+        e.preventDefault();
+        tabs[next].focus();
+        select(tabs[next]);
+      });
+    });
+  })();
+</script>
 </body>
 </html>
