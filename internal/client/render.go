@@ -89,8 +89,11 @@ func drawPopup(screen tcell.Screen, p proto.PaneFrame, cfg config.Config) {
 	if r.W <= 0 || r.H <= 0 {
 		return
 	}
-	accent := tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(cfg.PaneActiveBG).Bold(true)
-	fillRect(screen, r.X-1, r.Y-1, r.W+2, r.H+2, tcell.StyleDefault.Background(tcell.ColorBlack))
+	// Floating chrome sits on the palette's surface colour (what the
+	// status bar uses), one step "above" the panes' background — a
+	// hardcoded black box was a hole in any themed session.
+	accent := tcell.StyleDefault.Background(cfg.StatusBG).Foreground(cfg.PaneActiveBG).Bold(true)
+	fillRect(screen, r.X-1, r.Y-1, r.W+2, r.H+2, tcell.StyleDefault.Background(cfg.StatusBG))
 	drawFloatingBorder(screen, r.X-1, r.Y-1, r.W+2, r.H+2, accent)
 	overlayText(screen, r.X+1, r.Y-1, r.X+r.W, accent, " "+p.Title+" ")
 	drawPaneContent(screen, p, cfg)
@@ -102,8 +105,8 @@ func drawPopup(screen tcell.Screen, p proto.PaneFrame, cfg config.Config) {
 // a live content preview — the selected tile's border in the accent
 // color, same convention as a pane's own border elsewhere.
 func drawOverview(screen tcell.Screen, f proto.Frame, cfg config.Config) {
-	normalStyle := tcell.StyleDefault.Foreground(tcell.ColorGray)
-	accentStyle := tcell.StyleDefault.Foreground(cfg.PaneActiveBG).Bold(true)
+	normalStyle := tcell.StyleDefault.Background(cfg.PaneBG).Foreground(tcell.ColorGray)
+	accentStyle := tcell.StyleDefault.Background(cfg.PaneBG).Foreground(cfg.PaneActiveBG).Bold(true)
 	for _, tile := range f.Overview.Tiles {
 		r := tile.Rect
 		if r.W <= 2 || r.H <= 2 {
@@ -221,13 +224,16 @@ func drawBorders(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 		addRectBorder(activeCells, active.Rect)
 	}
 
-	normalStyle := tcell.StyleDefault.Foreground(tcell.ColorGray)
-	activeStyle := tcell.StyleDefault.Foreground(cfg.PaneActiveBG).Bold(true)
+	// Backgrounded with the theme like everything else: a border drawn on
+	// the emulator's default background framed every themed session in a
+	// black grid.
+	normalStyle := tcell.StyleDefault.Background(cfg.PaneBG).Foreground(tcell.ColorGray)
+	activeStyle := tcell.StyleDefault.Background(cfg.PaneBG).Foreground(cfg.PaneActiveBG).Bold(true)
 	if active != nil && active.Zoomed {
 		// A visibly different accent from "just focused" — zoom hides
 		// every other pane, so it's worth a color you can't mistake for
 		// the ordinary single-pane-window case.
-		activeStyle = tcell.StyleDefault.Foreground(tcell.ColorFuchsia).Bold(true)
+		activeStyle = tcell.StyleDefault.Background(cfg.PaneBG).Foreground(tcell.ColorFuchsia).Bold(true)
 	}
 
 	for cell := range cells {
@@ -438,9 +444,9 @@ func drawOverlay(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	x0 := maxi(0, (f.Cols-totalW)/2)
 	y0 := maxi(0, (f.Rows-totalH)/2)
 
-	bg := tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(tcell.ColorSilver)
-	accent := tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(cfg.PaneActiveBG).Bold(true)
-	dim := tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(tcell.ColorGray)
+	bg := tcell.StyleDefault.Background(cfg.StatusBG).Foreground(cfg.StatusFG)
+	accent := tcell.StyleDefault.Background(cfg.StatusBG).Foreground(cfg.PaneActiveBG).Bold(true)
+	dim := tcell.StyleDefault.Background(cfg.StatusBG).Foreground(tcell.ColorGray)
 
 	fillRect(screen, x0, y0, w, h, bg)
 	drawFloatingBorder(screen, x0, y0, w, h, accent)
@@ -572,8 +578,8 @@ func drawFloatingBorder(screen tcell.Screen, x0, y0, w, h int, style tcell.Style
 // box the exact size of cells (plus border), rendered with the same cell
 // styling as a real pane (see drawPaneContent).
 func drawPreviewBox(screen tcell.Screen, x0, y0, w, h int, cells [][]proto.Cell, cfg config.Config) {
-	accent := tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(cfg.PaneActiveBG).Bold(true)
-	fillRect(screen, x0, y0, w, h, tcell.StyleDefault.Background(tcell.ColorBlack))
+	accent := tcell.StyleDefault.Background(cfg.StatusBG).Foreground(cfg.PaneActiveBG).Bold(true)
+	fillRect(screen, x0, y0, w, h, tcell.StyleDefault.Background(cfg.StatusBG))
 	drawFloatingBorder(screen, x0, y0, w, h, accent)
 	// The box may have been cropped narrower/shorter than the cells the
 	// server sent (see drawOverlay), so clip rather than drawing over the
@@ -651,7 +657,9 @@ func tabStyle(t proto.WindowTab, cfg config.Config) tcell.Style {
 	case t.Activity:
 		return tcell.StyleDefault.Background(tcell.ColorDarkOrange).Foreground(tcell.ColorBlack)
 	default:
-		return tcell.StyleDefault.Foreground(tcell.ColorSilver)
+		// Explicitly the bar's own background: left at the default it was
+		// the emulator's, punching black gaps through a themed status bar.
+		return tcell.StyleDefault.Background(cfg.StatusBG).Foreground(cfg.StatusFG)
 	}
 }
 

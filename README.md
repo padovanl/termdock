@@ -720,7 +720,11 @@ chrome: `pane-bg`/`pane-fg` colour every cell the program running in a
 pane left unstyled, which is exactly what your terminal emulator's own
 background/foreground would otherwise do — so a themed session looks
 themed all the way out to the margins, instead of a coloured status bar
-floating on whatever your emulator happens to use. Output that asks for
+floating on whatever your emulator happens to use. The pane borders, the
+margin around the layout, the window tabs and the floating boxes (the
+picker, the popup, the preview) are all in on it too — floating chrome
+sits on the palette's surface shade, one step above the panes, the same
+colour the status bar uses. Output that asks for
 a specific colour is never repainted. Want a theme's chrome but your
 own background? `pane-bg default` opts that one piece back out.
 

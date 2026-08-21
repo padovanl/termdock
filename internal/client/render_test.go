@@ -379,3 +379,53 @@ func TestThemeDoesNotOverrideExplicitCellColors(t *testing.T) {
 		t.Fatalf("explicitly colored cell was altered: fg %v bg %v", fg, bg)
 	}
 }
+
+// TestThemedFrameLeavesNoDefaultColoredCells is the "no black gaps"
+// guarantee: with a theme on, every cell of a full frame — pane content,
+// the margin around the layout, the pane borders, the status bar, the
+// window tabs — must have a real background, not ColorDefault. Anything
+// left at the default shows through as the emulator's own background,
+// which is exactly the black frame a themed session used to sit in.
+func TestThemedFrameLeavesNoDefaultColoredCells(t *testing.T) {
+	cfg := config.Default()
+	cfg.PaneBG = tcell.NewHexColor(0x300a24)
+	cfg.PaneFG = tcell.NewHexColor(0xeeeeec)
+	cfg.StatusBG = tcell.NewHexColor(0x772953)
+	cfg.StatusFG = tcell.NewHexColor(0xeeeeec)
+
+	cells := make([][]proto.Cell, 8)
+	for y := range cells {
+		row := make([]proto.Cell, 30)
+		for x := range row {
+			row[x] = proto.Cell{Ch: ' ', FG: 1 << 24, BG: 1 << 24} // unstyled
+		}
+		cells[y] = row
+	}
+	f := proto.Frame{
+		Cols: 80, Rows: 24,
+		ShowStatus:   true,
+		StatusPrefix: " termdock:test ",
+		StatusText:   " | active pane: 1",
+		Windows: []proto.WindowTab{
+			{Index: 0, Label: " 0:bash ", Active: true, X: 16, W: 8},
+			{Index: 1, Label: " 1:vim ", X: 24, W: 7}, // inactive: used to be a black hole
+		},
+		Panes: []proto.PaneFrame{
+			{ID: 1, Rect: proto.Rect{X: 1, Y: 1, W: 30, H: 8}, Active: true, Cells: cells},
+			{ID: 2, Rect: proto.Rect{X: 33, Y: 1, W: 30, H: 8}, Cells: cells},
+		},
+	}
+
+	screen := simScreen(t, 80, 24)
+	draw(screen, f, cfg)
+
+	got, w, h := screen.GetContents()
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			_, bg, _ := got[y*w+x].Style.Decompose()
+			if bg == tcell.ColorDefault {
+				t.Fatalf("cell (%d,%d) still has the terminal's default background — a themed frame must not leave gaps", x, y)
+			}
+		}
+	}
+}
