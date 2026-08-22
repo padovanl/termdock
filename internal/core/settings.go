@@ -54,6 +54,7 @@ func (c *Core) applyConfigLocked(cfg config.Config) {
 	// they are. runSet says so out loud rather than letting it look like
 	// the setting didn't take.
 	pane.SetDefaults(cfg.Shell, cfg.HistoryLimit)
+	statusIcons = cfg.StatusIcons
 	c.segCache = segmentCache{} // recompute rather than show the old segments until the TTL lapses
 	c.markDirty()
 }

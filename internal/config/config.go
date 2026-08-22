@@ -46,6 +46,9 @@
 //	pane-fg <color>        likewise for unstyled text
 //	status-segments <list> comma-separated optional status-bar segments,
 //	                       e.g. "git,battery,cpu,mem" (default: none)
+//	status-icons <on|off>  draw those segments with Nerd Font glyphs
+//	                       instead of words (default off — a font without
+//	                       them draws a replacement box instead)
 //
 // Colors accept any W3C name tcell understands ("black", "teal", ...) or
 // a "#rrggbb" hex value.
@@ -89,6 +92,11 @@ type Config struct {
 	PaneBG         tcell.Color
 	PaneFG         tcell.Color
 	StatusSegments []string // optional status-bar segments; see internal/core/segments.go
+	// StatusIcons draws the segments with Nerd Font glyphs instead of
+	// plain labels. Off by default: those glyphs live in the Private Use
+	// Area, so a font without them renders a replacement box, and an
+	// icon you cannot see is worse than the word it replaced.
+	StatusIcons bool
 
 	// Theme is the name of the bundled preset the five colors above came
 	// from, or "" if they weren't set from one (no theme line, or a color

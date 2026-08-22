@@ -186,6 +186,19 @@ var settings = []Setting{
 	colorSetting("pane-bg", "background behind unstyled pane content", func(c *Config) *tcell.Color { return &c.PaneBG }),
 	colorSetting("pane-fg", "foreground for unstyled pane content", func(c *Config) *tcell.Color { return &c.PaneFG }),
 	{
+		Key: "status-icons", Doc: "draw status segments with Nerd Font glyphs", Scope: ScopeClient,
+		get: func(c *Config) string { return onOff(c.StatusIcons) },
+		set: func(c *Config, v string) error {
+			b, ok := parseBool(v)
+			if !ok {
+				return fmt.Errorf("expected on or off")
+			}
+			c.StatusIcons = b
+			return nil
+		},
+		choices: onOffChoices,
+	},
+	{
 		Key: "status-segments", Doc: "extra status-bar segments (git,battery,cpu,mem)", Scope: ScopeServer,
 		get: func(c *Config) string {
 			if len(c.StatusSegments) == 0 {

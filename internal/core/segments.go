@@ -153,12 +153,12 @@ func readBattery() string {
 		// "+" for charging: one column, unambiguous, and unlike a battery
 		// emoji it cannot throw the status bar's alignment out (see
 		// TestStatusSegmentsAreWidthPredictable).
-		icon := "\uf240" // a battery
+		glyph := "\uf240" // a battery
 		if statusBytes, err := os.ReadFile(base + e.Name() + "/status"); err == nil &&
 			strings.TrimSpace(string(statusBytes)) == "Charging" {
-			icon = "\uf0e7" // a bolt
+			glyph = "\uf0e7" // a bolt
 		}
-		return icon + " bat " + pct + "%"
+		return icon(glyph) + "bat " + pct + "%"
 	}
 	return ""
 }
@@ -209,7 +209,7 @@ func cpuPercent(prev, cur cpuSample) string {
 		return "" // clock hasn't advanced, or a counter wrapped — nothing sane to report
 	}
 	pct := 100 * (dTotal - dIdle) / dTotal
-	return fmt.Sprintf("\uf2db cpu %d%%", pct)
+	return fmt.Sprintf("%scpu %d%%", icon("\uf2db"), pct)
 }
 
 // readMem reads /proc/meminfo for the fraction of memory in use —
@@ -239,5 +239,27 @@ func readMem() string {
 		return ""
 	}
 	pct := 100 * (total - avail) / total
-	return fmt.Sprintf("\uf1c0 mem %d%%", pct)
+	return fmt.Sprintf("%smem %d%%", icon("\uf1c0"), pct)
+}
+
+// statusIcons is whether the segments are drawn with glyphs. Read from
+// the session's settings by the functions below, which are called from
+// places that have no Core to hand — a package-level flag is the smaller
+// evil than threading a config through readBattery and readMem.
+var statusIcons bool
+
+// icon returns the glyph plus a space when icons are on, and nothing at
+// all when they are off.
+//
+// Off by default, deliberately. These are Private Use Area codepoints —
+// a font that has them draws a microchip, and one that does not draws a
+// replacement box, which is what happened: the status bar read
+// "◆ mem 10%". An icon you cannot see is strictly worse than the word it
+// replaced, so having them costs a deliberate "status-icons on" from
+// someone who knows their font has them.
+func icon(glyph string) string {
+	if !statusIcons {
+		return ""
+	}
+	return glyph + " "
 }

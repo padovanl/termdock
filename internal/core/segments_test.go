@@ -228,3 +228,31 @@ func TestStatusSegmentsAreWidthPredictable(t *testing.T) {
 		}
 	}
 }
+
+// Icons are off unless asked for. They are Private Use Area glyphs: a
+// font that has them draws a microchip, one that does not draws a
+// replacement box — which is what happened, with the bar reading
+// "◆ mem 10%". An icon you cannot see is worse than the word it replaced.
+func TestStatusSegmentsHaveNoIconsByDefault(t *testing.T) {
+	statusIcons = false
+	got := cpuPercent(cpuSample{idle: 100, total: 1000}, cpuSample{idle: 150, total: 1200})
+	if got != "cpu 75%" {
+		t.Fatalf("default segment = %q, want plain words", got)
+	}
+	for _, r := range got {
+		if r >= 0xE000 && r <= 0xF8FF {
+			t.Errorf("segment %q contains a Private Use Area glyph by default", got)
+		}
+	}
+}
+
+// Turned on, the glyph comes back — for the people whose font has it.
+func TestStatusSegmentsUseGlyphsWhenAskedTo(t *testing.T) {
+	statusIcons = true
+	defer func() { statusIcons = false }()
+
+	got := cpuPercent(cpuSample{idle: 100, total: 1000}, cpuSample{idle: 150, total: 1200})
+	if !strings.HasSuffix(got, "cpu 75%") || got == "cpu 75%" {
+		t.Fatalf("segment = %q, want a glyph in front of the words", got)
+	}
+}
