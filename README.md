@@ -1091,7 +1091,7 @@ It takes three values:
 | Value | Shows | Needs |
 |---|---|---|
 | `off` | `cpu 8% \| mem 41%` — the words alone | nothing; the default |
-| `unicode` | `▣ cpu 8% \| ▤ mem 41%` | nothing — ordinary Unicode characters, the kind a monospace font already covers |
+| `unicode` | `░ cpu 8% \| ▓ mem 71%` — the shade fills up as the number climbs | nothing; the glyphs are Block Elements, which ordinary monospace fonts carry |
 | `nerd` | proper microchip and memory icons | **a [Nerd Font](https://www.nerdfonts.com/) installed and selected in your terminal** |
 
 Nerd Font icons live in the Private Use Area — codepoints that are
@@ -1107,6 +1107,47 @@ rather than guessing. If a set shows boxes, it is the wrong one for your
 font. See
 [⌨️ Custom keybindings](#-custom-keybindings) and
 [🎯 Focus events](#-focus-events) above for `bind` and `focus-events`.
+
+#### Installing a Nerd Font
+
+> **Install it where the terminal is, not where termdock is.**
+> The font is used by the terminal emulator you are looking at. Over SSH
+> that is your laptop, not the server; on Windows with WSL that is
+> Windows, not the WSL distribution. Installing fonts on the far side
+> does nothing at all, and is the usual reason this appears not to work.
+
+Any font from [nerdfonts.com](https://www.nerdfonts.com/font-downloads)
+will do. JetBrains Mono is used here.
+
+**Linux**
+
+```sh
+mkdir -p ~/.local/share/fonts
+curl -fLo /tmp/JetBrainsMono.zip \
+  https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip
+unzip -o /tmp/JetBrainsMono.zip -d ~/.local/share/fonts/JetBrainsMono
+fc-cache -f
+```
+
+**macOS**
+
+```sh
+brew install --cask font-jetbrains-mono-nerd-font
+```
+
+**Windows, including WSL** — do this on the Windows side:
+
+1. Download `JetBrainsMono.zip` from the
+   [nerd-fonts releases](https://github.com/ryanoasis/nerd-fonts/releases/latest).
+2. Extract it, select the `.ttf` files, right-click → **Install**.
+3. Windows Terminal → **Settings** → your profile → **Appearance** →
+   **Font face**.
+
+Then pick the font in your terminal's settings. It is listed as
+**JetBrainsMono Nerd Font**, or as **JetBrainsMono NF** in terminals that
+show the short family name (Windows Terminal is one). Restart the
+terminal, then set `status-icons nerd`. None of this is needed for
+`unicode`, which draws characters fonts already have.
 
 The snapshot includes **the tail of each pane's screen** — the last 200
 lines — written back into the restored pane. A session recovered after a

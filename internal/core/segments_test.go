@@ -266,9 +266,52 @@ func TestStatusSegmentsUseGlyphsWhenAskedTo(t *testing.T) {
 }
 
 // The whole point of the "unicode" set is that it needs no patched font,
-// so it must not reach into the Private Use Area — that is exactly the
-// range whose glyphs came out as "◆ mem 10%" on an ordinary font. The
-// PUA belongs to "nerd" alone.
+// so every glyph in it has to be one ordinary monospace fonts actually
+// carry. Checking the cmap of four common ones (JetBrains Mono Nerd
+// Font, Cascadia Mono, Cascadia Code, Consolas) ruled out the Geometric
+// Shapes this set first used: "▣" and "▤" are in the Cascadias and in
+// neither of the others, so the no-font-needed option needed a font.
+//
+// Block Elements shades are in all four. Pinning them here means a
+// future edit to shadeFor has to be a deliberate choice about font
+// coverage rather than a change of taste — there is no way to check a
+// font from a test, so the list of what was checked is the record.
+func TestUnicodeIconsUseOnlyWidelyCarriedGlyphs(t *testing.T) {
+	carried := map[rune]bool{
+		'░': true, '▒': true, '▓': true, '█': true, // Block Elements
+		'▲': true, // Geometric Shapes, present in all four
+	}
+	for _, pct := range []uint64{0, 24, 25, 49, 50, 74, 75, 99, 100} {
+		for _, r := range shadeFor(pct) {
+			if !carried[r] {
+				t.Errorf("shadeFor(%d) = %q, which is not in the verified-carried set", pct, string(r))
+			}
+		}
+	}
+}
+
+// The shade has to actually track the number, or it is decoration
+// claiming to be information.
+func TestTheShadeRisesWithTheNumber(t *testing.T) {
+	order := map[string]int{"░": 0, "▒": 1, "▓": 2, "█": 3}
+	prev := -1
+	for pct := uint64(0); pct <= 100; pct++ {
+		got, ok := order[shadeFor(pct)]
+		if !ok {
+			t.Fatalf("shadeFor(%d) = %q, not one of the four shades", pct, shadeFor(pct))
+		}
+		if got < prev {
+			t.Fatalf("shadeFor(%d) = %q went back down", pct, shadeFor(pct))
+		}
+		prev = got
+	}
+	if shadeFor(0) == shadeFor(100) {
+		t.Error("an empty and a full reading draw the same glyph")
+	}
+}
+
+// The Private Use Area belongs to "nerd" alone: that is exactly the
+// range whose glyphs came out as "◆ mem 10%" on an ordinary font.
 func TestUnicodeIconsAvoidThePrivateUseArea(t *testing.T) {
 	defer func() { statusIcons = "" }()
 	statusIcons = "unicode"

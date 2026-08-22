@@ -36,6 +36,7 @@
     <h2>On this page</h2>
     <a href="#where-the-config-lives">Where the config lives</a>
     <a href="#icons-in-the-status-bar">Icons in the status bar</a>
+    <a href="#installing-a-nerd-font">Installing a Nerd Font</a>
     <a href="#which-settings-apply-when">Which settings apply when</a>
     <a href="#themes">Themes</a>
     <a href="#changing-settings-while-it-runs">Changing settings while it runs</a>
@@ -95,11 +96,13 @@ yours to make by looking.</p>
 <tr><th>Value</th><th>Shows</th></tr>
 <tr><td><code>off</code></td><td>The default. Words alone:
 <code>cpu 8% | mem 41%</code>. Never wrong on any font.</td></tr>
-<tr><td><code>unicode</code></td><td><code>▣ cpu 8% | ▤ mem 41%</code>.
-Nothing to install: these are ordinary assigned Unicode characters, the
-kind a monospace font already covers, rather than the Private Use Area.
-They are text-presentation too, so they stay one column wide and cannot
-push the right-aligned bar out of alignment.</td></tr>
+<tr><td><code>unicode</code></td><td><code>░ cpu 8% | ▓ mem 71%</code> —
+the shade fills up as the number climbs, so the glyph is a second look
+at the figure rather than decoration. Nothing to install: these are
+Block Elements, which ordinary monospace fonts carry, rather than the
+Private Use Area. They are text-presentation too, so they stay one
+column wide and cannot push the right-aligned bar out of
+alignment.</td></tr>
 <tr><td><code>nerd</code></td><td>Real microchip and memory icons, and
 the only value that <strong>requires installing a
 <a href="https://www.nerdfonts.com/">Nerd Font</a></strong> and
@@ -113,7 +116,51 @@ be.</td></tr>
 <p>Open the settings screen with <span class="k">Ctrl-B</span>
 <span class="k">,</span>, put the cursor on <code>status-icons</code> and
 step it with ←→. The bar redraws as you go, so you can see which set
-your font can draw instead of guessing.</p>
+your font can draw instead of guessing. If a set shows boxes, it is the
+wrong one for your font.</p>
+
+<h2 id="installing-a-nerd-font">Installing a Nerd Font</h2>
+
+<div class="note">
+<strong>Install it where the terminal is, not where termdock is.</strong>
+The font is used by the terminal emulator you are looking at. Over SSH
+that is your laptop, not the server; on Windows with WSL that is
+Windows, not the WSL distribution. Installing fonts on the far side does
+nothing at all, and is the usual reason this appears not to work.
+</div>
+
+<p>Any font from
+<a href="https://www.nerdfonts.com/font-downloads">nerdfonts.com</a> will
+do — JetBrains Mono is used here. On <strong>Linux</strong>:</p>
+
+<pre><code>mkdir -p ~/.local/share/fonts
+curl -fLo /tmp/JetBrainsMono.zip   https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip
+unzip -o /tmp/JetBrainsMono.zip -d ~/.local/share/fonts/JetBrainsMono
+fc-cache -f</code></pre>
+
+<p>On <strong>macOS</strong>:</p>
+
+<pre><code>brew install --cask font-jetbrains-mono-nerd-font</code></pre>
+
+<p>On <strong>Windows</strong>, including when you run termdock in WSL —
+do this on the Windows side, not inside the distribution:</p>
+
+<ol>
+<li>Download <code>JetBrainsMono.zip</code> from the
+<a href="https://github.com/ryanoasis/nerd-fonts/releases/latest">nerd-fonts
+releases</a>.</li>
+<li>Extract it, select the <code>.ttf</code> files, right-click →
+<strong>Install</strong>.</li>
+<li>Windows Terminal → <strong>Settings</strong> → your profile →
+<strong>Appearance</strong> → <strong>Font face</strong>.</li>
+</ol>
+
+<p>Then pick the font in your terminal's settings. It is listed as
+<strong>JetBrainsMono Nerd Font</strong>, or as
+<strong>JetBrainsMono NF</strong> in terminals that show the short family
+name — Windows Terminal is one. Restart the terminal, then set
+<code>status-icons nerd</code>. None of this is needed for
+<code>unicode</code>, which draws characters fonts already have.</p>
 
 <div class="note">
 <strong>A typo never stops a session starting.</strong> A line termdock
