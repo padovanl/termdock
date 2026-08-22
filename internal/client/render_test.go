@@ -474,3 +474,23 @@ func TestWideGlyphsDoNotOverlapWhatFollows(t *testing.T) {
 		t.Errorf("column 3 = %q, want 'b'", got)
 	}
 }
+
+// Highlights used to be black text on the theme's accent whatever that
+// accent was: fine on Nord's pale frost blue, poor on Solarized's mid
+// blue or Dracula's purple. A fixed foreground cannot be right for
+// eleven palettes, so it is chosen per colour.
+func TestHighlightForegroundIsReadableOnEveryAccent(t *testing.T) {
+	dark := []int32{0x268bd2, 0xbd93f9, 0xe95420, 0x7aa2f7, 0x61afef}  // want white
+	light := []int32{0x88c0d0, 0xc4a7e7, 0xa7c080, 0xcba6f7, 0xa6e22e} // want black
+
+	for _, hex := range dark {
+		if got := readableOn(tcell.NewHexColor(hex)); got != tcell.ColorWhite {
+			t.Errorf("#%06x is dark; got %v, want white text on it", hex, got)
+		}
+	}
+	for _, hex := range light {
+		if got := readableOn(tcell.NewHexColor(hex)); got != tcell.ColorBlack {
+			t.Errorf("#%06x is light; got %v, want black text on it", hex, got)
+		}
+	}
+}

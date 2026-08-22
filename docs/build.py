@@ -28,7 +28,7 @@ PAGE = """<!doctype html>
 <meta property="og:description" content="{description}">
 <meta property="og:type" content="article">
 <meta name="theme-color" content="#07100f">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2.5' y='2.5' width='27' height='27' rx='3' fill='none' stroke='%2335e0c8' stroke-width='2.4'/><path d='M16 3.5 V28.5 M16 13 H28.5' stroke='%2335e0c8' stroke-width='2.4' stroke-linecap='round'/></svg>">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -36,7 +36,7 @@ PAGE = """<!doctype html>
 
 <header class="topbar">
   <div class="topbar-inner">
-    <a class="brand" href="index.html" style="text-decoration:none;border:0">termdock<span class="cursor">_</span></a>
+    <a class="brand" href="index.html" style="text-decoration:none;border:0"><img src="logo.svg" alt="" width="18" height="18" style="vertical-align:-3px;margin-right:.4rem">termdock<span class="cursor">_</span></a>
     <nav class="navlinks">
 {navlinks}
       <a href="https://github.com/padovanl/termdock">github</a>

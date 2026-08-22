@@ -1,6 +1,7 @@
 package core
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
@@ -116,5 +117,54 @@ func TestOpenerEscCancels(t *testing.T) {
 
 	if mode != ModeNormal {
 		t.Fatalf("Esc should return to ModeNormal, got %v", mode)
+	}
+}
+
+// A URL longer than the pane is wide is stored as two rows. Scanning
+// them separately finds neither: the head becomes a truncated but
+// plausible-looking link, and the tail turns up as a second, bogus
+// entry — so the picker offers two wrong things instead of one right
+// one.
+func TestOpenerRejoinsAWrappedURL(t *testing.T) {
+	const url = "https://example.com/a/very/long/path/that/will/certainly/wrap"
+
+	c := newTestCore(t)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	p := c.panes[c.win().active.ID]
+	p.Resize(30, 10) // narrower than the URL
+	p.Term().Write([]byte(url + "\r\n"))
+
+	found := c.scanActivePaneForLinks()
+	var whole bool
+	for _, f := range found {
+		if f == url {
+			whole = true
+		}
+		if strings.HasPrefix(f, "/a/very") || strings.HasPrefix(f, "/that/will") {
+			t.Errorf("the tail of the wrapped URL leaked as its own entry: %q", f)
+		}
+	}
+	if !whole {
+		t.Fatalf("the wrapped URL was not rejoined; got %v", found)
+	}
+}
+
+// Two links on one line must both be offered — the masking that stops a
+// URL also matching the path pattern must not eat the second one.
+func TestOpenerFindsBothLinksOnALine(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	p := c.panes[c.win().active.ID]
+	p.Term().Write([]byte("see http://one.example and https://two.example\r\n"))
+
+	found := strings.Join(c.scanActivePaneForLinks(), " ")
+	for _, want := range []string{"http://one.example", "https://two.example"} {
+		if !strings.Contains(found, want) {
+			t.Errorf("%q missing from %q", want, found)
+		}
 	}
 }

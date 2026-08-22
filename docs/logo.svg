@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="termdock">
+  <title>termdock</title>
+  <!-- A pane layout, drawn the way termdock draws one: an outer border,
+       one vertical split, one horizontal split in the right half. It
+       describes the tool rather than borrowing an animal from another
+       project. -->
+  <rect x="2.5" y="2.5" width="27" height="27" rx="3" fill="none" stroke="#35e0c8" stroke-width="2.4"/>
+  <path d="M16 3.5 V28.5 M16 13 H28.5" stroke="#35e0c8" stroke-width="2.4" stroke-linecap="round"/>
+</svg>

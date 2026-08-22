@@ -68,7 +68,7 @@ func draw(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 // pane content already drawn, so the user can still tell what's running
 // underneath while picking which one to jump to.
 func drawQuickJump(screen tcell.Screen, tags []proto.QuickJumpTag, cfg config.Config) {
-	style := tcell.StyleDefault.Background(cfg.PaneActiveBG).Foreground(tcell.ColorBlack).Bold(true)
+	style := tcell.StyleDefault.Background(cfg.PaneActiveBG).Foreground(readableOn(cfg.PaneActiveBG)).Bold(true)
 	for _, t := range tags {
 		r := t.Rect
 		if r.W < 3 || r.H < 1 {
@@ -494,7 +494,7 @@ func drawOverlay(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 		row := y0 + headerRows + 1 + i
 		style := bg
 		if ov.Selectable && idx == ov.Selected {
-			style = tcell.StyleDefault.Background(cfg.PaneActiveBG).Foreground(tcell.ColorBlack).Bold(true)
+			style = tcell.StyleDefault.Background(cfg.PaneActiveBG).Foreground(readableOn(cfg.PaneActiveBG)).Bold(true)
 			for x := innerX; x < maxX; x++ {
 				screen.SetContent(x, row, ' ', nil, style)
 			}
@@ -659,11 +659,11 @@ func tabStyle(t proto.WindowTab, cfg config.Config) tcell.Style {
 		// Distinct from Active on purpose: "picked up and moving," not
 		// "this is where you are" — the two can coincide (dragging the
 		// current tab) or not (dragging a background one).
-		return tcell.StyleDefault.Background(tcell.ColorGray).Foreground(tcell.ColorBlack).Bold(true).Underline(true)
+		return tcell.StyleDefault.Background(tcell.ColorGray).Foreground(readableOn(tcell.ColorGray)).Bold(true).Underline(true)
 	case t.Active:
-		return tcell.StyleDefault.Background(cfg.PaneActiveBG).Foreground(tcell.ColorBlack).Bold(true)
+		return tcell.StyleDefault.Background(cfg.PaneActiveBG).Foreground(readableOn(cfg.PaneActiveBG)).Bold(true)
 	case t.Activity:
-		return tcell.StyleDefault.Background(tcell.ColorDarkOrange).Foreground(tcell.ColorBlack)
+		return tcell.StyleDefault.Background(tcell.ColorDarkOrange).Foreground(readableOn(tcell.ColorDarkOrange))
 	default:
 		// Explicitly the bar's own background: left at the default it was
 		// the emulator's, punching black gaps through a themed status bar.

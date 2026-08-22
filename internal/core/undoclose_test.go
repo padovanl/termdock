@@ -146,3 +146,46 @@ func TestUndoStackIsBounded(t *testing.T) {
 		t.Fatalf("stack grew to %d, want a cap of %d", len(c.closedPanes), undoStackLimit)
 	}
 }
+
+// Reopening has to put the pane back the way it was, not merely
+// somewhere: a pane closed from a stacked layout coming back beside its
+// neighbour is the undo visibly not undoing.
+func TestReopenRestoresTheOrientation(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.doSplit(layout.Horizontal) // stacked
+	leaves := layout.Leaves(c.win().root)
+	victim := leaves[1]
+	c.detachLeafIn(c.win(), victim)
+
+	c.reopenClosedPane()
+	root := c.win().root
+	if root.IsLeaf() {
+		t.Fatal("the pane did not come back")
+	}
+	if root.Split != layout.Horizontal {
+		t.Fatalf("came back on a %v split, want the horizontal one it was closed from", root.Split)
+	}
+}
+
+// And it has to keep the name, which is the part you would least want to
+// retype.
+func TestReopenRestoresThePaneName(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.doSplit(layout.Vertical)
+	leaves := layout.Leaves(c.win().root)
+	c.setActive(leaves[1])
+	renamePaneTo(c, "worker")
+
+	c.detachLeafIn(c.win(), leaves[1])
+	c.reopenClosedPane()
+
+	if got := c.paneNames[c.win().active.ID]; got != "worker" {
+		t.Fatalf("reopened pane is named %q, want %q", got, "worker")
+	}
+}

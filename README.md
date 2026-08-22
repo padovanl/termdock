@@ -1,4 +1,4 @@
-# ▦ termdock
+<h1><img src="docs/logo.svg" alt="" width="28" height="28" align="absmiddle"> termdock</h1>
 
 [![ci](https://img.shields.io/github/actions/workflow/status/padovanl/termdock/ci.yml?branch=master&logo=github&label=ci)](https://github.com/padovanl/termdock/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/actions/workflow/status/padovanl/termdock/release.yml?logo=github&label=release)](https://github.com/padovanl/termdock/actions/workflows/release.yml)

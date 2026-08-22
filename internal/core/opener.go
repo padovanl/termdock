@@ -7,6 +7,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/padovanl/termdock/internal/pane"
 	"github.com/padovanl/termdock/internal/proto"
 )
 
@@ -58,17 +59,37 @@ func (c *Core) scanActivePaneForLinks() []string {
 	t := p.Term()
 	t.Lock()
 	cols, rows := t.Size()
-	lines := make([]string, rows)
+	// Rejoin lines the terminal wrapped. A URL longer than the pane is
+	// wide is stored as two rows, and scanning them separately finds
+	// neither: the head is truncated into a plausible-looking but wrong
+	// link ("https://example.com/una/path/m") and the tail turns up as a
+	// second, bogus entry ("/lunga/che/va/a/capo"). The emulator already
+	// records which rows are continuations — the last cell of a wrapped
+	// row carries AttrWrap — so the join is exact rather than guessed at
+	// from the row being full.
+	var lines []string
+	var cur strings.Builder
 	for y := 0; y < rows; y++ {
-		var sb strings.Builder
+		wrapped := false
 		for x := 0; x < cols; x++ {
-			ch := t.Cell(x, y).Char
+			g := t.Cell(x, y)
+			ch := g.Char
 			if ch == 0 {
 				ch = ' '
 			}
-			sb.WriteRune(ch)
+			cur.WriteRune(ch)
+			if x == cols-1 && g.Mode&pane.AttrWrap != 0 {
+				wrapped = true
+			}
 		}
-		lines[y] = sb.String()
+		if wrapped {
+			continue // the next row is the rest of this line
+		}
+		lines = append(lines, cur.String())
+		cur.Reset()
+	}
+	if cur.Len() > 0 {
+		lines = append(lines, cur.String())
 	}
 	t.Unlock()
 
