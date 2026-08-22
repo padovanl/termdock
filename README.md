@@ -18,7 +18,7 @@ into panes, run multiple shells side by side, and keep everything running
 in the background so you can detach and reattach later, even from a
 different machine, without losing a thing.
 
-![termdock in action: splitting into panes, the live pane overview (Ctrl-B g), and the floating popup terminal (Ctrl-B P), all in the Dracula color theme with the git branch segment in the status bar](docs/demo.gif)
+![A termdock session: naming panes, a failed command's exit status shown on its pane title, the jump picker's live preview, every command the session has run with how it ended, the same commands on a shared timeline, closing a pane and taking it back, then detaching with the work still running](docs/demo.gif)
 
 Written from scratch in Go, with **no dependency on tmux or screen**: it
 manages pseudo-terminals (ptys) and its own VT100 emulator (with
@@ -1055,6 +1055,7 @@ pane-active-bg teal       # active pane's border/title color (default teal)
 pane-bg default          # background behind unstyled pane content (default: your terminal's)
 pane-fg default          # foreground for unstyled pane content (default: your terminal's)
 status-segments git,battery,cpu,mem  # extra segments in the status bar (default: none)
+status-icons unicode     # icons before those segments: off, unicode or nerd (default off)
 ```
 
 Colors accept any W3C name tcell understands, or `#rrggbb` hex. A `#`
@@ -1074,7 +1075,19 @@ system usage read straight from `/proc/stat`/`/proc/meminfo` — all Linux
 only, all cached for a couple of seconds (`cpu` also needs two samples an
 interval apart to compute a delta from, so it shows nothing for the
 first few seconds after being enabled) so nothing here adds real
-overhead to every redraw. See
+overhead to every redraw.
+
+`status-icons` puts a small glyph in front of each of those segments and
+takes three values, because no program can ask a terminal whether its
+font actually has a glyph. `off` is the default and shows the words
+alone, which is never wrong. `unicode` uses shapes from the Geometric
+Shapes block (`▣ cpu 8%`, `▤ mem 41%`), which every monospace font
+ships. `nerd` uses proper Nerd Font icons, which live in the Private Use
+Area and need a patched font — on a font without them the bar reads
+`◆ mem 10%`, a replacement box where the microchip should be. Open the
+settings screen with <kbd>Ctrl-B</kbd> <kbd>,</kbd> and step the value
+with ←→ to see which set your font can draw: your eyes are the only
+reliable test. See
 [⌨️ Custom keybindings](#-custom-keybindings) and
 [🎯 Focus events](#-focus-events) above for `bind` and `focus-events`.
 

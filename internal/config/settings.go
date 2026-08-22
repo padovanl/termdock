@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
@@ -46,6 +48,12 @@ type Setting struct {
 	NewPanesOnly bool
 	get          func(*Config) string
 	set          func(*Config, string) error
+	// Hint is what a valid value looks like, shown on the row while one
+	// is being typed. Settings with choices don't need it — you step
+	// through those and read them. The ones that are typed had nothing
+	// saying what they would accept, so "popup-command" looked like it
+	// took a sentence, and any sentence was duly accepted.
+	Hint string
 	// choices, when set, lists every value this setting can take, in the
 	// order to step through them. It's what lets the settings screen
 	// offer left/right to pick one rather than requiring you to know the
@@ -67,7 +75,8 @@ func (s Setting) Choices() []string {
 var settings = []Setting{
 	{
 		Key: "prefix", Doc: "prefix key, any Ctrl+letter", Scope: ScopeServer,
-		get: func(c *Config) string { return keyChordString(c.Prefix) },
+		Hint: "a Ctrl+letter chord, e.g. C-a or C-b",
+		get:  func(c *Config) string { return keyChordString(c.Prefix) },
 		set: func(c *Config, v string) error {
 			k, ok := parseKeyChord(v)
 			if !ok {
@@ -85,7 +94,8 @@ var settings = []Setting{
 	},
 	{
 		Key: "history-limit", Doc: "scrollback lines kept per pane", Scope: ScopeServer, NewPanesOnly: true,
-		get: func(c *Config) string { return strconv.Itoa(c.HistoryLimit) },
+		Hint: "a whole number of lines, e.g. 2000",
+		get:  func(c *Config) string { return strconv.Itoa(c.HistoryLimit) },
 		set: func(c *Config, v string) error {
 			n, err := strconv.Atoi(v)
 			if err != nil || n <= 0 {
@@ -97,6 +107,7 @@ var settings = []Setting{
 	},
 	{
 		Key: "shell", Doc: "shell to launch in new panes", Scope: ScopeServer, NewPanesOnly: true,
+		Hint: "a path to a shell, e.g. /bin/bash — or default for $SHELL",
 		get: func(c *Config) string {
 			if c.Shell == "" {
 				return "(your $SHELL)"
@@ -121,6 +132,7 @@ var settings = []Setting{
 	},
 	{
 		Key: "popup-command", Doc: "what the floating popup runs instead of a shell", Scope: ScopeServer,
+		Hint: "a command to run, e.g. htop — or default for a shell",
 		get: func(c *Config) string {
 			if c.PopupCommand == "" {
 				return "(a shell)"
@@ -143,7 +155,8 @@ var settings = []Setting{
 	},
 	{
 		Key: "repeat-time", Doc: "ms a bare arrow keeps moving focus (0 disables)", Scope: ScopeServer,
-		get: func(c *Config) string { return strconv.Itoa(c.RepeatTime) },
+		Hint: "milliseconds, e.g. 500 — or 0 to disable",
+		get:  func(c *Config) string { return strconv.Itoa(c.RepeatTime) },
 		set: func(c *Config, v string) error {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 0 {
@@ -186,20 +199,31 @@ var settings = []Setting{
 	colorSetting("pane-bg", "background behind unstyled pane content", func(c *Config) *tcell.Color { return &c.PaneBG }),
 	colorSetting("pane-fg", "foreground for unstyled pane content", func(c *Config) *tcell.Color { return &c.PaneFG }),
 	{
-		Key: "status-icons", Doc: "draw status segments with Nerd Font glyphs", Scope: ScopeClient,
-		get: func(c *Config) string { return onOff(c.StatusIcons) },
-		set: func(c *Config, v string) error {
-			b, ok := parseBool(v)
-			if !ok {
-				return fmt.Errorf("expected on or off")
+		Key: "status-icons", Doc: "icons before status segments (off|unicode|nerd)", Scope: ScopeClient,
+		get: func(c *Config) string {
+			if c.StatusIcons == "" {
+				return "off"
 			}
-			c.StatusIcons = b
-			return nil
+			return c.StatusIcons
 		},
-		choices: onOffChoices,
+		set: func(c *Config, v string) error {
+			// "on" kept working: it is what this setting took when it was
+			// a bool, so it is in config files already written.
+			if v == "on" {
+				v = "nerd"
+			}
+			switch v {
+			case "off", "unicode", "nerd":
+				c.StatusIcons = v
+				return nil
+			}
+			return fmt.Errorf("expected off, unicode or nerd")
+		},
+		choices: statusIconChoices,
 	},
 	{
 		Key: "status-segments", Doc: "extra status-bar segments (git,battery,cpu,mem)", Scope: ScopeServer,
+		Hint: "any of git,battery,cpu,mem — or none",
 		get: func(c *Config) string {
 			if len(c.StatusSegments) == 0 {
 				return "(none)"
@@ -240,7 +264,8 @@ func segmentNames() []string {
 func colorSetting(key, doc string, field func(*Config) *tcell.Color) Setting {
 	return Setting{
 		Key: key, Doc: doc, Scope: ScopeClient,
-		get: func(c *Config) string { return colorString(*field(c)) },
+		Hint: "a #rrggbb hex colour or a name, e.g. #1e1e2e or blue",
+		get:  func(c *Config) string { return colorString(*field(c)) },
 		set: func(c *Config, v string) error {
 			col, ok := parseColor(v)
 			if !ok {
@@ -293,6 +318,11 @@ func Set(cfg *Config, key, value string) error {
 
 func onOffChoices() []string { return []string{"on", "off"} }
 
+// statusIconChoices orders the sets so that stepping ←→ from the default
+// tries the one every font can draw before the one that needs a patched
+// font — see Config.StatusIcons.
+func statusIconChoices() []string { return []string{"off", "unicode", "nerd"} }
+
 // Step moves a setting to the next value in its own list, delta places
 // along and wrapping at both ends, returning what it landed on. Reports
 // false for a setting with no fixed set of values — those get typed.
@@ -341,8 +371,51 @@ func Step(cfg *Config, key string, delta int) (string, bool) {
 // CheckShell) rather than being quietly discarded in favour of $SHELL,
 // which would leave the user with no error and the wrong shell.
 func CheckSetting(cfg *Config, key string) error {
-	if key == "shell" {
+	switch key {
+	case "shell":
 		return CheckShell(cfg.Shell)
+	case "popup-command":
+		return CheckPopupCommand(cfg.PopupCommand)
+	}
+	return nil
+}
+
+// CheckPopupCommand reports whether the popup would actually have
+// something to run. The popup opens, the command fails to exec, and the
+// popup closes again — from the outside it flashes for a moment and
+// vanishes, with nowhere for the error to be shown, so anything typed
+// here that isn't a command is indistinguishable from the feature being
+// broken. Checked while the value is being set, where there is still a
+// screen to complain on.
+//
+// Only the program is checked, not the arguments: whether `htop -u root`
+// likes its flags is htop's business, and guessing at it would refuse
+// perfectly good command lines.
+func CheckPopupCommand(cmd string) error {
+	if cmd == "" {
+		return nil // means "a shell", which CheckShell already covers
+	}
+	fields := strings.Fields(cmd)
+	if len(fields) == 0 {
+		return nil
+	}
+	prog := fields[0]
+	// A path is only a command if it is one; a bare name has to be
+	// somewhere on PATH.
+	if strings.ContainsRune(prog, os.PathSeparator) {
+		info, err := os.Stat(prog)
+		switch {
+		case err != nil:
+			return fmt.Errorf("popup-command starts with %s, which cannot be run: %v", prog, err)
+		case info.IsDir():
+			return fmt.Errorf("popup-command starts with %s, which is a directory, not a program", prog)
+		case info.Mode()&0111 == 0:
+			return fmt.Errorf("popup-command starts with %s, which is not executable", prog)
+		}
+		return nil
+	}
+	if _, err := exec.LookPath(prog); err != nil {
+		return fmt.Errorf("popup-command starts with %q, which is not a program on your PATH", prog)
 	}
 	return nil
 }

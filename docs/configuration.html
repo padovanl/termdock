@@ -35,6 +35,7 @@
   <aside class="manual-toc">
     <h2>On this page</h2>
     <a href="#where-the-config-lives">Where the config lives</a>
+    <a href="#icons-in-the-status-bar">Icons in the status bar</a>
     <a href="#which-settings-apply-when">Which settings apply when</a>
     <a href="#themes">Themes</a>
     <a href="#changing-settings-while-it-runs">Changing settings while it runs</a>
@@ -69,7 +70,34 @@ status-fg silver
 pane-active-bg teal
 pane-bg default          # background behind unstyled pane content
 pane-fg default
-status-segments git,battery,cpu,mem</code></pre>
+status-segments git,battery,cpu,mem
+status-icons unicode     # icons before them: off, unicode or nerd</code></pre>
+
+<h2 id="icons-in-the-status-bar">Icons in the status bar</h2>
+
+<p><code>status-icons</code> puts a glyph in front of each optional
+segment. It has three values rather than on/off, because no program can
+ask a terminal whether its font actually contains a glyph — so the
+choice is yours to make by looking.</p>
+
+<table>
+<tr><th>Value</th><th>Shows</th></tr>
+<tr><td><code>off</code></td><td>The default. Words alone:
+<code>cpu 8% | mem 41%</code>. Never wrong on any font.</td></tr>
+<tr><td><code>unicode</code></td><td>Shapes from the Geometric Shapes
+block: <code>▣ cpu 8% | ▤ mem 41%</code>. Every monospace font ships
+these, and they are text-presentation, so they stay one column wide and
+cannot push the right-aligned bar out of alignment.</td></tr>
+<tr><td><code>nerd</code></td><td>Real Nerd Font icons. These live in
+the Private Use Area, so they need a patched font — on an ordinary one
+the bar reads <code>◆ mem 10%</code>, a replacement box where the
+microchip should be.</td></tr>
+</table>
+
+<p>Open the settings screen with <span class="k">Ctrl-B</span>
+<span class="k">,</span>, put the cursor on <code>status-icons</code> and
+step it with ←→. The bar redraws as you go, so you can see which set
+your font can draw instead of guessing.</p>
 
 <div class="note">
 <strong>A typo never stops a session starting.</strong> A line termdock

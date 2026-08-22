@@ -115,9 +115,44 @@ func (t *State) addMark(kind MarkKind, exit int) {
 	if t.mode&ModeAltScreen != 0 {
 		return
 	}
+	// A prompt can be emitted more than once for the same line. The B
+	// mark rides on PS1 (see shellinit.go — the only place that is true
+	// whatever the prompt contains), and a shell re-prints its prompt
+	// whenever readline redraws the line: a pane resize is enough. Each
+	// redraw arrives here as another B at the same line, and since one
+	// history entry is built per B, the command on that line was counted
+	// twice. The command-history picker collapses repeats into a "×2", so
+	// it hid this; the timeline lists occurrences and showed the same
+	// build twice, at one timestamp, with one duration.
+	//
+	// One prompt line holds one prompt, so the later mark replaces the
+	// earlier rather than adding to it — the later one is the prompt as
+	// it now stands, and its column is where the typing actually starts.
+	//
+	// A redraw re-emits the whole cycle, so A and B both arrive again;
+	// comparing against only the previous mark would miss it, since the
+	// second B has the second A in front of it. Hence the scan back to
+	// the last command that actually started, which is where the
+	// previous cycle provably ended.
+	line := t.scrolledOff + t.cur.Y
+	if kind == MarkPrompt || kind == MarkInput {
+		for i := len(t.marks) - 1; i >= 0; i-- {
+			m := &t.marks[i]
+			// A command having started means everything before it belongs
+			// to a cycle that is over, and this really is a new prompt.
+			if m.Kind == MarkOutput || m.Kind == MarkDone {
+				break
+			}
+			if m.Kind == kind && m.Line == line {
+				m.Col = t.cur.X
+				m.At = time.Now()
+				return
+			}
+		}
+	}
 	t.marks = append(t.marks, Mark{
 		Kind: kind,
-		Line: t.scrolledOff + t.cur.Y,
+		Line: line,
 		Col:  t.cur.X,
 		Exit: exit,
 		At:   time.Now(),

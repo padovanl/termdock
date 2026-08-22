@@ -224,6 +224,27 @@ func drawBorders(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 		addRectBorder(activeCells, active.Rect)
 	}
 
+	// The four cells where the focused pane's outline turns a corner.
+	//
+	// Glyphs are picked from the union of every pane's outline, which is
+	// what joins dividers into T's and crosses. But that also means the
+	// focused pane's own corners come out as junctions whenever they sit
+	// against a neighbour: the top-right of a left-hand pane is where the
+	// outer top border and the divider meet, so it tiled as '┬' — drawn in
+	// the accent colour, that reads as a bar sticking out of the highlight
+	// rather than a corner, and the highlight stops looking like a
+	// rectangle at all.
+	//
+	// Only the corners are overridden. Forcing the whole active outline to
+	// tile against itself also erases the T's *along* its edges, which are
+	// real: a neighbour's divider running into the focused pane's side has
+	// to connect, and dropping it to '│' leaves that divider visibly
+	// floating.
+	activeCorners := map[[2]int]rune{}
+	if active != nil {
+		activeCorners = cornerRunes(active.Rect)
+	}
+
 	// Backgrounded with the theme like everything else: a border drawn on
 	// the emulator's default background framed every themed session in a
 	// black grid.
@@ -249,7 +270,11 @@ func drawBorders(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 		if activeCells[cell] {
 			style = activeStyle
 		}
-		screen.SetContent(x, y, boxChar(up, down, left, right), nil, style)
+		ch := boxChar(up, down, left, right)
+		if corner, ok := activeCorners[cell]; ok {
+			ch = corner
+		}
+		screen.SetContent(x, y, ch, nil, style)
 	}
 
 	for i := range f.Panes {
@@ -277,6 +302,17 @@ func addRectBorder(cells map[[2]int]bool, r proto.Rect) {
 	for y := y0; y <= y1; y++ {
 		cells[[2]int{x0, y}] = true
 		cells[[2]int{x1, y}] = true
+	}
+}
+
+// cornerRunes maps the four cells where r's border turns a corner to the
+// glyph that closes that corner.
+func cornerRunes(r proto.Rect) map[[2]int]rune {
+	x0, y0 := r.X-1, r.Y-1
+	x1, y1 := r.X+r.W, r.Y+r.H
+	return map[[2]int]rune{
+		{x0, y0}: '┌', {x1, y0}: '┐',
+		{x0, y1}: '└', {x1, y1}: '┘',
 	}
 }
 

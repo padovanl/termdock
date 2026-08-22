@@ -150,15 +150,16 @@ func readBattery() string {
 			continue
 		}
 		pct := strings.TrimSpace(string(capBytes))
-		// "+" for charging: one column, unambiguous, and unlike a battery
-		// emoji it cannot throw the status bar's alignment out (see
+		// A distinct glyph for charging rather than a battery emoji:
+		// both of these are one column, so neither can throw the
+		// right-aligned status bar's alignment out (see
 		// TestStatusSegmentsAreWidthPredictable).
-		glyph := "\uf240" // a battery
+		nerd, uni := "\uf240", "\u25ae" // a battery / a filled upright bar
 		if statusBytes, err := os.ReadFile(base + e.Name() + "/status"); err == nil &&
 			strings.TrimSpace(string(statusBytes)) == "Charging" {
-			glyph = "\uf0e7" // a bolt
+			nerd, uni = "\uf0e7", "\u25b2" // a bolt / an upward triangle
 		}
-		return icon(glyph) + "bat " + pct + "%"
+		return icon(nerd, uni) + "bat " + pct + "%"
 	}
 	return ""
 }
@@ -209,7 +210,7 @@ func cpuPercent(prev, cur cpuSample) string {
 		return "" // clock hasn't advanced, or a counter wrapped — nothing sane to report
 	}
 	pct := 100 * (dTotal - dIdle) / dTotal
-	return fmt.Sprintf("%scpu %d%%", icon("\uf2db"), pct)
+	return fmt.Sprintf("%scpu %d%%", icon("\uf2db", "\u25a3"), pct)
 }
 
 // readMem reads /proc/meminfo for the fraction of memory in use —
@@ -239,27 +240,40 @@ func readMem() string {
 		return ""
 	}
 	pct := 100 * (total - avail) / total
-	return fmt.Sprintf("%smem %d%%", icon("\uf1c0"), pct)
+	return fmt.Sprintf("%smem %d%%", icon("\uf1c0", "\u25a4"), pct)
 }
 
-// statusIcons is whether the segments are drawn with glyphs. Read from
+// statusIcons is which glyph set the segments are drawn with. Read from
 // the session's settings by the functions below, which are called from
 // places that have no Core to hand — a package-level flag is the smaller
 // evil than threading a config through readBattery and readMem.
-var statusIcons bool
+var statusIcons string
 
-// icon returns the glyph plus a space when icons are on, and nothing at
-// all when they are off.
+// icon returns a glyph plus a space, or nothing at all when icons are
+// off. It takes both a Nerd Font glyph and a plain-Unicode stand-in, and
+// picks by mode.
 //
-// Off by default, deliberately. These are Private Use Area codepoints —
-// a font that has them draws a microchip, and one that does not draws a
-// replacement box, which is what happened: the status bar read
-// "◆ mem 10%". An icon you cannot see is strictly worse than the word it
-// replaced, so having them costs a deliberate "status-icons on" from
-// someone who knows their font has them.
-func icon(glyph string) string {
-	if !statusIcons {
+// There are two sets because there is no way to ask a terminal whether
+// its font has a glyph. Nerd Font icons are Private Use Area codepoints:
+// a patched font draws a microchip, an unpatched one draws a replacement
+// box, and the status bar reads "◆ mem 10%" — which is how this was
+// first reported. Turning the setting into a three-way choice lets the
+// eye do the detection that code cannot: step it to "unicode", and if
+// those show, keep them.
+//
+// The unicode set is drawn from Geometric Shapes (U+25A0..U+25FF), which
+// every monospace font ships and which is text-presentation, so unlike
+// an emoji it stays one column wide and cannot shift the right-aligned
+// status bar (see TestStatusSegmentsAreWidthPredictable).
+//
+// Off stays the default: the words alone are never wrong.
+func icon(nerd, unicode string) string {
+	switch statusIcons {
+	case "nerd":
+		return nerd + " "
+	case "unicode":
+		return unicode + " "
+	default:
 		return ""
 	}
-	return glyph + " "
 }

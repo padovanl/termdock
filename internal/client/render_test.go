@@ -494,3 +494,74 @@ func TestHighlightForegroundIsReadableOnEveryAccent(t *testing.T) {
 		}
 	}
 }
+
+// The focused pane is marked by drawing its outline in the accent colour.
+// That outline has to read as a rectangle, which means its four corners
+// must be corners — but glyphs are tiled from the union of every pane's
+// outline, so a corner that sits against a neighbour tiles as a T and the
+// highlight grows an arm poking into the pane next door.
+func TestFocusedPaneOutlineClosesAtItsCorners(t *testing.T) {
+	// A vertical split: the focused pane is the left one, so its right-hand
+	// corners land on the shared divider — the case that went wrong.
+	left := proto.Rect{X: 1, Y: 1, W: 20, H: 21}
+	right := proto.Rect{X: 22, Y: 1, W: 20, H: 21}
+
+	cells := map[[2]int]bool{}
+	addRectBorder(cells, left)
+	addRectBorder(cells, right)
+	corners := cornerRunes(left)
+
+	at := func(x, y int) rune {
+		ch := boxChar(cells[[2]int{x, y - 1}], cells[[2]int{x, y + 1}],
+			cells[[2]int{x - 1, y}], cells[[2]int{x + 1, y}])
+		if c, ok := corners[[2]int{x, y}]; ok {
+			ch = c
+		}
+		return ch
+	}
+
+	// Where the focused pane's outline meets the divider it must still be
+	// a corner, not the '┬'/'┴' the union tiles there.
+	for _, tc := range []struct {
+		x, y int
+		want rune
+		desc string
+	}{
+		{0, 0, '┌', "top-left, against the outer frame"},
+		{21, 0, '┐', "top-right, against the divider"},
+		{0, 22, '└', "bottom-left, against the outer frame"},
+		{21, 22, '┘', "bottom-right, against the divider"},
+	} {
+		if got := at(tc.x, tc.y); got != tc.want {
+			t.Errorf("%s: got %q at (%d,%d), want %q", tc.desc, got, tc.x, tc.y, tc.want)
+		}
+	}
+}
+
+// Closing the corners must not be done by tiling the focused outline
+// against itself: that also drops the T-junctions along its edges, where
+// a neighbour's divider genuinely runs into the focused pane's side, and
+// leaves that divider floating unattached.
+func TestFocusedOutlineKeepsJunctionsAlongItsEdges(t *testing.T) {
+	left := proto.Rect{X: 1, Y: 1, W: 20, H: 21} // focused
+	topRight := proto.Rect{X: 22, Y: 1, W: 20, H: 10}
+	botRight := proto.Rect{X: 22, Y: 12, W: 20, H: 10}
+
+	cells := map[[2]int]bool{}
+	for _, r := range []proto.Rect{left, topRight, botRight} {
+		addRectBorder(cells, r)
+	}
+	corners := cornerRunes(left)
+
+	// (21,11) is on the focused pane's right edge, halfway down, where the
+	// two right-hand panes' shared divider arrives.
+	x, y := 21, 11
+	if _, isCorner := corners[[2]int{x, y}]; isCorner {
+		t.Fatalf("(%d,%d) should not be one of the focused pane's corners", x, y)
+	}
+	got := boxChar(cells[[2]int{x, y - 1}], cells[[2]int{x, y + 1}],
+		cells[[2]int{x - 1, y}], cells[[2]int{x + 1, y}])
+	if got != '├' {
+		t.Errorf("the neighbours' divider must stay attached to the focused pane's edge: got %q at (%d,%d), want '├'", got, x, y)
+	}
+}

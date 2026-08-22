@@ -17,6 +17,13 @@ GETTING_STARTED = {
     "description": "Install termdock, create your first session, split it into panes, and understand what detaching actually does.",
     "lede": "Ten minutes from installing to knowing why a session survives closing the terminal.",
     "body": """
+<figure class="manual-figure">
+<img src="demo.gif" width="1200" height="700" loading="lazy"
+     alt="A termdock session: naming panes, a failed command's exit status shown on its pane title, the jump picker's live preview, every command the session has run with how it ended, the same commands on a shared timeline, closing a pane and taking it back, then detaching with the work still running">
+<figcaption>The whole of this page, in about forty seconds. Each of these
+is covered below or in <a href="workflow.html">Working in a session</a>.</figcaption>
+</figure>
+
 <h2>Install</h2>
 
 <p>Prebuilt packages and binaries are on the
@@ -555,7 +562,34 @@ status-fg silver
 pane-active-bg teal
 pane-bg default          # background behind unstyled pane content
 pane-fg default
-status-segments git,battery,cpu,mem</code></pre>
+status-segments git,battery,cpu,mem
+status-icons unicode     # icons before them: off, unicode or nerd</code></pre>
+
+<h2>Icons in the status bar</h2>
+
+<p><code>status-icons</code> puts a glyph in front of each optional
+segment. It has three values rather than on/off, because no program can
+ask a terminal whether its font actually contains a glyph — so the
+choice is yours to make by looking.</p>
+
+<table>
+<tr><th>Value</th><th>Shows</th></tr>
+<tr><td><code>off</code></td><td>The default. Words alone:
+<code>cpu 8% | mem 41%</code>. Never wrong on any font.</td></tr>
+<tr><td><code>unicode</code></td><td>Shapes from the Geometric Shapes
+block: <code>▣ cpu 8% | ▤ mem 41%</code>. Every monospace font ships
+these, and they are text-presentation, so they stay one column wide and
+cannot push the right-aligned bar out of alignment.</td></tr>
+<tr><td><code>nerd</code></td><td>Real Nerd Font icons. These live in
+the Private Use Area, so they need a patched font — on an ordinary one
+the bar reads <code>◆ mem 10%</code>, a replacement box where the
+microchip should be.</td></tr>
+</table>
+
+<p>Open the settings screen with <span class="k">Ctrl-B</span>
+<span class="k">,</span>, put the cursor on <code>status-icons</code> and
+step it with ←→. The bar redraws as you go, so you can see which set
+your font can draw instead of guessing.</p>
 
 <div class="note">
 <strong>A typo never stops a session starting.</strong> A line termdock

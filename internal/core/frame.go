@@ -48,6 +48,9 @@ func (c *Core) Frame() proto.Frame {
 
 	f.StatusPrefix = c.statusPrefix()
 	f.Windows = c.windowTabs()
+	// Kept so a click can be resolved against the strip the user actually
+	// clicked on — see tabAt.
+	c.lastTabs = f.Windows
 	f.StatusText, f.StatusRight, f.StatusStyle = c.statusLine()
 	for _, provider := range []func() *proto.Overlay{
 		c.pickerOverlay, c.helpOverlay, c.settingsOverlay, c.historyOverlay, c.timelineOverlay, c.registersOverlay, c.sessionsOverlay, c.searchOverlay, c.openerOverlay,

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"github.com/rivo/uniseg"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -211,48 +212,75 @@ func TestSegmentsAreLabelledNotJustIcons(t *testing.T) {
 // The git segment's  is fine — a Private Use Area glyph, one rune, one
 // column — so this rejects the emoji ranges rather than all non-ASCII.
 func TestStatusSegmentsAreWidthPredictable(t *testing.T) {
-	c := newTestCore(t)
-	c.mu.Lock()
-	c.statusSegments = []string{"git", "battery", "cpu", "mem"}
-	c.segCache = segmentCache{}
-	text := c.statusSegmentsText()
-	c.mu.Unlock()
+	// Every icon mode, not just the default: the status bar is
+	// right-aligned by counting columns, so a glyph the terminal draws
+	// wider than one column shifts the whole bar. That risk belongs to
+	// the icon sets specifically, which the default mode never draws.
+	defer func() { statusIcons = "" }()
+	for _, mode := range []string{"", "unicode", "nerd"} {
+		statusIcons = mode
 
-	for _, r := range text {
-		switch {
-		case r == 0xFE0F || r == 0xFE0E: // variation selectors
-			t.Errorf("segment text %q contains a variation selector, which makes its width terminal-dependent", text)
-		case r >= 0x1F300 && r <= 0x1FAFF, // emoji blocks
-			r >= 0x2600 && r <= 0x27BF: // misc symbols & dingbats
-			t.Errorf("segment text %q contains emoji %q, which is drawn wider than its rune count and misaligns the bar", text, r)
+		c := newTestCore(t)
+		c.mu.Lock()
+		c.statusSegments = []string{"git", "battery", "cpu", "mem"}
+		c.segCache = segmentCache{}
+		text := c.statusSegmentsText()
+		c.mu.Unlock()
+
+		for _, r := range text {
+			switch {
+			case r == 0xFE0F || r == 0xFE0E: // variation selectors
+				t.Errorf("%q: segment text %q contains a variation selector, which makes its width terminal-dependent", mode, text)
+			case r >= 0x1F300 && r <= 0x1FAFF, // emoji blocks
+				r >= 0x2600 && r <= 0x27BF: // misc symbols & dingbats
+				t.Errorf("%q: segment text %q contains emoji %q, which is drawn wider than its rune count and misaligns the bar", mode, text, r)
+			}
+		}
+		// And measured rather than inferred from the blocks above.
+		if w := uniseg.StringWidth(text); w != len([]rune(text)) {
+			t.Errorf("%q: segment text %q measures %d columns for %d runes, so the bar will not align",
+				mode, text, w, len([]rune(text)))
 		}
 	}
 }
 
-// Icons are off unless asked for. They are Private Use Area glyphs: a
-// font that has them draws a microchip, one that does not draws a
-// replacement box — which is what happened, with the bar reading
-// "◆ mem 10%". An icon you cannot see is worse than the word it replaced.
+// Icons are off unless asked for, and the words stand alone.
 func TestStatusSegmentsHaveNoIconsByDefault(t *testing.T) {
-	statusIcons = false
+	statusIcons = ""
 	got := cpuPercent(cpuSample{idle: 100, total: 1000}, cpuSample{idle: 150, total: 1200})
 	if got != "cpu 75%" {
 		t.Fatalf("default segment = %q, want plain words", got)
 	}
-	for _, r := range got {
-		if r >= 0xE000 && r <= 0xF8FF {
-			t.Errorf("segment %q contains a Private Use Area glyph by default", got)
+}
+
+// Asked for, a glyph appears in front of the words — whichever set.
+func TestStatusSegmentsUseGlyphsWhenAskedTo(t *testing.T) {
+	defer func() { statusIcons = "" }()
+	for _, mode := range []string{"unicode", "nerd"} {
+		statusIcons = mode
+		got := cpuPercent(cpuSample{idle: 100, total: 1000}, cpuSample{idle: 150, total: 1200})
+		if !strings.HasSuffix(got, "cpu 75%") || got == "cpu 75%" {
+			t.Errorf("%s: segment = %q, want a glyph in front of the words", mode, got)
 		}
 	}
 }
 
-// Turned on, the glyph comes back — for the people whose font has it.
-func TestStatusSegmentsUseGlyphsWhenAskedTo(t *testing.T) {
-	statusIcons = true
-	defer func() { statusIcons = false }()
+// The whole point of the "unicode" set is that it needs no patched font,
+// so it must not reach into the Private Use Area — that is exactly the
+// range whose glyphs came out as "◆ mem 10%" on an ordinary font. The
+// PUA belongs to "nerd" alone.
+func TestUnicodeIconsAvoidThePrivateUseArea(t *testing.T) {
+	defer func() { statusIcons = "" }()
+	statusIcons = "unicode"
 
-	got := cpuPercent(cpuSample{idle: 100, total: 1000}, cpuSample{idle: 150, total: 1200})
-	if !strings.HasSuffix(got, "cpu 75%") || got == "cpu 75%" {
-		t.Fatalf("segment = %q, want a glyph in front of the words", got)
+	for name, got := range map[string]string{
+		"cpu": cpuPercent(cpuSample{idle: 100, total: 1000}, cpuSample{idle: 150, total: 1200}),
+		"mem": readMem(),
+	} {
+		for _, r := range got {
+			if r >= 0xE000 && r <= 0xF8FF {
+				t.Errorf("%s segment %q uses a Private Use Area glyph", name, got)
+			}
+		}
 	}
 }

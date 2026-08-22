@@ -157,3 +157,46 @@ func TestMarksAreDroppedWhenAResizeDiscardsLines(t *testing.T) {
 		}
 	}
 }
+
+// The B mark rides on PS1, so a shell re-prints it every time readline
+// redraws the prompt — a pane resize is enough. Those redraws must not
+// each count as another prompt: one history entry is built per B, so a
+// duplicate made one command appear twice in the timeline, at the same
+// timestamp with the same duration.
+func TestARedrawnPromptDoesNotRecordASecondInput(t *testing.T) {
+	term := newMarkTerm(t, 40, 10)
+
+	// Prompt, then the same prompt re-printed over itself (carriage
+	// return, no newline) the way a redraw does, then the command.
+	term.Write([]byte(osc133("A") + "$ " + osc133("B")))
+	term.Write([]byte("\r" + osc133("A") + "$ " + osc133("B")))
+	term.Write([]byte("ls\r\n" + osc133("C") + "file\r\n" + osc133("D;0")))
+
+	inputs := 0
+	for _, m := range term.Marks() {
+		if m.Kind == MarkInput {
+			inputs++
+		}
+	}
+	if inputs != 1 {
+		t.Fatalf("a redrawn prompt recorded %d input marks, want 1", inputs)
+	}
+}
+
+// Two prompts on two different lines are two prompts, which is the case
+// the collapse above must not swallow.
+func TestPromptsOnDifferentLinesStayDistinct(t *testing.T) {
+	term := newMarkTerm(t, 40, 10)
+	term.Write([]byte(osc133("A") + "$ " + osc133("B") + "ls\r\n" + osc133("C") + osc133("D;0")))
+	term.Write([]byte(osc133("A") + "$ " + osc133("B") + "pwd\r\n" + osc133("C") + osc133("D;0")))
+
+	inputs := 0
+	for _, m := range term.Marks() {
+		if m.Kind == MarkInput {
+			inputs++
+		}
+	}
+	if inputs != 2 {
+		t.Fatalf("two commands recorded %d input marks, want 2", inputs)
+	}
+}

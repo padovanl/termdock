@@ -313,6 +313,28 @@
 .manual-body th { color: var(--rust); font-weight: 600; }
 .manual-body td:first-child { white-space: nowrap; }
 
+/* A figure in the manual: the demo recording, sized by its own aspect
+   ratio so the page does not reflow once it loads. The intrinsic size
+   is on the <img> itself; the max-width here is what keeps it inside
+   the reading column on a narrow screen. */
+.manual-figure {
+  margin: 1.5rem 0 2rem;
+}
+.manual-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+}
+.manual-figure figcaption {
+  margin-top: 0.6rem;
+  font-size: 0.86rem;
+  color: var(--rust);
+  line-height: 1.55;
+}
+
 .page-lede {
   font-size: 1.1rem;
   line-height: 1.65;

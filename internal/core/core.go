@@ -187,6 +187,10 @@ type Core struct {
 	contentPress *contentPressState
 	titleDrag    *titleDragState
 	closedPanes  []closedPane // undo stack behind Ctrl-B Z; see undoclose.go
+	// lastTabs is the window tab strip as the last Frame laid it out, so
+	// a click resolves against what is on screen rather than a strip
+	// re-derived after the labels have moved on. See tabAt.
+	lastTabs []proto.WindowTab
 	// doneWatch maps a watched pane id to whether it was busy last time
 	// we looked; see watchdone.go (Ctrl-B m).
 	doneWatch map[int]bool

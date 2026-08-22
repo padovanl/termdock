@@ -495,7 +495,7 @@ func (c *Core) settingsOverlay() *proto.Overlay {
 			// you typed. Keeping the end in view is what matters while
 			// typing — that is where the cursor is.
 			value = editWindow(string(c.settings.buffer), valW)
-			note = editingNote
+			note = editingHelp(s)
 		case i == c.settings.sel && len(s.Choices()) > 0:
 			// Only shown on the row it applies to: most settings are typed,
 			// and a permanent "←→" against every one of them would be an
@@ -516,9 +516,23 @@ func (c *Core) settingsOverlay() *proto.Overlay {
 }
 
 // editingNote replaces a row's description while its value is being
-// typed, since what to press matters more right then than what the
-// setting does.
+// typed, for the settings that have nothing more specific to say.
 const editingNote = "enter to apply, esc to cancel"
+
+// editingHelp is what a row says while you type into it: the shape of a
+// value it will accept, if the setting knows one.
+//
+// The keys to press are deliberately not repeated here — the status bar
+// already spells those out for as long as the edit is open (see
+// settingsHint). What was missing is the other half: a free-text row
+// gave no clue what it wanted, which is how "popup-command" ended up
+// looking like a field you could write a sentence into.
+func editingHelp(s config.Setting) string {
+	if s.Hint != "" {
+		return s.Hint
+	}
+	return editingNote
+}
 
 // settingDoc is a row's ordinary description.
 func settingDoc(s config.Setting) string {
@@ -545,8 +559,12 @@ func worstCaseNote(s config.Setting) string {
 			longest = withPos
 		}
 	}
-	if len([]rune(editingNote)) > len([]rune(longest)) {
-		longest = editingNote
+	// The hint is shown in this same column while the row is being
+	// edited, so it has to be measured here too — otherwise the box
+	// widens the moment you press enter on a setting whose hint is longer
+	// than its description.
+	if h := editingHelp(s); len([]rune(h)) > len([]rune(longest)) {
+		longest = h
 	}
 	return longest
 }
