@@ -242,21 +242,38 @@
 }
 .manual-toc a:hover { opacity: 1; color: var(--phosphor); }
 
+/* The manual borrows the landing page's typography deliberately: the
+   serif headings with their "//" mark are the strongest thing the site
+   has, and a manual set in something else would read as a different
+   product. */
+.manual-body h1 {
+  font-family: var(--serif);
+  letter-spacing: -0.01em;
+}
+.manual-body h1::before {
+  content: "// ";
+  font-family: var(--mono);
+  color: var(--phosphor-dim);
+  font-size: 0.6em;
+}
 .manual-body > h2 {
   margin: 2.5rem 0 0.75rem;
   padding-top: 0.5rem;
-  font-size: 1.5rem;
+  font-family: var(--serif);
+  font-size: 1.55rem;
+  letter-spacing: -0.01em;
   color: var(--phosphor);
   scroll-margin-top: 5rem;
 }
 .manual-body > h2:first-child { margin-top: 0; }
 .manual-body > h3 {
   margin: 1.75rem 0 0.5rem;
-  font-size: 1.1rem;
+  font-family: var(--serif);
+  font-size: 1.15rem;
   color: var(--parchment);
   scroll-margin-top: 5rem;
 }
-.manual-body p { line-height: 1.7; margin: 0.75rem 0; }
+.manual-body p { line-height: 1.72; margin: 0.8rem 0; max-width: 40em; }
 .manual-body ul, .manual-body ol { line-height: 1.7; padding-left: 1.25rem; }
 .manual-body li { margin: 0.4rem 0; }
 

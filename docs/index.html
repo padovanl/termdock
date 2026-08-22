@@ -30,6 +30,7 @@
       <a href="#install">install</a>
       <a href="#keys" data-optional>keys</a>
       <a href="getting-started.html">manual</a>
+      <a href="cheatsheet.html">cheatsheet</a>
       <a href="https://github.com/padovanl/termdock">github</a>
     </nav>
   </div>
@@ -97,8 +98,13 @@
     Things tmux either doesn't do, or needs a plugin for — here they're just
     a keypress away.
   </p>
-  <div class="feature-grid">
+    <div class="install-tabs" role="tablist" aria-label="Feature groups">
+    <button class="install-tab" role="tab" id="tab-feat-paneswindo" aria-controls="panel-feat-paneswindo" aria-selected="true">Panes &amp; windows</button>
+    <button class="install-tab" role="tab" id="tab-feat-commands" aria-controls="panel-feat-commands" aria-selected="false">Commands</button>
+    <button class="install-tab" role="tab" id="tab-feat-everything" aria-controls="panel-feat-everything" aria-selected="false">Everything else</button>
+  </div>
 
+  <div class="feature-grid" role="tabpanel" id="panel-feat-paneswindo" aria-labelledby="tab-feat-paneswindo">
     <div class="feature-window">
       <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Fuzzy jump picker</div>
       <div class="feature-window-body">
@@ -107,7 +113,6 @@
         so you pick by what's <em>in</em> a pane, not by remembering its number.
       </div>
     </div>
-
     <div class="feature-window">
       <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Live pane overview</div>
       <div class="feature-window-body">
@@ -115,29 +120,6 @@
         a grid of live thumbnails. Arrow to one and press enter, or just click it.
       </div>
     </div>
-
-    <div class="feature-window">
-      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Search every scrollback</div>
-      <div class="feature-window-body">
-        <strong>Ctrl-B /.</strong> One search across every pane's history in
-        every window, plain text or a regex, jumping straight to the hit.
-        tmux only ever searches the pane you're already in.
-      </div>
-    </div>
-
-    <div class="feature-window">
-      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Settings, live</div>
-      <div class="feature-window-body">
-        <strong>Ctrl-B C.</strong> Every setting with its current value and
-        what it does. <span class="k">←</span><span class="k">→</span> steps
-        through the values a setting can take — all twelve palettes on
-        <code>theme</code>, applying each as you land on it — and
-        <span class="k">Enter</span> types one into the row for anything
-        free-form. <span class="k">S</span> writes the current value to your
-        config file, rewriting just that line.
-      </div>
-    </div>
-
     <div class="feature-window">
       <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Survives a reboot</div>
       <div class="feature-window-body">
@@ -146,7 +128,6 @@
         ends on purpose cleans up after itself; only a crash leaves one to recover.
       </div>
     </div>
-
     <div class="feature-window">
       <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Floating popup</div>
       <div class="feature-window-body">
@@ -155,35 +136,60 @@
         and comes back exactly as you left it.
       </div>
     </div>
-
     <div class="feature-window">
-      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Mouse throughout</div>
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Reopen a closed pane</div>
       <div class="feature-window-body">
-        Click a pane to focus it, drag a border to resize, drag a tab to
-        reorder, drag a pane's title onto another window's tab to move it
-        there — process and all. Click-drag on content selects and copies.
+        <strong>Ctrl-B Z.</strong> Brings back the pane you just closed — same
+        window, same working directory — however it went: <code>x</code>, or
+        an <code>exit</code> typed into the wrong one. In tmux a closed pane
+        is simply gone.
       </div>
     </div>
-
     <div class="feature-window">
-      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Switch sessions in place</div>
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Name your panes</div>
       <div class="feature-window-body">
-        <strong>Ctrl-B S.</strong> Hop to another running session without
-        detaching from this one first — a type-ahead list rather than a
-        detach-and-reattach round trip.
+        <strong>Ctrl-B .</strong> Six panes all called "bash" tell you nothing.
+        Give one a name and it wins over the process name, shows up in the
+        jump picker, and survives a crash.
       </div>
     </div>
-
     <div class="feature-window">
-      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Drive it from a script</div>
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Type into the panes you choose</div>
       <div class="feature-window-body">
-        <code>send-keys</code>, <code>split-window</code>,
-        <code>new-window</code>, <code>select-pane</code>,
-        <code>list-panes</code> — set a whole dev environment up from a shell
-        script, with no client attached.
+        <strong>Ctrl-B y</strong>, or <span class="k">space</span> in the overview
+        to pick exactly which. tmux's synchronize-panes is all-or-nothing over
+        a window — the pane you need to keep <em>out</em> has to be moved
+        elsewhere first.
       </div>
     </div>
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Saved layouts</div>
+      <div class="feature-window-body">
+        <code>termdock layout save dev</code> / <code>apply dev</code>. Windows,
+        splits, ratios, names and each pane's directory, rebuilt on demand —
+        the job people currently leave for tmuxinator and a YAML file.
+      </div>
+    </div>
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Crash recovery that remembers</div>
+      <div class="feature-window-body">
+        Layout, working directories <em>and the last 200 lines of each pane</em>,
+        snapshotted continuously. You reopen looking at the stack trace you
+        were reading. tmux needs tmux-resurrect for the layout alone, and even
+        that brings back nothing of the contents.
+      </div>
+    </div>
+  </div>
 
+  <div class="feature-grid" role="tabpanel" id="panel-feat-commands" aria-labelledby="tab-feat-commands" hidden>
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Search every scrollback</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B /.</strong> One search across every pane's history in
+        every window, plain text or a regex, jumping straight to the hit.
+        tmux only ever searches the pane you're already in.
+      </div>
+    </div>
     <div class="feature-window">
       <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Knows where your commands are</div>
       <div class="feature-window-body">
@@ -194,7 +200,6 @@
         no emulator to record marks in.
       </div>
     </div>
-
     <div class="feature-window">
       <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Copy a command's whole output</div>
       <div class="feature-window-body">
@@ -204,7 +209,6 @@
         with <span class="k">{</span> and copying does what it looks like.
       </div>
     </div>
-
     <div class="feature-window">
       <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Jump between commands</div>
       <div class="feature-window-body">
@@ -213,7 +217,6 @@
         below it. Finding where a test run started stops being a scroll hunt.
       </div>
     </div>
-
     <div class="feature-window">
       <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Session-wide command history</div>
       <div class="feature-window-body">
@@ -223,7 +226,6 @@
         written until that shell exits. Enter types it back, without running it.
       </div>
     </div>
-
     <div class="feature-window">
       <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Session timeline</div>
       <div class="feature-window-body">
@@ -233,17 +235,6 @@
         scrollbacks.
       </div>
     </div>
-
-    <div class="feature-window">
-      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Reopen a closed pane</div>
-      <div class="feature-window-body">
-        <strong>Ctrl-B Z.</strong> Brings back the pane you just closed — same
-        window, same working directory — however it went: <code>x</code>, or
-        an <code>exit</code> typed into the wrong one. In tmux a closed pane
-        is simply gone.
-      </div>
-    </div>
-
     <div class="feature-window">
       <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Tell me when it finishes</div>
       <div class="feature-window-body">
@@ -253,54 +244,6 @@
         <code>; notify-send</code> wrapper fundamentally cannot.
       </div>
     </div>
-
-    <div class="feature-window">
-      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Name your panes</div>
-      <div class="feature-window-body">
-        <strong>Ctrl-B .</strong> Six panes all called "bash" tell you nothing.
-        Give one a name and it wins over the process name, shows up in the
-        jump picker, and survives a crash.
-      </div>
-    </div>
-
-    <div class="feature-window">
-      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Type into the panes you choose</div>
-      <div class="feature-window-body">
-        <strong>Ctrl-B y</strong>, or <span class="k">space</span> in the overview
-        to pick exactly which. tmux's synchronize-panes is all-or-nothing over
-        a window — the pane you need to keep <em>out</em> has to be moved
-        elsewhere first.
-      </div>
-    </div>
-
-    <div class="feature-window">
-      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Saved layouts</div>
-      <div class="feature-window-body">
-        <code>termdock layout save dev</code> / <code>apply dev</code>. Windows,
-        splits, ratios, names and each pane's directory, rebuilt on demand —
-        the job people currently leave for tmuxinator and a YAML file.
-      </div>
-    </div>
-
-    <div class="feature-window">
-      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Crash recovery that remembers</div>
-      <div class="feature-window-body">
-        Layout, working directories <em>and the last 200 lines of each pane</em>,
-        snapshotted continuously. You reopen looking at the stack trace you
-        were reading. tmux needs tmux-resurrect for the layout alone, and even
-        that brings back nothing of the contents.
-      </div>
-    </div>
-
-    <div class="feature-window">
-      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>termdock doctor</div>
-      <div class="feature-window-body">
-        Checks the things that fail <em>silently</em>: a misspelled theme being
-        ignored, shell integration that was never set up, a terminal quietly
-        rounding your colours. Every warning names the fix.
-      </div>
-    </div>
-
     <div class="feature-window">
       <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Log a whole window</div>
       <div class="feature-window-body">
@@ -313,7 +256,54 @@
         filename written out by hand.
       </div>
     </div>
+  </div>
 
+  <div class="feature-grid" role="tabpanel" id="panel-feat-everything" aria-labelledby="tab-feat-everything" hidden>
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Settings, live</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B C.</strong> Every setting with its current value and
+        what it does. <span class="k">←</span><span class="k">→</span> steps
+        through the values a setting can take — all twelve palettes on
+        <code>theme</code>, applying each as you land on it — and
+        <span class="k">Enter</span> types one into the row for anything
+        free-form. <span class="k">S</span> writes the current value to your
+        config file, rewriting just that line.
+      </div>
+    </div>
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Mouse throughout</div>
+      <div class="feature-window-body">
+        Click a pane to focus it, drag a border to resize, drag a tab to
+        reorder, drag a pane's title onto another window's tab to move it
+        there — process and all. Click-drag on content selects and copies.
+      </div>
+    </div>
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Switch sessions in place</div>
+      <div class="feature-window-body">
+        <strong>Ctrl-B S.</strong> Hop to another running session without
+        detaching from this one first — a type-ahead list rather than a
+        detach-and-reattach round trip.
+      </div>
+    </div>
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>Drive it from a script</div>
+      <div class="feature-window-body">
+        <code>send-keys</code>, <code>split-window</code>,
+        <code>new-window</code>, <code>select-pane</code>,
+        <code>list-panes</code> — set a whole dev environment up from a shell
+        script, with no client attached.
+      </div>
+    </div>
+    <div class="feature-window">
+      <div class="term-titlebar"><span class="term-dots"><i></i><i></i><i></i></span>termdock doctor</div>
+      <div class="feature-window-body">
+        Checks the things that fail <em>silently</em>: a misspelled theme being
+        ignored, shell integration that was never set up, a terminal quietly
+        rounding your colours. Every warning names the fix.
+      </div>
+    </div>
   </div>
   <p class="section-lede" style="margin-top:2rem;text-align:center">
     Each of these is explained properly in the manual —
@@ -322,7 +312,8 @@
     <a href="workflow.html">working in it all day</a>,
     <a href="configuration.html">configuration</a>,
     <a href="remote.html">remote &amp; sharing</a>,
-    <a href="keys.html">every key</a>.
+    <a href="keys.html">every key</a> — or keep the
+    <a href="cheatsheet.html">one-page cheatsheet</a> next to you.
   </p>
 </section>
 
@@ -430,6 +421,7 @@
       <a class="foot-chip" href="https://github.com/padovanl/termdock/releases">Releases</a>
       <a class="foot-chip" href="https://github.com/padovanl/termdock/issues">Issues</a>
       <a class="foot-chip" href="getting-started.html">Manual</a>
+      <a class="foot-chip" href="cheatsheet.html">Cheatsheet</a>
       <a class="foot-chip" href="https://github.com/padovanl/termdock/blob/master/LICENSE">License</a>
     </div>
     <p class="foot-note">MIT licensed · written from scratch in Go · linux &amp; macOS</p>
@@ -437,27 +429,35 @@
 </footer>
 
 <script>
-  // Tabbed install instructions. Without JS every panel but the first is
-  // hidden by the markup, so the .deb one still shows — and the release
-  // page linked below covers the rest.
+  // Tab groups: the install methods, and the feature categories. Scoped
+  // per tablist rather than to every .install-tab on the page — one flat
+  // list would make clicking a feature tab hide the install panels, since
+  // "select this one, hide the others" would treat all of them as
+  // alternatives to each other.
+  //
+  // Without JS the markup leaves the first panel of each group visible,
+  // so the page still says something useful.
   (function () {
-    var tabs = Array.prototype.slice.call(document.querySelectorAll('.install-tab'));
-    function select(tab) {
-      tabs.forEach(function (t) {
-        var panel = document.getElementById(t.getAttribute('aria-controls'));
-        var on = t === tab;
-        t.setAttribute('aria-selected', on ? 'true' : 'false');
-        if (panel) { panel.hidden = !on; }
-      });
-    }
-    tabs.forEach(function (tab, i) {
-      tab.addEventListener('click', function () { select(tab); });
-      tab.addEventListener('keydown', function (e) {
-        var next = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : -1;
-        if (next < 0 || next >= tabs.length) { return; }
-        e.preventDefault();
-        tabs[next].focus();
-        select(tabs[next]);
+    var lists = Array.prototype.slice.call(document.querySelectorAll('[role="tablist"]'));
+    lists.forEach(function (list) {
+      var tabs = Array.prototype.slice.call(list.querySelectorAll('[role="tab"]'));
+      function select(tab) {
+        tabs.forEach(function (t) {
+          var panel = document.getElementById(t.getAttribute('aria-controls'));
+          var on = t === tab;
+          t.setAttribute('aria-selected', on ? 'true' : 'false');
+          if (panel) { panel.hidden = !on; }
+        });
+      }
+      tabs.forEach(function (tab, i) {
+        tab.addEventListener('click', function () { select(tab); });
+        tab.addEventListener('keydown', function (e) {
+          var next = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : -1;
+          if (next < 0 || next >= tabs.length) { return; }
+          e.preventDefault();
+          tabs[next].focus();
+          select(tabs[next]);
+        });
       });
     });
   })();

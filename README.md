@@ -9,6 +9,10 @@
 
 **[padovanl.github.io/termdock](https://padovanl.github.io/termdock/)**
 
+📖 **[Manual](https://padovanl.github.io/termdock/getting-started.html)**
+ · 🗂️ **[One-page cheatsheet](https://padovanl.github.io/termdock/cheatsheet.html)**
+ (printable, or save as PDF)
+
 A terminal multiplexer in the tmux/screen tradition — split your terminal
 into panes, run multiple shells side by side, and keep everything running
 in the background so you can detach and reattach later, even from a

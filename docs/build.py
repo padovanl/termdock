@@ -39,6 +39,7 @@ PAGE = """<!doctype html>
     <a class="brand" href="index.html" style="text-decoration:none;border:0"><img src="logo.svg" alt="" width="18" height="18" style="vertical-align:-3px;margin-right:.4rem">termdock<span class="cursor">_</span></a>
     <nav class="navlinks">
 {navlinks}
+      <a href="cheatsheet.html">cheatsheet</a>
       <a href="https://github.com/padovanl/termdock">github</a>
     </nav>
   </div>
@@ -50,7 +51,7 @@ PAGE = """<!doctype html>
 {toc}
   </aside>
   <div class="manual-body">
-    <h1 style="margin:0 0 0.5rem;font-size:2rem">{title}</h1>
+    <h1 style="margin:0 0 0.5rem;font-size:2.1rem">{title}</h1>
     <p class="page-lede">{lede}</p>
 {body}
     <nav class="manual-nav">
