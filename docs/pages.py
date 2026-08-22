@@ -18,8 +18,8 @@ GETTING_STARTED = {
     "lede": "Ten minutes from installing to knowing why a session survives closing the terminal.",
     "body": """
 <figure class="manual-figure">
-<img src="demo.gif" width="1200" height="700" loading="lazy"
-     alt="A termdock session: naming panes, a failed command's exit status shown on its pane title, the jump picker's live preview, every command the session has run with how it ended, the same commands on a shared timeline, closing a pane and taking it back, then detaching with the work still running">
+<img src="demo.gif" width="1920" height="1080" loading="lazy"
+     alt="A termdock session: three named panes, a failed command's exit status shown on its pane title, the session retheme'd live from a command prompt, the settings screen, every pane previewed at once, the jump picker's live minimap, every command the session has run with how it ended, the same commands on a shared timeline, zooming one pane, closing a pane and taking it back, then detaching with the work still running">
 <figcaption>The whole of this page, in about forty seconds. Each of these
 is covered below or in <a href="workflow.html">Working in a session</a>.</figcaption>
 </figure>
@@ -565,6 +565,13 @@ pane-fg default
 status-segments git,battery,cpu,mem
 status-icons unicode     # icons before them: off, unicode or nerd</code></pre>
 
+<div class="note">
+<strong>A typo never stops a session starting.</strong> A line termdock
+cannot parse is ignored and the default kept. That is the right trade,
+and its cost is that a mistake is invisible — which is what
+<code>termdock doctor</code> below is for.
+</div>
+
 <h2>Icons in the status bar</h2>
 
 <p><code>status-icons</code> puts a glyph in front of each optional
@@ -605,7 +612,7 @@ be.</td></tr>
 </table>
 
 <p>Open the settings screen with <span class="k">Ctrl-B</span>
-<span class="k">,</span>, put the cursor on <code>status-icons</code> and
+<span class="k">C</span>, put the cursor on <code>status-icons</code> and
 step it with ←→. The bar redraws as you go, so you can see which set
 your font can draw instead of guessing. If a set shows boxes, it is the
 wrong one for your font.</p>
@@ -653,13 +660,6 @@ releases</a>.</li>
 name — Windows Terminal is one. Restart the terminal, then set
 <code>status-icons nerd</code>. None of this is needed for
 <code>unicode</code>, which draws characters fonts already have.</p>
-
-<div class="note">
-<strong>A typo never stops a session starting.</strong> A line termdock
-cannot parse is ignored and the default kept. That is the right trade,
-and its cost is that a mistake is invisible — which is what
-<code>termdock doctor</code> below is for.
-</div>
 
 <h2>Which settings apply when</h2>
 

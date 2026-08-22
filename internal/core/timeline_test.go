@@ -133,3 +133,50 @@ func TestTimelineWithoutMarksExplainsItself(t *testing.T) {
 		t.Errorf("status %q should point at the fix", c.statusMsg)
 	}
 }
+
+// The accent range is an offset into a string built with Sprintf, so
+// nothing checks it at compile time: get the arithmetic wrong and the
+// theme colour lands on the timestamp or the duration instead of the
+// bar, silently. This pins it to the bar by looking at what is actually
+// under the range.
+func TestTimelineAccentCoversExactlyTheBar(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	id := c.win().active.ID
+	runCmd(c, id, "make build", 30*time.Millisecond, "0")
+	runCmd(c, id, "go test ./...", 20*time.Millisecond, "1")
+
+	c.mode = ModeTimeline
+	ov := c.timelineOverlay()
+	if ov == nil {
+		t.Fatal("two commands ran but the timeline has nothing to show")
+	}
+	if len(ov.Accent) != len(ov.Items) {
+		t.Fatalf("%d accent ranges for %d items", len(ov.Accent), len(ov.Items))
+	}
+
+	for i, item := range ov.Items {
+		runes := []rune(item)
+		from, n := ov.Accent[i][0], ov.Accent[i][1]
+		if from < 0 || n <= 0 || from+n > len(runes) {
+			t.Fatalf("row %d: accent %v does not fit item of %d runes: %q", i, ov.Accent[i], len(runes), item)
+		}
+		// A bar is filled blocks and empty dots, and nothing else is.
+		for j := from; j < from+n; j++ {
+			if runes[j] != '█' && runes[j] != '·' {
+				t.Errorf("row %d: accent covers %q at rune %d, which is not part of the bar: %q",
+					i, string(runes[j]), j, item)
+			}
+		}
+		// And it must cover the whole bar, not part of it: the character
+		// immediately outside on each side must not be bar material.
+		if from > 0 && (runes[from-1] == '█' || runes[from-1] == '·') {
+			t.Errorf("row %d: the bar starts before the accent range in %q", i, item)
+		}
+		if from+n < len(runes) && (runes[from+n] == '█' || runes[from+n] == '·') {
+			t.Errorf("row %d: the bar continues past the accent range in %q", i, item)
+		}
+	}
+}

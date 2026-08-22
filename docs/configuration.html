@@ -74,6 +74,13 @@ pane-fg default
 status-segments git,battery,cpu,mem
 status-icons unicode     # icons before them: off, unicode or nerd</code></pre>
 
+<div class="note">
+<strong>A typo never stops a session starting.</strong> A line termdock
+cannot parse is ignored and the default kept. That is the right trade,
+and its cost is that a mistake is invisible — which is what
+<code>termdock doctor</code> below is for.
+</div>
+
 <h2 id="icons-in-the-status-bar">Icons in the status bar</h2>
 
 <p><code>status-icons</code> puts a glyph in front of each optional
@@ -114,7 +121,7 @@ be.</td></tr>
 </table>
 
 <p>Open the settings screen with <span class="k">Ctrl-B</span>
-<span class="k">,</span>, put the cursor on <code>status-icons</code> and
+<span class="k">C</span>, put the cursor on <code>status-icons</code> and
 step it with ←→. The bar redraws as you go, so you can see which set
 your font can draw instead of guessing. If a set shows boxes, it is the
 wrong one for your font.</p>
@@ -161,13 +168,6 @@ releases</a>.</li>
 name — Windows Terminal is one. Restart the terminal, then set
 <code>status-icons nerd</code>. None of this is needed for
 <code>unicode</code>, which draws characters fonts already have.</p>
-
-<div class="note">
-<strong>A typo never stops a session starting.</strong> A line termdock
-cannot parse is ignored and the default kept. That is the right trade,
-and its cost is that a mistake is invisible — which is what
-<code>termdock doctor</code> below is for.
-</div>
 
 <h2 id="which-settings-apply-when">Which settings apply when</h2>
 

@@ -535,7 +535,20 @@ func drawOverlay(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 				screen.SetContent(x, row, ' ', nil, style)
 			}
 		}
-		overlayText(screen, innerX, row, maxX, style, " "+ov.Items[idx])
+		// The leading space shifts every rune of the item along by one,
+		// so the accent range shifts with it.
+		from, n := 0, 0
+		if idx < len(ov.Accent) {
+			from, n = ov.Accent[idx][0]+1, ov.Accent[idx][1]
+		}
+		accent := style.Foreground(cfg.PaneActiveBG).Bold(true)
+		if ov.Selectable && idx == ov.Selected {
+			// The selected row is already painted in the accent colour, so
+			// accenting a run of it again would erase the run instead of
+			// picking it out. It reads as the emphasis on that row.
+			accent = style
+		}
+		overlayTextAccented(screen, innerX, row, maxX, style, accent, " "+ov.Items[idx], from, n)
 	}
 
 	if previewW > 0 {
@@ -710,13 +723,27 @@ func tabStyle(t proto.WindowTab, cfg config.Config) tcell.Style {
 // overlayText draws text starting at column x without first blanking the
 // row (unlike drawText), clipped to the screen's width.
 func overlayText(screen tcell.Screen, x, y, cols int, style tcell.Style, text string) {
+	overlayTextAccented(screen, x, y, cols, style, style, text, 0, 0)
+}
+
+// overlayTextAccented is overlayText with one run drawn in a second
+// style: runes [from, from+n) of text, counted in runes rather than
+// columns so the caller can index the string it built without knowing
+// how wide anything renders. n <= 0 means no accented run.
+func overlayTextAccented(screen tcell.Screen, x, y, cols int, style, accent tcell.Style, text string, from, n int) {
+	i := 0
 	for _, r := range text {
 		if x >= cols {
 			return
 		}
-		if x >= 0 {
-			screen.SetContent(x, y, r, nil, style)
+		st := style
+		if n > 0 && i >= from && i < from+n {
+			st = accent
 		}
+		if x >= 0 {
+			screen.SetContent(x, y, r, nil, st)
+		}
+		i++
 		// Advance by the columns the glyph actually takes: a wide one
 		// occupies two cells, and stepping by one would let the next
 		// character land on its second half. A zero-width mark advances

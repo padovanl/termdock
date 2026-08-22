@@ -126,6 +126,12 @@ func (c *Core) timelineOverlay() *proto.Overlay {
 	}
 
 	items := make([]string, len(spans))
+	// Where each row's bar sits, so the client can draw that run in the
+	// theme's accent. The prefix is fixed-width by construction — a
+	// timestamp, two spaces, the command padded to cmdW, two spaces — so
+	// the offset is the same on every row and can be computed once.
+	barAt := len("15:04:05") + 2 + cmdW + 2
+	accent := make([][2]int, len(spans))
 	for i, s := range spans {
 		end := s.end
 		running := end.IsZero()
@@ -137,6 +143,7 @@ func (c *Core) timelineOverlay() *proto.Overlay {
 			cmdW, truncate(s.command, cmdW),
 			timelineBar(first, last, s.start, end),
 			timelineNote(s, end.Sub(s.start), running))
+		accent[i] = [2]int{barAt, timelineBarWidth}
 	}
 
 	return &proto.Overlay{
@@ -144,6 +151,7 @@ func (c *Core) timelineOverlay() *proto.Overlay {
 		Selectable: false,
 		Items:      items,
 		Selected:   c.timeline.scroll,
+		Accent:     accent,
 	}
 }
 

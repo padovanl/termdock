@@ -18,7 +18,7 @@ into panes, run multiple shells side by side, and keep everything running
 in the background so you can detach and reattach later, even from a
 different machine, without losing a thing.
 
-![A termdock session: naming panes, a failed command's exit status shown on its pane title, the jump picker's live preview, every command the session has run with how it ended, the same commands on a shared timeline, closing a pane and taking it back, then detaching with the work still running](docs/demo.gif)
+![A termdock session: three named panes, a failed command's exit status shown on its pane title, the session retheme'd live from a command prompt, the settings screen, every pane previewed at once, the jump picker's live minimap, every command the session has run with how it ended, the same commands on a shared timeline, zooming one pane, closing a pane and taking it back, then detaching with the work still running](docs/demo.gif)
 
 Written from scratch in Go, with **no dependency on tmux or screen**: it
 manages pseudo-terminals (ptys) and its own VT100 emulator (with
@@ -1025,6 +1025,19 @@ kill-session`) deletes its own snapshot on the way out, so it doesn't
 resurrect itself the next time that name is reused; only an unclean end
 leaves one behind to recover from.
 
+The snapshot includes **the tail of each pane's screen** — the last 200
+lines — written back into the restored pane. A session recovered after a
+reboot therefore opens showing the stack trace you were reading, not
+four blank prompts. What comes back is text, not a live program: the
+same honest limit as the rest of this, and the reason it is stored as
+plain lines rather than styled cells (replaying arbitrary colour into a
+shell already printing its own prompt leaves panes in colours nobody
+chose). It stays a snapshot rather than a log — 200 lines is about 11 KB
+for a busy pane, and it is rewritten continuously.
+
+tmux needs the external `tmux-resurrect` plugin to restore the layout at
+all, and even that does not bring the contents back.
+
 ## ⚙️ Configuration
 
 Optional config file at `$XDG_CONFIG_HOME/termdock/termdock.conf`
@@ -1101,14 +1114,14 @@ replacement box where the microchip should be.
 
 No program can ask a terminal which glyphs its font has, so termdock
 cannot pick for you. Open the settings screen with <kbd>Ctrl-B</kbd>
-<kbd>,</kbd>, put the cursor on `status-icons` and step it with ←→ — the
+<kbd>C</kbd>, put the cursor on `status-icons` and step it with ←→ — the
 bar redraws as you go, so you can see which set your font can draw
 rather than guessing. If a set shows boxes, it is the wrong one for your
 font. See
 [⌨️ Custom keybindings](#-custom-keybindings) and
 [🎯 Focus events](#-focus-events) above for `bind` and `focus-events`.
 
-#### Installing a Nerd Font
+### 🔤 Installing a Nerd Font
 
 > **Install it where the terminal is, not where termdock is.**
 > The font is used by the terminal emulator you are looking at. Over SSH
@@ -1148,19 +1161,6 @@ Then pick the font in your terminal's settings. It is listed as
 show the short family name (Windows Terminal is one). Restart the
 terminal, then set `status-icons nerd`. None of this is needed for
 `unicode`, which draws characters fonts already have.
-
-The snapshot includes **the tail of each pane's screen** — the last 200
-lines — written back into the restored pane. A session recovered after a
-reboot therefore opens showing the stack trace you were reading, not
-four blank prompts. What comes back is text, not a live program: the
-same honest limit as the rest of this, and the reason it is stored as
-plain lines rather than styled cells (replaying arbitrary colour into a
-shell already printing its own prompt leaves panes in colours nobody
-chose). It stays a snapshot rather than a log — 200 lines is about 11 KB
-for a busy pane, and it is rewritten continuously.
-
-tmux needs the external `tmux-resurrect` plugin to restore the layout at
-all, and even that does not bring the contents back.
 
 ### ⚙️ Changing settings while it runs
 
