@@ -429,3 +429,139 @@ func TestThemedFrameLeavesNoDefaultColoredCells(t *testing.T) {
 		}
 	}
 }
+
+// TestTextWidthCountsColumnsNotRunes is the measurement the status bar's
+// right-alignment depends on. A rune count is wrong in both directions:
+// 🔋 is one rune drawn two columns wide, 🖥️ is two runes (base plus a
+// variation selector) drawn as one glyph.
+func TestTextWidthCountsColumnsNotRunes(t *testing.T) {
+	for _, tc := range []struct {
+		s    string
+		want int
+	}{
+		{"cpu 42%", 7},
+		{" main", 6}, // a Nerd Font glyph is one column
+		{"🔋", 2},
+		{"🖥️", 2},
+		{"", 0},
+	} {
+		if got := textWidth(tc.s); got != tc.want {
+			t.Errorf("textWidth(%q) = %d, want %d", tc.s, got, tc.want)
+		}
+	}
+}
+
+// A wide glyph must advance the cursor by two, or whatever follows lands
+// on its second half and both are corrupted.
+func TestWideGlyphsDoNotOverlapWhatFollows(t *testing.T) {
+	screen := simScreen(t, 20, 3)
+	overlayText(screen, 0, 0, 20, tcell.StyleDefault, "🔋ab")
+	screen.Show()
+
+	cells, w, _ := screen.GetContents()
+	// The battery occupies columns 0-1, so 'a' must be at column 2.
+	at := func(x int) rune {
+		r := cells[0*w+x].Runes
+		if len(r) == 0 {
+			return ' '
+		}
+		return r[0]
+	}
+	if got := at(2); got != 'a' {
+		t.Errorf("after a two-column glyph, column 2 = %q, want 'a'", got)
+	}
+	if got := at(3); got != 'b' {
+		t.Errorf("column 3 = %q, want 'b'", got)
+	}
+}
+
+// Highlights used to be black text on the theme's accent whatever that
+// accent was: fine on Nord's pale frost blue, poor on Solarized's mid
+// blue or Dracula's purple. A fixed foreground cannot be right for
+// eleven palettes, so it is chosen per colour.
+func TestHighlightForegroundIsReadableOnEveryAccent(t *testing.T) {
+	dark := []int32{0x268bd2, 0xbd93f9, 0xe95420, 0x7aa2f7, 0x61afef}  // want white
+	light := []int32{0x88c0d0, 0xc4a7e7, 0xa7c080, 0xcba6f7, 0xa6e22e} // want black
+
+	for _, hex := range dark {
+		if got := readableOn(tcell.NewHexColor(hex)); got != tcell.ColorWhite {
+			t.Errorf("#%06x is dark; got %v, want white text on it", hex, got)
+		}
+	}
+	for _, hex := range light {
+		if got := readableOn(tcell.NewHexColor(hex)); got != tcell.ColorBlack {
+			t.Errorf("#%06x is light; got %v, want black text on it", hex, got)
+		}
+	}
+}
+
+// The focused pane is marked by drawing its outline in the accent colour.
+// That outline has to read as a rectangle, which means its four corners
+// must be corners — but glyphs are tiled from the union of every pane's
+// outline, so a corner that sits against a neighbour tiles as a T and the
+// highlight grows an arm poking into the pane next door.
+func TestFocusedPaneOutlineClosesAtItsCorners(t *testing.T) {
+	// A vertical split: the focused pane is the left one, so its right-hand
+	// corners land on the shared divider — the case that went wrong.
+	left := proto.Rect{X: 1, Y: 1, W: 20, H: 21}
+	right := proto.Rect{X: 22, Y: 1, W: 20, H: 21}
+
+	cells := map[[2]int]bool{}
+	addRectBorder(cells, left)
+	addRectBorder(cells, right)
+	corners := cornerRunes(left)
+
+	at := func(x, y int) rune {
+		ch := boxChar(cells[[2]int{x, y - 1}], cells[[2]int{x, y + 1}],
+			cells[[2]int{x - 1, y}], cells[[2]int{x + 1, y}])
+		if c, ok := corners[[2]int{x, y}]; ok {
+			ch = c
+		}
+		return ch
+	}
+
+	// Where the focused pane's outline meets the divider it must still be
+	// a corner, not the '┬'/'┴' the union tiles there.
+	for _, tc := range []struct {
+		x, y int
+		want rune
+		desc string
+	}{
+		{0, 0, '┌', "top-left, against the outer frame"},
+		{21, 0, '┐', "top-right, against the divider"},
+		{0, 22, '└', "bottom-left, against the outer frame"},
+		{21, 22, '┘', "bottom-right, against the divider"},
+	} {
+		if got := at(tc.x, tc.y); got != tc.want {
+			t.Errorf("%s: got %q at (%d,%d), want %q", tc.desc, got, tc.x, tc.y, tc.want)
+		}
+	}
+}
+
+// Closing the corners must not be done by tiling the focused outline
+// against itself: that also drops the T-junctions along its edges, where
+// a neighbour's divider genuinely runs into the focused pane's side, and
+// leaves that divider floating unattached.
+func TestFocusedOutlineKeepsJunctionsAlongItsEdges(t *testing.T) {
+	left := proto.Rect{X: 1, Y: 1, W: 20, H: 21} // focused
+	topRight := proto.Rect{X: 22, Y: 1, W: 20, H: 10}
+	botRight := proto.Rect{X: 22, Y: 12, W: 20, H: 10}
+
+	cells := map[[2]int]bool{}
+	for _, r := range []proto.Rect{left, topRight, botRight} {
+		addRectBorder(cells, r)
+	}
+	corners := cornerRunes(left)
+
+	// (21,11) is on the focused pane's right edge, halfway down, where the
+	// two right-hand panes' shared divider arrives.
+	x, y := 21, 11
+	if _, isCorner := corners[[2]int{x, y}]; isCorner {
+		t.Fatalf("(%d,%d) should not be one of the focused pane's corners", x, y)
+	}
+	got := boxChar(cells[[2]int{x, y - 1}], cells[[2]int{x, y + 1}],
+		cells[[2]int{x - 1, y}], cells[[2]int{x + 1, y}])
+	if got != '├' {
+		t.Errorf("the neighbours' divider must stay attached to the focused pane's edge: got %q at (%d,%d), want '├'", got, x, y)
+	}
+}

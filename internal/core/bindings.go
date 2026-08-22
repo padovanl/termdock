@@ -47,8 +47,15 @@ const (
 	actCommandPrompt action = "command-prompt"
 	actCycleLayout   action = "cycle-layout"
 	actRespawnPane   action = "respawn-pane"
+	actReopenPane    action = "reopen-pane"
+	actWatchDone     action = "watch-done"
+	actCopyOutput    action = "copy-last-output"
+	actHistory       action = "command-history"
+	actTimeline      action = "timeline"
 	actToggleLogging action = "toggle-logging"
+	actLogWindow     action = "log-window"
 	actRenameWindow  action = "rename-window"
+	actRenamePane    action = "rename-pane"
 	actRenameSession action = "rename-session"
 	actKillWindow    action = "kill-window"
 	actPaste         action = "paste"
@@ -93,8 +100,15 @@ var defaultBindings = map[rune]action{
 	':': actCommandPrompt,
 	' ': actCycleLayout,
 	'R': actRespawnPane,
+	'Z': actReopenPane,
+	'm': actWatchDone,
+	'O': actCopyOutput,
+	'H': actHistory,
+	'T': actTimeline,
 	'L': actToggleLogging,
+	'A': actLogWindow,
 	',': actRenameWindow,
+	'.': actRenamePane,
 	'$': actRenameSession,
 	'&': actKillWindow,
 	']': actPaste,
@@ -117,7 +131,7 @@ var actionOrder = []action{
 	actJumpPicker, actLastWindow, actLastPane, actOverview,
 	actGlobalSearch, actSwitchSession, actPopup, actOpener,
 	actBreakPane, actQuickJump, actCommandPrompt, actCycleLayout,
-	actRespawnPane, actToggleLogging, actRenameWindow, actRenameSession, actKillWindow,
+	actRespawnPane, actReopenPane, actWatchDone, actCopyOutput, actHistory, actTimeline, actToggleLogging, actLogWindow, actRenameWindow, actRenamePane, actRenameSession, actKillWindow,
 	actClosePane, actSettings, actDetach, actQuit, actHelp,
 }
 
@@ -153,8 +167,15 @@ var actionDescriptions = map[action]string{
 	actCommandPrompt: "command prompt: type a command (new-window, split-window, ...)",
 	actCycleLayout:   "cycle the active window through preset layouts",
 	actRespawnPane:   "respawn-pane: restart the shell in the active pane, in place",
+	actReopenPane:    "reopen the last closed pane, back in its window and directory",
+	actWatchDone:     "tell me when this pane's command finishes (bell + message)",
+	actCopyOutput:    "copy the last command's entire output (needs shell-init)",
+	actHistory:       "search every command run in this session (needs shell-init)",
+	actTimeline:      "session timeline: when each command ran and for how long",
 	actToggleLogging: "toggle logging the active pane's output to a file",
+	actLogWindow:     "log every pane in this window to a directory you name",
 	actRenameWindow:  "rename the current window",
+	actRenamePane:    "name this pane (empty clears it, back to the process name)",
 	actRenameSession: "rename this session (its socket and snapshot move with it)",
 	actKillWindow:    "close the current window and every pane in it (asks first)",
 	actClosePane:     "close the active pane",
@@ -197,8 +218,15 @@ var actionShort = map[action]string{
 	actCommandPrompt: "command",
 	actCycleLayout:   "layout",
 	actRespawnPane:   "respawn",
+	actReopenPane:    "reopen",
+	actWatchDone:     "notify",
+	actCopyOutput:    "copy-out",
+	actHistory:       "history",
+	actTimeline:      "timeline",
 	actToggleLogging: "log",
+	actLogWindow:     "log-all",
 	actRenameWindow:  "rename",
+	actRenamePane:    "name-pane",
 	actRenameSession: "rename-session",
 	actKillWindow:    "kill-win",
 	actClosePane:     "close-pane",

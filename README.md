@@ -1,4 +1,4 @@
-# 🐳 termdock
+<h1><img src="docs/logo.svg" alt="" width="28" height="28" align="absmiddle"> termdock</h1>
 
 [![ci](https://img.shields.io/github/actions/workflow/status/padovanl/termdock/ci.yml?branch=master&logo=github&label=ci)](https://github.com/padovanl/termdock/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/actions/workflow/status/padovanl/termdock/release.yml?logo=github&label=release)](https://github.com/padovanl/termdock/actions/workflows/release.yml)
@@ -9,12 +9,16 @@
 
 **[padovanl.github.io/termdock](https://padovanl.github.io/termdock/)**
 
+📖 **[Manual](https://padovanl.github.io/termdock/getting-started.html)**
+ · 🗂️ **[One-page cheatsheet](https://padovanl.github.io/termdock/cheatsheet.html)**
+ (printable, or save as PDF)
+
 A terminal multiplexer in the tmux/screen tradition — split your terminal
 into panes, run multiple shells side by side, and keep everything running
 in the background so you can detach and reattach later, even from a
 different machine, without losing a thing.
 
-![termdock in action: splitting into panes, the live pane overview (Ctrl-B g), and the floating popup terminal (Ctrl-B P), all in the Dracula color theme with the git branch segment in the status bar](docs/demo.gif)
+![A termdock session: three named panes, a failed command's exit status shown on its pane title, the session retheme'd live from a command prompt, the settings screen, every pane previewed at once, the jump picker's live minimap, every command the session has run with how it ended, the same commands on a shared timeline, zooming one pane, closing a pane and taking it back, then detaching with the work still running](docs/demo.gif)
 
 Written from scratch in Go, with **no dependency on tmux or screen**: it
 manages pseudo-terminals (ptys) and its own VT100 emulator (with
@@ -35,7 +39,7 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
 | 🖼️ **See every pane at once** | a live-thumbnail grid overview (`Ctrl-B g`) | no equivalent — one pane at a time |
 | 🔎 **Search the scrollback** | one search across *every* pane in *every* window | copy-mode `/` only ever searches the one pane you're already in |
 | 🔄 **Switch sessions** | fuzzy-picker, no detach required (`Ctrl-B S`) | detach and reattach, or `choose-tree` |
-| 👀 **Screen-share / pair** | a real read-only attach mode (`termdock attach -r`) | everyone who attaches can type |
+| 👀 **Screen-share / pair** | a real read-only attach mode enforced *server-side* (`termdock attach -r`), so a scripted client cannot type either — pair it with an SSH forced command and a colleague can watch without an account of their own (see [🌍 Remote sessions](#-remote-sessions-and-letting-others-watch)) | everyone who attaches can type; watching-only needs the external `wemux` (one machine) or `tmate` (relays through third-party servers) |
 | 📋 **Paste history** | a fuzzy picker over your last 20 yanks (`Ctrl-B =`) | `choose-buffer`, same idea, no fuzzy filter |
 | 🖱️ **Select text** | click-drag on any pane, anywhere, any time | needs `mouse on` + drag-to-select behavior varies by config |
 | 🖱️ **Reorder/move things** | drag a window tab to reorder it, drag a pane's title onto a tab to relocate it | `swap-window`/`join-pane`, typed out by index |
@@ -67,6 +71,16 @@ popup terminal, 🔗 a link/path picker, 🔔 background activity notification,
 | ⚠️ **Quitting the whole session** | `Ctrl-B q` asks `y`/`n` first — closing every window and pane at once deserves the same care `&` already gets | gone immediately, no confirmation |
 | 🏷️ **Rename a live session** | `Ctrl-B $` renames it for real: the unix socket and the recovery snapshot move too, so `ls`/`attach -t` follow immediately | tmux's own `rename-session`, same key |
 | ⏩ **Repeating a focus move** | after `Ctrl-B ←`, a bare `←` keeps moving — and only the *arrows* repeat, so it can never swallow the `h` of something you start typing | tmux's `bind -r`, but its repeatable movement keys are `hjkl` too, which does eat typed letters |
+| ↩️ **Reopen a closed pane** | `Ctrl-B Z` brings back the last pane you closed — same window, same working directory, however you closed it (`x`, or an accidental `exit`) | no equivalent: a closed pane is gone |
+| ⏳ **"Tell me when this finishes"** | `Ctrl-B m` marks a pane; the moment its command exits you get a bell and a message naming it. No shell setup, and it can be armed *after* the command is already running | `monitor-silence` watches for output going quiet: it fires on a build that pauses to think, and stays silent on one that ends without a final line |
+| 🧠 **Knows where your commands are** | `termdock shell-init` teaches your shell to mark prompts (OSC 133), which termdock records in its own VT emulator: `{`/`}` jump between commands, `Ctrl-B O` copies one command's *entire* output exactly, and a pane whose last command failed shows its exit status and how long it took | no equivalent, and no way to add one — tmux sees an undifferentiated stream of characters and has no emulator of its own to record marks in |
+| 🕮 **Session-wide command history** | `Ctrl-B H` fuzzy-searches every command run in *any* pane of the session, showing how each one exited and how long it took; Enter types it back into the current pane | your shell's history only, which is per-pane, records what you typed but not what happened, and isn't written until that shell exits |
+| 📡 **Type into several panes at once** | `Ctrl-B y` syncs the whole window, or pick exactly which panes in the overview with `space` — the status bar then reads `[SYNC 3/7]` | `synchronize-panes` is all-or-nothing over a window: the pane you need to *keep* out of it has to be moved elsewhere first |
+| 🕘 **Session timeline** | `Ctrl-B T` draws every command in the session on one shared time scale, with a bar for its span, so overlapping work reads as overlap | no equivalent, and no way to build one: tmux never learns that a command happened, let alone when |
+| 🧱 **Saved layouts** | `termdock layout save dev` / `apply dev` — windows, splits, ratios, names and each pane's directory, rebuilt on demand | needs the external tmuxinator or teamocil, with a YAML file and a Ruby/Python dependency |
+| 🩺 **Diagnosing your own setup** | `termdock doctor` checks the things that fail *silently* — a misspelled theme being ignored, shell integration never set up — and every warning names the fix | no equivalent; a mistyped `tmux.conf` line is just as silent, with nothing to ask |
+| 🏷️ **Naming a pane** | `Ctrl-B .` names one pane, which then wins over the process name, appears in the jump picker, and survives a crash | `select-pane -T`, but it is not shown in `choose-tree` and is lost when the pane's process changes |
+| 📼 **Log a whole window at once** | `Ctrl-B A` asks for a directory and logs *every* pane in the window into it, one file each, named after the session, window and pane — a folder you can attach to a ticket | `pipe-pane` is one pane at a time, with the path and the filename written out by hand every time |
 | 🔎 **Regex search** | copy-mode `/` and global search both accept a regex (falls back to a literal substring if it doesn't compile) | copy-mode search is a plain substring only |
 
 Every "tmux needs the external `tmux-whatever` plugin" above is describing **tmux**, not termdock: everything in the termdock column is built into the single `termdock` binary. There's no plugin manager, no plugin API, and nothing here — themes, status segments, logging, the popup, any of it — ever needs an external plugin, script, or program to work. The one narrow exception is the `git` status segment, which shells out to your system's own `git` binary the same way any git integration would (not a termdock plugin, just using the tool that's already there) — everything else is pure Go, self-contained.
@@ -137,6 +151,9 @@ termdock attach [-t NAME] [-r]  # attach to an existing session; -r = read-only
 termdock ls                     # list active sessions
 termdock kill-session -t NAME   # terminate a session (and all its panes)
 termdock themes                 # list the built-in color themes
+termdock doctor                 # check for settings that are failing silently
+termdock layout save|apply|ls|rm [-t SESSION] [NAME]   # named arrangements
+termdock shell-init [SHELL]     # print the shell snippet for command marks
 ```
 
 Sessions survive the terminal closing: you can disconnect over SSH, close
@@ -178,7 +195,7 @@ them to a different key.
 | `[` | enter **copy-mode** (scroll the scrollback, see below) |
 | `]` | paste the most recently copied (yanked) text into the active pane |
 | `=` | 📋 **paste register picker**: fuzzy-pick one of your last 20 yanks to paste (see below) |
-| `y` | toggle **sync-panes**: keystrokes get sent to every pane in this window at once |
+| `y` | 📡 toggle **sync-panes**: keystrokes go to every pane in this window at once — or to just the ones you pick (see below) |
 | `c` | create a new **window** (tab) |
 | `n` / `p` | switch to the next / previous window |
 | `w` | 🔍 **jump picker**: type to fuzzy-filter every window/pane, ↑↓/Tab to select, Enter to jump (see below) |
@@ -194,7 +211,14 @@ them to a different key.
 | `:` | 💻 **command prompt**: type a command (`new-window`, `split-window`, ...; see below) |
 | `Space` | 🧱 cycle the active window through **preset layouts** (see below) |
 | `R` | 🔁 **respawn-pane**: restart the shell in the active pane, in place |
+| `Z` | ↩️ **reopen** the last closed pane, back in its window and directory (see below) |
+| `m` | ⏳ **notify me** when this pane's command finishes (see below) |
+| `O` | 🧠 **copy the last command's entire output** — needs [shell integration](#-shell-integration-termdock-knows-where-your-commands-are) |
+| `H` | 🕮 **command history**: fuzzy-search every command run in this session (needs shell integration) |
+| `T` | 🕘 **session timeline**: when each command ran and for how long (needs shell integration) |
+| `.` | 🏷️ **name this pane** — empty clears it, back to the process name |
 | `L` | 📝 toggle **logging** the active pane's output to a file (see below) |
+| `A` | 📼 **log every pane in this window** to a directory you name (see below) |
 | `0`-`9` | jump straight to window N |
 | `,` | rename the current window |
 | `$` | 🏷️ **rename this session** — the socket and snapshot move with it (see below) |
@@ -405,6 +429,304 @@ around it. Unlike tmux, there's no separate `-k` flag to force it: this
 already replaces a still-running process without asking, the same
 no-confirmation convention `Ctrl-B x` (close pane) already uses.
 
+### 🕘 Session timeline
+
+`Ctrl-B T` draws every command the session has run on one shared time
+scale, oldest first:
+
+```
+23:46:40  go build ./...   ██████████··················  31ms  0:api › 1
+23:46:40  go test ./...    ·········███████████████████  60ms  ✗1  0:api › 1
+23:46:40  tail -f app.log  ···························█  running  1:ops › 1
+```
+
+It answers the question you ask *after* something went wrong, when the
+evidence is spread across four panes' scrollback: was the build still
+running when I started the migration? Because every bar is on the same
+scale, overlapping work reads as overlap. Commands still going are
+included and marked — they are usually the ones being asked about.
+
+Needs [shell integration](#-shell-integration-termdock-knows-where-your-commands-are):
+without those marks a terminal never learns that a command happened, let
+alone when it started, which is why no other multiplexer offers this.
+
+### 🧱 Saved layouts
+
+```sh
+termdock layout save -t work dev   # capture the current arrangement
+termdock layout apply dev          # rebuild it, here or on another machine
+termdock layout ls / rm dev
+```
+
+A [session snapshot](#-session-persistence) is automatic and about
+surviving a crash. A layout is deliberate and about starting the same
+working set again tomorrow: windows, splits, ratios, window and pane
+names, and each pane's working directory, so applying one rebuilds the
+workspace rather than an empty grid you then repopulate by hand.
+
+Applying **adds** to the session rather than replacing it. A layout is
+something you reach for to *start* work, and one that silently closed
+panes you had running — with no undo for a whole session's worth —
+would be a thing you approach nervously. Closing the old windows is one
+keystroke each, and your decision.
+
+This is the job people currently leave termdock for, using tmuxinator or
+teamocil: an external tool, a YAML file, a language runtime.
+
+### 🏷️ Naming a pane
+
+`Ctrl-B .` names the active pane. A pane is otherwise titled after
+whatever process holds its foreground, which is `bash` for every idle
+one — useless exactly when you have six and need to tell them apart.
+
+A name you give wins over the process name, shows up in the
+[jump picker](#-jump-picker) so the pane becomes findable by it, and is
+saved with the session so a crash doesn't undo it. Confirming an empty
+prompt clears the name and puts the pane back to being called after
+whatever is running.
+
+### 🩺 Checking your own setup
+
+```sh
+termdock doctor
+```
+
+Nearly every setting here is deliberately lenient: a line termdock
+doesn't understand is ignored, so a typo can never stop a session
+starting. That is the right trade and it has a cost — a misspelled
+theme, a shell that was never told to emit prompt marks, or a terminal
+quietly rounding colours all present as "I set it and nothing happened",
+with nothing anywhere saying why.
+
+```
+[ warn ] theme                  "drakula" is not a built-in theme, so the line is being ignored
+                                → check the spelling against `termdock themes`
+```
+
+Every check reports what it *found* rather than a bare verdict, so the
+output is worth pasting into a bug report from a machine you cannot see,
+and every warning names the thing to do about it.
+
+### 🧠 Shell integration: termdock knows where your commands are
+
+Every terminal has the same blind spot. It receives one long stream of
+characters and has no idea which of them are your prompt, which are the
+command you typed, and which are that command's output. It is all just
+text arriving.
+
+That is why no multiplexer can offer "jump back to the previous command"
+or "copy that command's output" — not because nobody thought of it, but
+because the information genuinely isn't there to act on.
+
+**OSC 133** is the fix the terminal world settled on: the shell announces
+the boundaries as it goes. Four tiny invisible markers per command —
+prompt starts, prompt ends, command started running, command finished
+(with its exit status). termdock records them in **its own** VT
+emulator, which is why this works over SSH, in any terminal, whether or
+not the terminal you're sitting at has ever heard of OSC 133. tmux
+cannot do this at any price: it has no emulator of its own to record
+them in.
+
+#### Turning it on
+
+One line in your shell's startup file:
+
+```sh
+# ~/.bashrc, ~/.zshrc, or ~/.config/fish/config.fish
+eval "$(termdock shell-init)"
+```
+
+`termdock shell-init` detects your shell from `$SHELL`; pass `bash`,
+`zsh` or `fish` explicitly if you'd rather. It **prints** the snippet
+instead of installing it — that file is yours and you should read what
+goes into it; a program that edits your shell rc behind your back is one
+you stop trusting. Run it with no `eval` to just look:
+
+```sh
+termdock shell-init bash | less
+```
+
+Open a new pane afterwards (existing shells are already running, and
+won't pick it up). Nothing about your prompt changes visually — the
+markers are zero-width.
+
+> If your prompt is rebuilt by a theme — oh-my-zsh, powerlevel10k,
+> starship — put the `eval` line **after** that theme's own setup, or the
+> theme will overwrite the marker termdock appends to `PS1`.
+
+#### What you get: a worked example
+
+Say you run a test suite, it fails somewhere in three hundred lines of
+output, and you've since run four more commands while poking at it.
+
+```
+$ go test ./...          ← 300 lines of output, somewhere up there
+$ git status
+$ vim internal/core/foo.go
+$ git diff
+$ go build ./...
+$                        ← you are here
+```
+
+**Without shell integration**, retrieving that failure means: enter
+copy-mode, scroll up by eye past four commands, find where the test run
+started, guess where it ended, drag-select several screens of text, and
+hope you didn't clip the first line.
+
+**With it:**
+
+| You press | What happens |
+|---|---|
+| `Ctrl-B [` then `{` | jumps to the prompt of `go build` |
+| `{` `{` `{` `{` | four more jumps, one per command, landing on `go test ./...` |
+| `Ctrl-B O` | the **entire** output of *that* run — all 300 lines — is on your clipboard |
+
+Three of those keys are the interesting ones:
+
+**`{` and `}` in copy-mode** move by *command*, not by line or page. Each
+jump lands on a prompt with that command's output filling the screen
+below it — which is the thing you were scrolling to find. Repeated
+presses walk back through your history a command at a time.
+
+**`Ctrl-B O`** copies a command's output. Not "roughly this screenful",
+not "what's currently visible" — exactly the lines between where that
+command started printing and where it stopped, whether that's 2 lines or
+3000, with the prompt and the command itself excluded. Paste it straight
+into a bug report, a chat, a file.
+
+*Which* command follows where you are looking: in copy-mode it is the
+one your cursor is sitting in, so walking back with `{` and then copying
+does what it plainly looks like it should. At a live prompt it is the
+most recent one. Press it while a build is still running and you get
+everything it has printed so far.
+
+**`Ctrl-B H` searches every command you have run**, in any pane of the
+session, newest first, with how each one exited and how long it took:
+
+```
+go test ./...                            ✗1  2m14s  0:api › 1
+kubectl rollout status deploy/web                   1:ops › 2
+docker compose up -d                          8s    1:ops › 1
+```
+
+Type to filter, Enter **types it into the current pane** without running
+it — the list is full of things that already happened, some of which
+failed, and firing one straight off a fuzzy match is how the wrong
+directory gets deleted. Repeats collapse to one entry.
+
+Your shell's own history cannot be this: it is per-shell, so what you
+ran in the pane next door is invisible; it records what you typed but
+not what happened, so the command that worked looks identical to the
+three attempts before it; and it is written when that shell exits, so a
+pane still open has contributed nothing yet.
+
+**Pane titles gain a verdict.** A pane whose last command failed says so:
+
+```
+ 2:go [✗1 47s]        ← exited 1, took 47 seconds
+ 3:npm                ← last command succeeded, quickly: nothing added
+```
+
+The exit status appears only on failure and the duration only when the
+command ran longer than a few seconds — a title is no place for noise,
+and `✗` is the thing worth catching out of the corner of your eye when
+you glance at a pane you left running.
+
+#### Without it
+
+Nothing breaks. There are simply no marks, and each of the three
+features says so and points at the fix rather than silently doing
+nothing:
+
+```
+no command marks in this pane — run `termdock shell-init` for the shell snippet
+```
+
+### ⏳ Telling you when a command finishes
+
+`Ctrl-B m` marks the active pane. The moment whatever it is running
+exits and it falls back to a bare prompt, termdock rings the terminal
+bell and names the pane in the status bar. An armed pane wears a `[⏳]`
+tag on its title, so it is visible rather than something you have to
+remember doing; pressing `m` again takes it back. It fires once, then
+disarms, so a pane you keep working in doesn't ring on every command.
+
+It is for the twenty-minute build, the test run, the deploy — the jobs
+you start and then go and do something else during, which is exactly
+when you stop watching a pane you can't see.
+
+Two things make it different from the usual advice of appending
+`; notify-send done` to the command. It needs **no shell configuration
+at all**: termdock already asks the pty which process group holds the
+foreground — the same reading that keeps pane titles current — so
+"busy" is just that name not being your shell's, and "finished" is the
+transition back. And it can be armed **after** the command is already
+running, which a wrapper fundamentally cannot: you almost never know in
+advance that this is the run that will take twenty minutes.
+
+tmux has no equivalent. Its `monitor-silence` watches for *output*
+going quiet, which is a different thing: it fires on a build that
+pauses to think, and stays silent on one that finishes without printing
+a final line.
+
+### ↩️ Reopening a closed pane
+
+`Ctrl-B Z` brings back the pane you just closed: a fresh shell, in the
+window it came from, started in the directory it was sitting in. Press
+it again to walk further back — the last 16 closures are kept.
+
+It covers every way a pane goes away, including a shell that exited on
+its own, which is the case it mostly exists for: an `exit` typed into
+the wrong pane. Closing a pane is the one destructive thing here that
+happens by accident constantly — killing a window and quitting both ask
+first — so it is the one worth being able to take back.
+
+What comes back is the *place*, not the process: nothing can resurrect
+what was running, the same honest limit
+[session persistence](#-session-persistence) has. Retyping the command
+is easy; remembering which of four windows it was in and `cd`-ing three
+levels down again is what actually costs you. If the reopen can't
+happen (no room to split, or the window is zoomed) the pane stays on
+the stack, so it is never lost to a failed undo. tmux has no
+equivalent: a closed pane is gone.
+
+### 📼 Logging a whole window
+
+`Ctrl-B A` asks where to put the files and then logs **every pane in the
+current window**, one file each. Press it again to stop them all.
+
+The prompt comes prefilled with the default log directory, so the common
+case is `Enter`; type anything else — `~/bug-1234` is expanded, and the
+directory is created if it doesn't exist, because being told "no such
+directory" right after saying where you want the logs is a pointless
+round trip.
+
+Files are named after the things you recognise — the session, the
+window, and the pane's own [name](#-naming-a-pane) where you gave it
+one:
+
+```
+~/bug-1234/
+  deploy-feat_login-api_server.log
+  deploy-feat_login-worker.log
+  deploy-feat_login-pane3.log      ← unnamed panes fall back to position
+```
+
+A directory of `api.log`, `worker.log` and `db.log` is worth something an
+hour later; one of `p3-20260821-154233.log` is not. Anything awkward for
+a filesystem is replaced (a window called `feat/login` becomes
+`feat_login`, rather than trying to write into a directory that isn't
+there), and two panes sharing a name get numbered rather than quietly
+sharing one file.
+
+A pane you had already started logging by hand with `Ctrl-B L` is left
+alone rather than restarted, so this never truncates a file you opened
+deliberately.
+
+This is for the moment before you reproduce something: six panes, one
+keystroke, a folder you can attach to a ticket. tmux's `pipe-pane` is
+one pane at a time, with the path and filename written out by hand.
+
 ### 📝 Logging a pane
 
 `Ctrl-B L` toggles capturing the active pane's raw output to a file —
@@ -497,6 +819,61 @@ your terminal's height happens to be. It's the
 same floating box the jump picker uses, just without the type-ahead
 filter, so a long list stays readable instead of getting crammed into
 (and clipped off of) a single status bar line.
+
+### 🌍 Remote sessions, and letting others watch
+
+A session lives in a daemon on the machine that owns the panes, reachable
+through a unix socket there. "Remote" therefore means SSH — and it
+already works, with nothing extra to install or configure:
+
+```sh
+ssh -t server termdock new -s work        # create it there, and attach
+ssh -t server termdock attach -t work     # come back to it from any other machine
+ssh -t server termdock attach -t work -r  # attach as a read-only observer
+```
+
+The `-t` is doing real work: it asks SSH for a pty, which the client
+needs to draw. Detach with `Ctrl-B d` and the panes keep running on the
+server, exactly as they would locally — that is the whole point of the
+client/server split. Close the laptop, open another one, attach again.
+
+#### Letting someone else watch
+
+`-r` is a real read-only attach: every frame streams to that client, and
+every key and mouse event it sends is **dropped by the server** before it
+reaches the session. That is enforced on the daemon's side, not by asking
+the client to behave, so a modified or scripted client cannot type
+either. An observer's terminal size doesn't resize the shared session
+either, so a smaller window on their end disturbs nobody.
+
+The catch is access: the socket is `0600` inside a `0700` directory, so
+attaching means being *you* on that machine. Handing a colleague your
+login to let them watch is not sharing, it is handing over the keys.
+
+SSH already solves this properly, with a **forced command**. Put their
+public key in your `~/.ssh/authorized_keys` restricted to exactly one
+thing:
+
+```
+restrict,pty,command="/usr/local/bin/termdock attach -t work -r" ssh-ed25519 AAAAC3Nz... alice
+```
+
+Now `ssh server` from Alice's machine drops her straight into watching
+that session, read-only, and nothing else — `restrict` denies port
+forwarding, agent forwarding, X11 and user rc files, and `pty` puts back
+the one capability the client actually needs. Delete the line to end the
+sharing.
+
+Use the binary's absolute path: a forced command runs with a minimal
+environment, and `termdock` may not be on `PATH`.
+
+This is deliberately SSH's job rather than termdock's. Authentication and
+encryption are the parts that must not be got wrong, and OpenSSH has had
+twenty years of scrutiny on exactly them; a bespoke listener with a
+hand-rolled token would be a downgrade wearing the word "feature". It
+also compares well with the alternatives: tmux users reach for `wemux`,
+which only works between accounts on one machine, or `tmate`, which
+relays your terminal through someone else's servers.
 
 ### 📋 Copy-mode (scrollback and copying)
 
@@ -648,6 +1025,19 @@ kill-session`) deletes its own snapshot on the way out, so it doesn't
 resurrect itself the next time that name is reused; only an unclean end
 leaves one behind to recover from.
 
+The snapshot includes **the tail of each pane's screen** — the last 200
+lines — written back into the restored pane. A session recovered after a
+reboot therefore opens showing the stack trace you were reading, not
+four blank prompts. What comes back is text, not a live program: the
+same honest limit as the rest of this, and the reason it is stored as
+plain lines rather than styled cells (replaying arbitrary colour into a
+shell already printing its own prompt leaves panes in colours nobody
+chose). It stays a snapshot rather than a log — 200 lines is about 11 KB
+for a busy pane, and it is rewritten continuously.
+
+tmux needs the external `tmux-resurrect` plugin to restore the layout at
+all, and even that does not bring the contents back.
+
 ## ⚙️ Configuration
 
 Optional config file at `$XDG_CONFIG_HOME/termdock/termdock.conf`
@@ -678,6 +1068,7 @@ pane-active-bg teal       # active pane's border/title color (default teal)
 pane-bg default          # background behind unstyled pane content (default: your terminal's)
 pane-fg default          # foreground for unstyled pane content (default: your terminal's)
 status-segments git,battery,cpu,mem  # extra segments in the status bar (default: none)
+status-icons unicode     # icons before those segments: off, unicode or nerd (default off)
 ```
 
 Colors accept any W3C name tcell understands, or `#rrggbb` hex. A `#`
@@ -697,9 +1088,79 @@ system usage read straight from `/proc/stat`/`/proc/meminfo` — all Linux
 only, all cached for a couple of seconds (`cpu` also needs two samples an
 interval apart to compute a delta from, so it shows nothing for the
 first few seconds after being enabled) so nothing here adds real
-overhead to every redraw. See
+overhead to every redraw.
+
+`status-icons` puts a small glyph in front of each of those segments.
+
+> **`nerd` needs a font installed. The other two do not.**
+> termdock cannot ship an icon font, and no terminal program can: it
+> writes characters to a pty, and your *terminal emulator* draws them
+> with whatever font it is set to. Which glyphs exist is therefore its
+> decision, never termdock's. If you would rather not install anything,
+> use `unicode` — or leave it `off`.
+
+It takes three values:
+
+| Value | Shows | Needs |
+|---|---|---|
+| `off` | `cpu 8% \| mem 41%` — the words alone | nothing; the default |
+| `unicode` | `░ cpu 8% \| ▓ mem 71%` — the shade fills up as the number climbs | nothing; the glyphs are Block Elements, which ordinary monospace fonts carry |
+| `nerd` | proper microchip and memory icons | **a [Nerd Font](https://www.nerdfonts.com/) installed and selected in your terminal** |
+
+Nerd Font icons live in the Private Use Area — codepoints that are
+deliberately unassigned in Unicode, so only a font patched to add them
+has anything to draw. Without one the bar reads `◆ mem 10%`: a
+replacement box where the microchip should be.
+
+No program can ask a terminal which glyphs its font has, so termdock
+cannot pick for you. Open the settings screen with <kbd>Ctrl-B</kbd>
+<kbd>C</kbd>, put the cursor on `status-icons` and step it with ←→ — the
+bar redraws as you go, so you can see which set your font can draw
+rather than guessing. If a set shows boxes, it is the wrong one for your
+font. See
 [⌨️ Custom keybindings](#-custom-keybindings) and
 [🎯 Focus events](#-focus-events) above for `bind` and `focus-events`.
+
+### 🔤 Installing a Nerd Font
+
+> **Install it where the terminal is, not where termdock is.**
+> The font is used by the terminal emulator you are looking at. Over SSH
+> that is your laptop, not the server; on Windows with WSL that is
+> Windows, not the WSL distribution. Installing fonts on the far side
+> does nothing at all, and is the usual reason this appears not to work.
+
+Any font from [nerdfonts.com](https://www.nerdfonts.com/font-downloads)
+will do. JetBrains Mono is used here.
+
+**Linux**
+
+```sh
+mkdir -p ~/.local/share/fonts
+curl -fLo /tmp/JetBrainsMono.zip \
+  https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip
+unzip -o /tmp/JetBrainsMono.zip -d ~/.local/share/fonts/JetBrainsMono
+fc-cache -f
+```
+
+**macOS**
+
+```sh
+brew install --cask font-jetbrains-mono-nerd-font
+```
+
+**Windows, including WSL** — do this on the Windows side:
+
+1. Download `JetBrainsMono.zip` from the
+   [nerd-fonts releases](https://github.com/ryanoasis/nerd-fonts/releases/latest).
+2. Extract it, select the `.ttf` files, right-click → **Install**.
+3. Windows Terminal → **Settings** → your profile → **Appearance** →
+   **Font face**.
+
+Then pick the font in your terminal's settings. It is listed as
+**JetBrainsMono Nerd Font**, or as **JetBrainsMono NF** in terminals that
+show the short family name (Windows Terminal is one). Restart the
+terminal, then set `status-icons nerd`. None of this is needed for
+`unicode`, which draws characters fonts already have.
 
 ### ⚙️ Changing settings while it runs
 

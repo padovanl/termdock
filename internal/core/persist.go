@@ -47,10 +47,12 @@ func (c *Core) PersistState() {
 func (c *Core) snapshotNode(n *layout.Node) persist.Node {
 	if n.IsLeaf() {
 		cwd := ""
+		var scrollback []string
 		if p, ok := c.panes[n.ID]; ok {
 			cwd = p.Cwd()
+			scrollback = captureScrollback(p)
 		}
-		return persist.Node{Cwd: cwd}
+		return persist.Node{Cwd: cwd, Name: c.paneNames[n.ID], Scrollback: scrollback}
 	}
 	first := c.snapshotNode(n.First)
 	second := c.snapshotNode(n.Second)
@@ -98,6 +100,16 @@ func (c *Core) buildNodeFromSnapshot(ns *persist.Node, cols, rows int) (*layout.
 			return nil, false
 		}
 		c.panes[id] = p
+		// Before the pump starts, so the restored text is already on the
+		// screen when the shell's first prompt arrives rather than racing
+		// it.
+		if ns.Name != "" {
+			if c.paneNames == nil {
+				c.paneNames = map[int]string{}
+			}
+			c.paneNames[id] = ns.Name
+		}
+		restoreScrollback(p, ns.Scrollback)
 		c.startPump(p)
 		return layout.NewLeaf(id, p), true
 	}

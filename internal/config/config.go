@@ -46,6 +46,15 @@
 //	pane-fg <color>        likewise for unstyled text
 //	status-segments <list> comma-separated optional status-bar segments,
 //	                       e.g. "git,battery,cpu,mem" (default: none)
+//	status-icons <off|unicode|nerd>
+//	                       icons before those segments (default off).
+//	                       "unicode" shades a block by the value
+//	                       ("░ cpu 8%"), using Block Elements, which
+//	                       ordinary monospace fonts carry; "nerd" uses
+//	                       Nerd Font glyphs, which need a patched font
+//	                       installed in the terminal — without one the
+//	                       bar reads "◆ mem 10%". See the README for how
+//	                       to install one
 //
 // Colors accept any W3C name tcell understands ("black", "teal", ...) or
 // a "#rrggbb" hex value.
@@ -89,6 +98,17 @@ type Config struct {
 	PaneBG         tcell.Color
 	PaneFG         tcell.Color
 	StatusSegments []string // optional status-bar segments; see internal/core/segments.go
+	// StatusIcons is which glyph set prefixes the segments: "off" (the
+	// default, words only), "unicode" (Block Elements shaded by the
+	// value, which ordinary monospace fonts carry — see
+	// core.shadeFor), or "nerd" (Nerd Font glyphs, which live in the
+	// Private Use Area and need a patched font installed).
+	//
+	// Three values rather than a bool because no terminal can be asked
+	// whether its font has a glyph: with "nerd" on an unpatched font the
+	// bar reads "◆ mem 10%". Stepping through the choices in the settings
+	// screen shows which set renders, which is the only reliable test.
+	StatusIcons string
 
 	// Theme is the name of the bundled preset the five colors above came
 	// from, or "" if they weren't set from one (no theme line, or a color

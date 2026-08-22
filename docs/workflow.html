@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Working in it all day — termdock</title>
+<meta name="description" content="Command history across panes, a session timeline, saved layouts, logging a whole window, selective broadcast — the features that earn their keep once a session has been open for a week.">
+<meta property="og:title" content="Working in it all day — termdock">
+<meta property="og:description" content="Command history across panes, a session timeline, saved layouts, logging a whole window, selective broadcast — the features that earn their keep once a session has been open for a week.">
+<meta property="og:type" content="article">
+<meta name="theme-color" content="#07100f">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="crt-veil" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="index.html" style="text-decoration:none;border:0"><img src="logo.svg" alt="" width="18" height="18" style="vertical-align:-3px;margin-right:.4rem">termdock<span class="cursor">_</span></a>
+    <nav class="navlinks">
+      <a href="getting-started.html">start</a>
+      <a href="keys.html">keys</a>
+      <a href="shell-integration.html">shell</a>
+      <a href="workflow.html">workflow</a>
+      <a href="configuration.html">config</a>
+      <a href="remote.html">remote</a>
+      <a href="cheatsheet.html">cheatsheet</a>
+      <a href="https://github.com/padovanl/termdock">github</a>
+    </nav>
+  </div>
+</header>
+
+<main class="manual">
+  <aside class="manual-toc">
+    <h2>On this page</h2>
+    <a href="#search-every-command-you-have-run">Search every command you have run</a>
+    <a href="#see-when-everything-ran">See when everything ran</a>
+    <a href="#tell-me-when-this-finishes">Tell me when this finishes</a>
+    <a href="#name-your-panes">Name your panes</a>
+    <a href="#log-a-whole-window-at-once">Log a whole window at once</a>
+    <a href="#type-into-several-panes-at-once">Type into several panes at once</a>
+    <a href="#reopen-a-closed-pane">Reopen a closed pane</a>
+    <a href="#saved-layouts">Saved layouts</a>
+  </aside>
+  <div class="manual-body">
+    <h1 style="margin:0 0 0.5rem;font-size:2.1rem">Working in it all day</h1>
+    <p class="page-lede">The parts that stop mattering in a demo and start mattering on the third day of the same session.</p>
+<h2 id="search-every-command-you-have-run">Search every command you have run</h2>
+
+<p><span class="k">Ctrl-B</span> <span class="k">H</span> fuzzy-searches
+every command run in <em>any</em> pane of the session, newest first, with
+how each one exited and how long it took:</p>
+
+<pre><code>go test ./...                            ✗1  2m14s  0:api › 1
+kubectl rollout status deploy/web                   1:ops › 2
+docker compose up -d                          8s    1:ops › 1</code></pre>
+
+<p>Type to filter. <span class="k">Enter</span> <strong>types it into
+the current pane</strong> without running it — the list is full of
+things that already happened, some of which failed, and firing one
+straight off a fuzzy match is how the wrong directory gets deleted.
+Repeats collapse to a single entry.</p>
+
+<p>Your shell's own history cannot be this, for three separate reasons:
+it is per-shell, so what you ran in the pane next door is invisible; it
+records what you typed but not what happened, so the command that worked
+looks identical to the three attempts before it; and it is written when
+that shell exits, so a pane still open has contributed nothing.</p>
+
+<p>Needs <a href="shell-integration.html">shell integration</a>.</p>
+
+<h2 id="see-when-everything-ran">See when everything ran</h2>
+
+<p><span class="k">Ctrl-B</span> <span class="k">T</span> draws every
+command on one shared time scale, oldest first:</p>
+
+<pre><code>23:46:40  go build ./...   ██████████··················  31ms  0:api › 1
+23:46:40  go test ./...    ·········███████████████████  60ms  ✗1  0:api › 1
+23:46:40  tail -f app.log  ···························█  running  1:ops › 1</code></pre>
+
+<p>It answers the question you ask <em>after</em> something has gone
+wrong, when the evidence is spread across four panes' scrollback: was the
+build still running when I started the migration? Because every bar is
+drawn on the same scale, overlapping work reads as overlap. Commands
+still going are included and marked.</p>
+
+<p>Needs <a href="shell-integration.html">shell integration</a>.</p>
+
+<h2 id="tell-me-when-this-finishes">Tell me when this finishes</h2>
+
+<p><span class="k">Ctrl-B</span> <span class="k">m</span> marks a pane.
+The moment whatever it is running exits and falls back to a bare prompt,
+you get a terminal bell and a message naming the pane. An armed pane
+wears a <code>[⏳]</code> tag on its title; pressing <code>m</code> again
+takes it back.</p>
+
+<p>Two things make this better than appending
+<code>; notify-send done</code>. It needs <strong>no shell
+configuration</strong> — termdock asks the pty which process group holds
+the foreground, so "busy" is that name not being your shell's. And it can
+be armed <strong>after</strong> the command is already running, which a
+wrapper fundamentally cannot: you almost never know in advance that this
+is the run that will take twenty minutes.</p>
+
+<h2 id="name-your-panes">Name your panes</h2>
+
+<p>Six panes all called <code>bash</code> tell you nothing.
+<span class="k">Ctrl-B</span> <span class="k">.</span> names one. The
+name wins over the process name, appears in the jump picker so the pane
+becomes findable by it, and is saved with the session so a crash does not
+undo it. Confirming an empty prompt clears it.</p>
+
+<h2 id="log-a-whole-window-at-once">Log a whole window at once</h2>
+
+<p><span class="k">Ctrl-B</span> <span class="k">A</span> asks for a
+directory and logs <strong>every pane in the window</strong>, one file
+each. Press it again to stop them all.</p>
+
+<pre><code>~/bug-1234/
+  deploy-feat_login-api_server.log
+  deploy-feat_login-worker.log
+  deploy-feat_login-pane3.log      ← unnamed panes fall back to position</code></pre>
+
+<p>Files are named after the things you recognise: the session, the
+window, and the pane's own name where you gave it one. A directory of
+<code>api.log</code>, <code>worker.log</code> and <code>db.log</code> is
+worth something an hour later; one of
+<code>p3-20260821-154233.log</code> is not.</p>
+
+<p>The prompt is prefilled with the default log directory, so the common
+case is <span class="k">Enter</span>; <code>~</code> is expanded and the
+directory is created if missing. A pane you had already started logging
+by hand with <code>Ctrl-B L</code> is left alone rather than restarted,
+so this never truncates a file you opened deliberately.</p>
+
+<h2 id="type-into-several-panes-at-once">Type into several panes at once</h2>
+
+<p><span class="k">Ctrl-B</span> <span class="k">y</span> sends your
+keystrokes to every pane in the window. Useful for driving a handful of
+machines together — the same tail, the same deploy.</p>
+
+<p>But the pane running your editor, or the one holding the output you
+are comparing against, is exactly the one that must <em>not</em> receive
+them. So open the overview (<span class="k">Ctrl-B</span>
+<span class="k">g</span>) and press <span class="k">space</span> on each
+pane you want included. The status bar then reads
+<code>[SYNC 3/7]</code> — before pressing Enter into several machines at
+once, the number is the thing you want confirmed.</p>
+
+<p>Picking a pane turns synchronisation on by itself, and deselecting the
+last one turns it off rather than falling back to "everything".</p>
+
+<h2 id="reopen-a-closed-pane">Reopen a closed pane</h2>
+
+<p><span class="k">Ctrl-B</span> <span class="k">Z</span> brings back the
+pane you just closed: a fresh shell, in the window it came from, started
+in the directory it was sitting in. The last 16 closures are kept, so
+repeated presses walk further back.</p>
+
+<p>It covers every way a pane goes away, including a shell that exited on
+its own — which is the case it mostly exists for: an <code>exit</code>
+typed into the wrong pane. What comes back is the <em>place</em>, not the
+process: retyping the command is easy, remembering which of four windows
+it was in and <code>cd</code>-ing three levels down again is what
+actually costs you.</p>
+
+<h2 id="saved-layouts">Saved layouts</h2>
+
+<pre><code>termdock layout save -t work dev   # capture the current arrangement
+termdock layout apply dev          # rebuild it, here or on another machine
+termdock layout ls
+termdock layout rm dev</code></pre>
+
+<p>A <a href="configuration.html">session snapshot</a> is automatic and
+about surviving a crash. A layout is deliberate and about starting the
+same working set again tomorrow: windows, splits, ratios, window and pane
+names, and each pane's working directory.</p>
+
+<p>Applying <strong>adds</strong> to the session rather than replacing
+it. A layout is something you reach for to <em>start</em> work, and one
+that silently closed panes you had running — with no undo for a whole
+session's worth — would be a thing you approach nervously.</p>
+
+<p>This is the job people currently leave a multiplexer for, using
+tmuxinator or teamocil: an external tool, a YAML file, a language
+runtime.</p>
+    <nav class="manual-nav">
+      <span>← <a href="shell-integration.html">Shell integration</a></span>
+      <span><a href="configuration.html">Configuration</a> →</span>
+    </nav>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-chips">
+      <a class="foot-chip" href="index.html">Home</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock">GitHub</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock/releases">Releases</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock/issues">Issues</a>
+    </div>
+    <p class="foot-note">MIT licensed · written from scratch in Go · linux &amp; macOS</p>
+  </div>
+</footer>
+</body>
+</html>

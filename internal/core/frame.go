@@ -18,6 +18,10 @@ func (c *Core) Frame() proto.Frame {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Frame already samples every pane's foreground process to title it,
+	// so the "has it finished?" check rides along rather than polling.
+	c.checkDoneWatches()
+
 	f := proto.Frame{
 		Cols:        c.cols,
 		Rows:        c.rows,
@@ -44,9 +48,12 @@ func (c *Core) Frame() proto.Frame {
 
 	f.StatusPrefix = c.statusPrefix()
 	f.Windows = c.windowTabs()
+	// Kept so a click can be resolved against the strip the user actually
+	// clicked on — see tabAt.
+	c.lastTabs = f.Windows
 	f.StatusText, f.StatusRight, f.StatusStyle = c.statusLine()
 	for _, provider := range []func() *proto.Overlay{
-		c.pickerOverlay, c.helpOverlay, c.settingsOverlay, c.registersOverlay, c.sessionsOverlay, c.searchOverlay, c.openerOverlay,
+		c.pickerOverlay, c.helpOverlay, c.settingsOverlay, c.historyOverlay, c.timelineOverlay, c.registersOverlay, c.sessionsOverlay, c.searchOverlay, c.openerOverlay,
 	} {
 		if f.Overlay = provider(); f.Overlay != nil {
 			break
@@ -157,10 +164,16 @@ func glyphToCell(g vt10x.Glyph) proto.Cell {
 }
 
 func (c *Core) paneTitle(idx int, p *pane.Pane) string {
+	name := c.shellName
 	if fg := p.ForegroundTitle(); fg != "" {
-		return fmt.Sprintf("%d:%s", idx, fg)
+		name = fg
 	}
-	return fmt.Sprintf("%d:%s", idx, c.shellName)
+	// A name the user chose wins over the process name: they renamed it
+	// precisely because "bash" was not telling them what it was for.
+	if given, ok := c.paneNames[p.ID]; ok && given != "" {
+		name = given
+	}
+	return fmt.Sprintf("%d:%s%s%s", idx, name, c.lastCommandStatus(p.ID), c.watchedPaneMarker(p.ID))
 }
 
 // cheatSheet is the terse keybinding cheat-sheet shown transiently
@@ -258,7 +271,7 @@ func (c *Core) statusHint() (hint, style string) {
 		hint = "type to search every pane's scrollback (regex or text), ↑↓ select, enter jump, esc cancel"
 	case c.mode == ModeOverview:
 		style = "mode"
-		hint = "arrows/hjkl move, click or enter jump, esc cancel"
+		hint = "arrows/hjkl move, space picks panes for synchronized input, enter jump, esc cancel"
 	case c.mode == ModePopup:
 		style = "mode"
 		hint = "typing goes to the popup — Ctrl-B P hides it, Ctrl-B d/q still work"
@@ -311,10 +324,7 @@ func (c *Core) statusLeftText(hint, style string) string {
 		return " " + hint
 	}
 	w := c.win()
-	sync := ""
-	if w.syncPanes {
-		sync = " [SYNC]"
-	}
+	sync := c.broadcastLabel(w)
 	return fmt.Sprintf(" | active pane: %d%s | %s", activePaneIndex(w), sync, hint)
 }
 

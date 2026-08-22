@@ -2,3 +2,7 @@
 *.log
 /.claude/
 /dist/
+
+# Python bytecode from the docs generators
+__pycache__/
+*.pyc

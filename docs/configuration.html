@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configuration — termdock</title>
+<meta name="description" content="Every termdock setting, the eleven bundled themes, changing settings while a session runs, and termdock doctor for the ones that fail silently.">
+<meta property="og:title" content="Configuration — termdock">
+<meta property="og:description" content="Every termdock setting, the eleven bundled themes, changing settings while a session runs, and termdock doctor for the ones that fail silently.">
+<meta property="og:type" content="article">
+<meta name="theme-color" content="#07100f">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="crt-veil" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="index.html" style="text-decoration:none;border:0"><img src="logo.svg" alt="" width="18" height="18" style="vertical-align:-3px;margin-right:.4rem">termdock<span class="cursor">_</span></a>
+    <nav class="navlinks">
+      <a href="getting-started.html">start</a>
+      <a href="keys.html">keys</a>
+      <a href="shell-integration.html">shell</a>
+      <a href="workflow.html">workflow</a>
+      <a href="configuration.html">config</a>
+      <a href="remote.html">remote</a>
+      <a href="cheatsheet.html">cheatsheet</a>
+      <a href="https://github.com/padovanl/termdock">github</a>
+    </nav>
+  </div>
+</header>
+
+<main class="manual">
+  <aside class="manual-toc">
+    <h2>On this page</h2>
+    <a href="#where-the-config-lives">Where the config lives</a>
+    <a href="#icons-in-the-status-bar">Icons in the status bar</a>
+    <a href="#installing-a-nerd-font">Installing a Nerd Font</a>
+    <a href="#which-settings-apply-when">Which settings apply when</a>
+    <a href="#themes">Themes</a>
+    <a href="#changing-settings-while-it-runs">Changing settings while it runs</a>
+    <a href="#checking-your-own-setup">Checking your own setup</a>
+    <a href="#crash-recovery">Crash recovery</a>
+    <a href="#debugging-input">Debugging input</a>
+  </aside>
+  <div class="manual-body">
+    <h1 style="margin:0 0 0.5rem;font-size:2.1rem">Configuration</h1>
+    <p class="page-lede">One optional file of plain key/value lines — and a way to change most of it without restarting anything.</p>
+<h2 id="where-the-config-lives">Where the config lives</h2>
+
+<p><code>$XDG_CONFIG_HOME/termdock/termdock.conf</code>, falling back to
+<code>~/.config/termdock/termdock.conf</code>, or wherever
+<code>$TERMDOCK_CONFIG</code> points. It does not exist until you create
+it, and a missing file simply means defaults.</p>
+
+<p>Plain <code>key value</code> lines, <code>#</code> for comments:</p>
+
+<pre><code># termdock.conf
+prefix C-a               # prefix key, any Ctrl+letter (default C-b)
+mouse on                 # mouse support (default on)
+history-limit 10000      # scrollback lines kept per pane
+shell /bin/zsh           # shell for new panes (default $SHELL)
+popup-command lazygit    # what Ctrl-B P runs (default: the shell)
+focus-events on          # forward synthetic pane focus-in/out (default off)
+repeat-time 1000         # ms a bare arrow keeps moving focus (0 disables)
+bind M jump-picker       # rebind one key; repeatable, one per line
+theme dracula            # bundled color preset
+status-bg black
+status-fg silver
+pane-active-bg teal
+pane-bg default          # background behind unstyled pane content
+pane-fg default
+status-segments git,battery,cpu,mem
+status-icons unicode     # icons before them: off, unicode or nerd</code></pre>
+
+<div class="note">
+<strong>A typo never stops a session starting.</strong> A line termdock
+cannot parse is ignored and the default kept. That is the right trade,
+and its cost is that a mistake is invisible — which is what
+<code>termdock doctor</code> below is for.
+</div>
+
+<h2 id="icons-in-the-status-bar">Icons in the status bar</h2>
+
+<p><code>status-icons</code> puts a glyph in front of each optional
+segment.</p>
+
+<div class="note">
+<strong>Only <code>nerd</code> needs a font installed.</strong>
+termdock cannot ship an icon font, and no terminal program can: it
+writes characters to a pty, and your <em>terminal emulator</em> draws
+them with whatever font it is set to. Which glyphs exist is its
+decision, never termdock's. If you would rather not install anything,
+use <code>unicode</code> — or leave it <code>off</code>.
+</div>
+
+<p>It has three values rather than on/off, because no program can ask a
+terminal whether its font actually contains a glyph — so the choice is
+yours to make by looking.</p>
+
+<table>
+<tr><th>Value</th><th>Shows</th></tr>
+<tr><td><code>off</code></td><td>The default. Words alone:
+<code>cpu 8% | mem 41%</code>. Never wrong on any font.</td></tr>
+<tr><td><code>unicode</code></td><td><code>░ cpu 8% | ▓ mem 71%</code> —
+the shade fills up as the number climbs, so the glyph is a second look
+at the figure rather than decoration. Nothing to install: these are
+Block Elements, which ordinary monospace fonts carry, rather than the
+Private Use Area. They are text-presentation too, so they stay one
+column wide and cannot push the right-aligned bar out of
+alignment.</td></tr>
+<tr><td><code>nerd</code></td><td>Real microchip and memory icons, and
+the only value that <strong>requires installing a
+<a href="https://www.nerdfonts.com/">Nerd Font</a></strong> and
+selecting it in your terminal. These glyphs live in the Private Use
+Area — codepoints Unicode leaves deliberately unassigned — so only a
+font patched to add them has anything to draw. Without one the bar reads
+<code>◆ mem 10%</code>: a replacement box where the microchip should
+be.</td></tr>
+</table>
+
+<p>Open the settings screen with <span class="k">Ctrl-B</span>
+<span class="k">C</span>, put the cursor on <code>status-icons</code> and
+step it with ←→. The bar redraws as you go, so you can see which set
+your font can draw instead of guessing. If a set shows boxes, it is the
+wrong one for your font.</p>
+
+<h2 id="installing-a-nerd-font">Installing a Nerd Font</h2>
+
+<div class="note">
+<strong>Install it where the terminal is, not where termdock is.</strong>
+The font is used by the terminal emulator you are looking at. Over SSH
+that is your laptop, not the server; on Windows with WSL that is
+Windows, not the WSL distribution. Installing fonts on the far side does
+nothing at all, and is the usual reason this appears not to work.
+</div>
+
+<p>Any font from
+<a href="https://www.nerdfonts.com/font-downloads">nerdfonts.com</a> will
+do — JetBrains Mono is used here. On <strong>Linux</strong>:</p>
+
+<pre><code>mkdir -p ~/.local/share/fonts
+curl -fLo /tmp/JetBrainsMono.zip   https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip
+unzip -o /tmp/JetBrainsMono.zip -d ~/.local/share/fonts/JetBrainsMono
+fc-cache -f</code></pre>
+
+<p>On <strong>macOS</strong>:</p>
+
+<pre><code>brew install --cask font-jetbrains-mono-nerd-font</code></pre>
+
+<p>On <strong>Windows</strong>, including when you run termdock in WSL —
+do this on the Windows side, not inside the distribution:</p>
+
+<ol>
+<li>Download <code>JetBrainsMono.zip</code> from the
+<a href="https://github.com/ryanoasis/nerd-fonts/releases/latest">nerd-fonts
+releases</a>.</li>
+<li>Extract it, select the <code>.ttf</code> files, right-click →
+<strong>Install</strong>.</li>
+<li>Windows Terminal → <strong>Settings</strong> → your profile →
+<strong>Appearance</strong> → <strong>Font face</strong>.</li>
+</ol>
+
+<p>Then pick the font in your terminal's settings. It is listed as
+<strong>JetBrainsMono Nerd Font</strong>, or as
+<strong>JetBrainsMono NF</strong> in terminals that show the short family
+name — Windows Terminal is one. Restart the terminal, then set
+<code>status-icons nerd</code>. None of this is needed for
+<code>unicode</code>, which draws characters fonts already have.</p>
+
+<h2 id="which-settings-apply-when">Which settings apply when</h2>
+
+<p><code>prefix</code>, <code>shell</code>, <code>history-limit</code>,
+<code>popup-command</code>, <code>focus-events</code>,
+<code>repeat-time</code> and <code>bind</code> are read by the
+<strong>server</strong>, so they take effect when a session is
+<em>created</em>.</p>
+
+<p><code>mouse</code>, <code>theme</code> and the colours are read by the
+<strong>client</strong>, so detaching and reattaching is enough.</p>
+
+<h2 id="themes">Themes</h2>
+
+<p>Eleven, built in — no plugin, no plugin manager:</p>
+
+<pre><code>termdock themes
+
+catppuccin  dracula  everforest  gruvbox  monokai  nord
+one-dark    rose-pine  solarized  tokyo-night  ubuntu</code></pre>
+
+<p>A theme sets the status bar, the active pane's accent, <em>and the
+pane backgrounds</em> — so a themed session looks themed all the way out
+to the margins, rather than being a coloured status bar floating on
+whatever your terminal profile uses. termdock also asks the terminal
+emulator itself to adopt the colours, so even the few pixels of padding
+around the character grid match, and puts them back when you detach.</p>
+
+<p>A theme is only a baseline: an explicit <code>pane-active-bg</code>
+line still overrides just that one colour, whichever order the two lines
+come in. <code>pane-bg default</code> opts the pane backgrounds back out
+while keeping the rest.</p>
+
+<h2 id="changing-settings-while-it-runs">Changing settings while it runs</h2>
+
+<p><span class="k">Ctrl-B</span> <span class="k">C</span> opens every
+setting with its current value and what it does.
+<span class="k">←</span> <span class="k">→</span> steps through the
+values a setting can take — all eleven palettes on <code>theme</code>,
+applying each as you land on it, so you choose by looking rather than by
+reading names. <span class="k">Enter</span> types a value for anything
+free-form.</p>
+
+<p><span class="k">S</span> writes the current value to your config file,
+rewriting just that line. Nothing is written unless you ask: silently
+rewriting a file full of your own comments and ordering is not a thing to
+do as a side effect of trying something out.</p>
+
+<p>The same vocabulary works from the command prompt:</p>
+
+<pre><code>Ctrl-B :  set theme nord
+Ctrl-B :  set -p theme nord     # and persist it</code></pre>
+
+<h2 id="checking-your-own-setup">Checking your own setup</h2>
+
+<pre><code>termdock doctor</code></pre>
+
+<p>Checks the things that fail <em>silently</em>:</p>
+
+<pre><code>[ warn ] theme                  "drakula" is not a built-in theme, so the line is being ignored
+                                → check the spelling against `termdock themes`
+[ warn ] shell integration      no `termdock shell-init` line found in your shell startup files
+                                → add: eval "$(termdock shell-init)"</code></pre>
+
+<p>Every check reports what it <em>found</em> rather than a bare verdict,
+so the output is worth pasting into a bug report from a machine you
+cannot see, and every warning names the thing to do about it.</p>
+
+<h2 id="crash-recovery">Crash recovery</h2>
+
+<p>termdock snapshots each session continuously: the layout, every pane's
+working directory and name, <em>and the last 200 lines of each pane's
+screen</em>. If the daemon dies or the machine reboots, starting a
+session with the same name brings it back — including the stack trace you
+were reading, rather than four blank prompts.</p>
+
+<p>What comes back is text, not a live program: nothing can resurrect
+what was running. Quitting deliberately with
+<span class="k">Ctrl-B</span> <span class="k">q</span> deletes the
+snapshot, so a session you ended stays ended.</p>
+
+<h2 id="debugging-input">Debugging input</h2>
+
+<p>If a key does something unexpected, set
+<code>TERMDOCK_INPUT_LOG=/path/to/file</code> when starting the server
+and every key, mouse and resize event is appended there with the state it
+left behind:</p>
+
+<pre><code>02:47:54.598 key code=66 rune='\x00' mod=0    -> prefix=true mode=normal
+02:47:54.598 key code=257 rune='\x00' mod=0   -> prefix=false mode=normal</code></pre>
+
+<p>What your terminal emulator actually sends for a chord, and whether a
+key reached the daemon at all, are otherwise invisible.</p>
+    <nav class="manual-nav">
+      <span>← <a href="workflow.html">Working in it all day</a></span>
+      <span><a href="remote.html">Remote sessions & sharing</a> →</span>
+    </nav>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-chips">
+      <a class="foot-chip" href="index.html">Home</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock">GitHub</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock/releases">Releases</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock/issues">Issues</a>
+    </div>
+    <p class="foot-note">MIT licensed · written from scratch in Go · linux &amp; macOS</p>
+  </div>
+</footer>
+</body>
+</html>

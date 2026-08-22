@@ -16,6 +16,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/padovanl/termdock/internal/persist"
 	"github.com/padovanl/termdock/internal/proto"
 	"github.com/padovanl/termdock/internal/server"
 )
@@ -220,4 +221,66 @@ func dialCLI(session string, msg proto.ClientMsg) proto.ServerMsg {
 		fatal(err.Error())
 	}
 	return reply
+}
+
+// cmdLayout implements the "layout" verb: save, apply, list and delete
+// named arrangements. Saving and applying need a live session (the
+// former to read it, the latter to build into), so both go over the
+// socket; listing and deleting are pure filesystem work and don't
+// require one to be running.
+func cmdLayout(args []string) {
+	if len(args) == 0 {
+		fatal("usage: termdock layout save|apply|ls|rm [-t SESSION] [NAME]")
+	}
+	sub := args[0]
+	target, rest := extractTarget(args[1:])
+	name := ""
+	if len(rest) > 0 {
+		name = rest[0]
+	}
+
+	switch sub {
+	case "ls", "list":
+		names, err := persist.ListLayouts()
+		check(err)
+		if len(names) == 0 {
+			fmt.Println("no saved layouts")
+			return
+		}
+		for _, n := range names {
+			fmt.Println(n)
+		}
+
+	case "rm", "delete":
+		if name == "" {
+			fatal("usage: termdock layout rm NAME")
+		}
+		check(persist.DeleteLayout(name))
+		fmt.Printf("deleted layout %q\n", name)
+
+	case "save":
+		if name == "" {
+			fatal("usage: termdock layout save [-t SESSION] NAME")
+		}
+		session, _, _, _ := parseTarget(target)
+		reply := dialCLI(session, proto.ClientMsg{Kind: "save-layout", CLIName: name})
+		if reply.CLIError != "" {
+			fatal(reply.CLIError)
+		}
+		fmt.Printf("saved layout %q\n", name)
+
+	case "apply":
+		if name == "" {
+			fatal("usage: termdock layout apply [-t SESSION] NAME")
+		}
+		session, _, _, _ := parseTarget(target)
+		reply := dialCLI(session, proto.ClientMsg{Kind: "apply-layout", CLIName: name})
+		if reply.CLIError != "" {
+			fatal(reply.CLIError)
+		}
+		fmt.Printf("applied layout %q\n", name)
+
+	default:
+		fatal(fmt.Sprintf("unknown layout command %q; try save, apply, ls or rm", sub))
+	}
 }

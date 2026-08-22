@@ -55,6 +55,12 @@ func main() {
 		cmdList()
 	case "themes", "list-themes":
 		cmdThemes()
+	case "shell-init":
+		cmdShellInit(args[1:])
+	case "doctor":
+		cmdDoctor()
+	case "layout":
+		cmdLayout(args[1:])
 	case "kill-session":
 		name := parseSessionFlag(args[1:], "")
 		if name == "" {
@@ -307,6 +313,10 @@ Usage:
                                   -r attaches read-only, as an observer
   termdock ls                  list active sessions
   termdock themes              list the built-in color themes
+  termdock shell-init [SHELL]  print the shell snippet for prompt marks
+  termdock doctor              check for settings that fail silently
+  termdock layout save|apply|ls|rm [-t SESSION] [NAME]
+                               save the current arrangement, or rebuild a saved one
   termdock kill-session -t NAME  terminate a session
   termdock --version            print the version and exit
 

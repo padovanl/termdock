@@ -375,3 +375,54 @@ func TestResizeIsBoundedBothWays(t *testing.T) {
 		}
 	}
 }
+
+// A click has to resolve against the strip that was on screen when it
+// was clicked. A background window printing something gives its tab an
+// "!", which widens that tab by a column and slides every tab after it
+// one to the right — so a strip laid out fresh at click time is not the
+// one the user aimed at, and the click lands on the neighbouring window.
+func TestTabClickResolvesAgainstTheStripOnScreen(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	c.SessionName = "main"
+	for i := 0; i < 4; i++ {
+		c.newWindow()
+	}
+	// Start from a clean strip so the shift below is the only change.
+	for _, w := range c.windows {
+		w.activity = false
+	}
+	c.mu.Unlock()
+	c.Resize(80, 24)
+
+	f := c.Frame() // what the user is looking at
+	if len(f.Windows) < 3 {
+		t.Skipf("only %d tabs laid out, need at least 3", len(f.Windows))
+	}
+	target := f.Windows[len(f.Windows)-1]
+	click := target.X // the tab's first column, as drawn
+
+	// Now a window to its left wakes up and grows an "!".
+	c.mu.Lock()
+	widened := false
+	for i, w := range c.windows {
+		if i < target.Index && !w.activity {
+			before := len([]rune(c.windowTabLabel(i)))
+			w.activity = true
+			if len([]rune(c.windowTabLabel(i))) > before {
+				widened = true
+			}
+			break
+		}
+	}
+	got, ok := c.tabAt(click)
+	c.mu.Unlock()
+
+	if !widened {
+		t.Skip("the activity marker did not widen a tab on this build")
+	}
+	if !ok || got != target.Index {
+		t.Errorf("a click at column %d on window %d's tab resolved to (%d, %v) after a background window grew its activity marker",
+			click, target.Index, got, ok)
+	}
+}

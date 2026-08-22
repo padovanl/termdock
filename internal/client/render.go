@@ -68,7 +68,7 @@ func draw(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 // pane content already drawn, so the user can still tell what's running
 // underneath while picking which one to jump to.
 func drawQuickJump(screen tcell.Screen, tags []proto.QuickJumpTag, cfg config.Config) {
-	style := tcell.StyleDefault.Background(cfg.PaneActiveBG).Foreground(tcell.ColorBlack).Bold(true)
+	style := tcell.StyleDefault.Background(cfg.PaneActiveBG).Foreground(readableOn(cfg.PaneActiveBG)).Bold(true)
 	for _, t := range tags {
 		r := t.Rect
 		if r.W < 3 || r.H < 1 {
@@ -224,6 +224,27 @@ func drawBorders(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 		addRectBorder(activeCells, active.Rect)
 	}
 
+	// The four cells where the focused pane's outline turns a corner.
+	//
+	// Glyphs are picked from the union of every pane's outline, which is
+	// what joins dividers into T's and crosses. But that also means the
+	// focused pane's own corners come out as junctions whenever they sit
+	// against a neighbour: the top-right of a left-hand pane is where the
+	// outer top border and the divider meet, so it tiled as '┬' — drawn in
+	// the accent colour, that reads as a bar sticking out of the highlight
+	// rather than a corner, and the highlight stops looking like a
+	// rectangle at all.
+	//
+	// Only the corners are overridden. Forcing the whole active outline to
+	// tile against itself also erases the T's *along* its edges, which are
+	// real: a neighbour's divider running into the focused pane's side has
+	// to connect, and dropping it to '│' leaves that divider visibly
+	// floating.
+	activeCorners := map[[2]int]rune{}
+	if active != nil {
+		activeCorners = cornerRunes(active.Rect)
+	}
+
 	// Backgrounded with the theme like everything else: a border drawn on
 	// the emulator's default background framed every themed session in a
 	// black grid.
@@ -249,7 +270,11 @@ func drawBorders(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 		if activeCells[cell] {
 			style = activeStyle
 		}
-		screen.SetContent(x, y, boxChar(up, down, left, right), nil, style)
+		ch := boxChar(up, down, left, right)
+		if corner, ok := activeCorners[cell]; ok {
+			ch = corner
+		}
+		screen.SetContent(x, y, ch, nil, style)
 	}
 
 	for i := range f.Panes {
@@ -277,6 +302,17 @@ func addRectBorder(cells map[[2]int]bool, r proto.Rect) {
 	for y := y0; y <= y1; y++ {
 		cells[[2]int{x0, y}] = true
 		cells[[2]int{x1, y}] = true
+	}
+}
+
+// cornerRunes maps the four cells where r's border turns a corner to the
+// glyph that closes that corner.
+func cornerRunes(r proto.Rect) map[[2]int]rune {
+	x0, y0 := r.X-1, r.Y-1
+	x1, y1 := r.X+r.W, r.Y+r.H
+	return map[[2]int]rune{
+		{x0, y0}: '┌', {x1, y0}: '┐',
+		{x0, y1}: '└', {x1, y1}: '┘',
 	}
 }
 
@@ -494,12 +530,25 @@ func drawOverlay(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 		row := y0 + headerRows + 1 + i
 		style := bg
 		if ov.Selectable && idx == ov.Selected {
-			style = tcell.StyleDefault.Background(cfg.PaneActiveBG).Foreground(tcell.ColorBlack).Bold(true)
+			style = tcell.StyleDefault.Background(cfg.PaneActiveBG).Foreground(readableOn(cfg.PaneActiveBG)).Bold(true)
 			for x := innerX; x < maxX; x++ {
 				screen.SetContent(x, row, ' ', nil, style)
 			}
 		}
-		overlayText(screen, innerX, row, maxX, style, " "+ov.Items[idx])
+		// The leading space shifts every rune of the item along by one,
+		// so the accent range shifts with it.
+		from, n := 0, 0
+		if idx < len(ov.Accent) {
+			from, n = ov.Accent[idx][0]+1, ov.Accent[idx][1]
+		}
+		accent := style.Foreground(cfg.PaneActiveBG).Bold(true)
+		if ov.Selectable && idx == ov.Selected {
+			// The selected row is already painted in the accent colour, so
+			// accenting a run of it again would erase the run instead of
+			// picking it out. It reads as the emphasis on that row.
+			accent = style
+		}
+		overlayTextAccented(screen, innerX, row, maxX, style, accent, " "+ov.Items[idx], from, n)
 	}
 
 	if previewW > 0 {
@@ -628,7 +677,7 @@ func drawStatusBar(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	drawText(screen, 0, y, f.Cols, style, "") // blank-fill the row
 
 	overlayText(screen, 0, y, f.Cols, style, f.StatusPrefix)
-	suffixX := len([]rune(f.StatusPrefix))
+	suffixX := textWidth(f.StatusPrefix)
 	for _, t := range f.Windows {
 		overlayText(screen, t.X, y, f.Cols, tabStyle(t, cfg), t.Label)
 		if end := t.X + t.W; end > suffixX {
@@ -637,9 +686,9 @@ func drawStatusBar(screen tcell.Screen, f proto.Frame, cfg config.Config) {
 	}
 	overlayText(screen, suffixX, y, f.Cols, style, f.StatusText)
 
-	rw := len([]rune(f.StatusRight))
+	rw := textWidth(f.StatusRight)
 	if rw > 0 {
-		leftLen := suffixX + len([]rune(f.StatusText))
+		leftLen := suffixX + textWidth(f.StatusText)
 		if leftLen > f.Cols {
 			leftLen = f.Cols // the left side was itself clipped to the screen width
 		}
@@ -659,11 +708,11 @@ func tabStyle(t proto.WindowTab, cfg config.Config) tcell.Style {
 		// Distinct from Active on purpose: "picked up and moving," not
 		// "this is where you are" — the two can coincide (dragging the
 		// current tab) or not (dragging a background one).
-		return tcell.StyleDefault.Background(tcell.ColorGray).Foreground(tcell.ColorBlack).Bold(true).Underline(true)
+		return tcell.StyleDefault.Background(tcell.ColorGray).Foreground(readableOn(tcell.ColorGray)).Bold(true).Underline(true)
 	case t.Active:
-		return tcell.StyleDefault.Background(cfg.PaneActiveBG).Foreground(tcell.ColorBlack).Bold(true)
+		return tcell.StyleDefault.Background(cfg.PaneActiveBG).Foreground(readableOn(cfg.PaneActiveBG)).Bold(true)
 	case t.Activity:
-		return tcell.StyleDefault.Background(tcell.ColorDarkOrange).Foreground(tcell.ColorBlack)
+		return tcell.StyleDefault.Background(tcell.ColorDarkOrange).Foreground(readableOn(tcell.ColorDarkOrange))
 	default:
 		// Explicitly the bar's own background: left at the default it was
 		// the emulator's, punching black gaps through a themed status bar.
@@ -674,14 +723,32 @@ func tabStyle(t proto.WindowTab, cfg config.Config) tcell.Style {
 // overlayText draws text starting at column x without first blanking the
 // row (unlike drawText), clipped to the screen's width.
 func overlayText(screen tcell.Screen, x, y, cols int, style tcell.Style, text string) {
+	overlayTextAccented(screen, x, y, cols, style, style, text, 0, 0)
+}
+
+// overlayTextAccented is overlayText with one run drawn in a second
+// style: runes [from, from+n) of text, counted in runes rather than
+// columns so the caller can index the string it built without knowing
+// how wide anything renders. n <= 0 means no accented run.
+func overlayTextAccented(screen tcell.Screen, x, y, cols int, style, accent tcell.Style, text string, from, n int) {
+	i := 0
 	for _, r := range text {
 		if x >= cols {
 			return
 		}
-		if x >= 0 {
-			screen.SetContent(x, y, r, nil, style)
+		st := style
+		if n > 0 && i >= from && i < from+n {
+			st = accent
 		}
-		x++
+		if x >= 0 {
+			screen.SetContent(x, y, r, nil, st)
+		}
+		i++
+		// Advance by the columns the glyph actually takes: a wide one
+		// occupies two cells, and stepping by one would let the next
+		// character land on its second half. A zero-width mark advances
+		// nothing, attaching to the glyph before it.
+		x += runeWidth(r)
 	}
 }
 
@@ -691,11 +758,12 @@ func drawText(screen tcell.Screen, x, y, w int, style tcell.Style, text string) 
 	}
 	i := 0
 	for _, r := range text {
-		if i >= w {
-			break
+		rw := runeWidth(r)
+		if i+rw > w {
+			break // a wide glyph that would only half fit is not drawn at all
 		}
 		screen.SetContent(x+i, y, r, nil, style)
-		i++
+		i += rw
 	}
 }
 

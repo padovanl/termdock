@@ -27,6 +27,9 @@ type Window struct {
 	// is always either the right pane or nothing at all.
 	lastActivePane int
 	syncPanes      bool
+	// syncOnly, when non-empty, restricts synchronized input to those
+	// pane ids; empty means every pane in the window. See broadcast.go.
+	syncOnly map[int]bool
 
 	activity bool // output arrived while this window wasn't the active one
 

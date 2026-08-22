@@ -54,6 +54,7 @@ func (c *Core) applyConfigLocked(cfg config.Config) {
 	// they are. runSet says so out loud rather than letting it look like
 	// the setting didn't take.
 	pane.SetDefaults(cfg.Shell, cfg.HistoryLimit)
+	statusIcons = cfg.StatusIcons
 	c.segCache = segmentCache{} // recompute rather than show the old segments until the TTL lapses
 	c.markDirty()
 }
@@ -318,6 +319,17 @@ func (c *Core) startEditingSetting() {
 	if !ok {
 		return
 	}
+	// A setting with a known set of values is never typed. Offering a
+	// free-text field for "mouse" invites "yes", "1", "ON" and anything
+	// else, all of which the parser has to reject silently — and it let
+	// popup-command be set to a single letter, after which the popup
+	// opened and vanished and looked broken. Enter steps to the next
+	// value instead, which is the same thing the arrows do and the only
+	// thing that can be meant here.
+	if len(s.Choices()) > 0 {
+		c.stepSelectedSetting(1)
+		return
+	}
 	current := config.Get(&c.cfg, s.Key)
 	if strings.HasPrefix(current, "(") {
 		current = "" // a description of "unset", not a value to edit
@@ -445,44 +457,55 @@ func (c *Core) settingsOverlay() *proto.Overlay {
 		return nil
 	}
 	all := config.Settings()
-	keyW, valW := 0, 0
+	// Every column is sized for the widest thing that could ever land in
+	// it, not for what happens to be on screen right now, and each row is
+	// padded to that. The overlay sizes itself to its longest line, so a
+	// row that grows when you select it takes the whole box with it —
+	// which is exactly what "theme" did: arrowing onto it added the
+	// position indicator, and stepping from "nord" to "tokyo-night" grew
+	// the value column by seven more. The box jumping sideways as the
+	// selection moves is far more distracting than a little unused width.
+	keyW, valW, noteW := 0, 0, 0
 	for _, s := range all {
-		if l := len(s.Key); l > keyW {
+		if l := len([]rune(s.Key)); l > keyW {
 			keyW = l
 		}
-		if l := len([]rune(config.Get(&c.cfg, s.Key))); l > valW {
-			valW = l
+		// Both what it is now and anything the arrows could step it to.
+		values := append([]string{config.Get(&c.cfg, s.Key)}, s.Choices()...)
+		for _, v := range values {
+			if l := len([]rune(v)); l > valW {
+				valW = l
+			}
+		}
+		if l := len([]rune(worstCaseNote(s))); l > noteW {
+			noteW = l
 		}
 	}
-	// Room for the cursor the row being edited grows, so the columns
-	// don't shift sideways the moment you start typing.
-	valW++
+	valW++ // room for the cursor the row being edited grows
 
 	items := make([]string, len(all))
 	for i, s := range all {
 		value := config.Get(&c.cfg, s.Key)
-		note := s.Doc
-		if s.NewPanesOnly {
-			note += " [new panes]"
-		}
+		note := settingDoc(s)
 		switch {
 		case i == c.settings.sel && c.settings.editing:
-			value = string(c.settings.buffer) + "_"
-			note = "enter to apply, esc to cancel"
+			// Scrolled to the cursor rather than shown whole: a long path
+			// typed into "shell" grew the row, and the overlay is sized to
+			// its widest row, so the whole box widened under the cursor as
+			// you typed. Keeping the end in view is what matters while
+			// typing — that is where the cursor is.
+			value = editWindow(string(c.settings.buffer), valW)
+			note = editingHelp(s)
 		case i == c.settings.sel && len(s.Choices()) > 0:
-			// Only say it on the row it applies to: most settings are
-			// typed, and a permanent "←→" against every one of them would
-			// be an invitation that mostly does nothing.
-			// A position rather than the list itself. Spelling out twelve
-			// theme names made this row three times the width of any
-			// other, and the overlay sizes itself to its longest line — so
-			// the whole box grew and shrank as the selection moved past it,
-			// which is the jumping the picker's fixed-size preview exists
-			// to avoid. You learn the names by arrowing through them, or
-			// from "termdock themes".
-			note += fmt.Sprintf("  ←→ %d/%d", choiceIndex(s, value)+1, len(s.Choices()))
+			// Only shown on the row it applies to: most settings are typed,
+			// and a permanent "←→" against every one of them would be an
+			// invitation that mostly does nothing. A position rather than
+			// the list itself — spelling out twelve theme names would make
+			// this row several times the width of any other. You learn the
+			// names by arrowing through them, or from "termdock themes".
+			note += choiceIndicator(s, value)
 		}
-		items[i] = fmt.Sprintf("%-*s  %-*s  %s", keyW, s.Key, valW, value, note)
+		items[i] = fmt.Sprintf("%-*s  %-*s  %-*s", keyW, s.Key, valW, value, noteW, note)
 	}
 	return &proto.Overlay{
 		Title:      c.settingsTitle(),
@@ -490,6 +513,76 @@ func (c *Core) settingsOverlay() *proto.Overlay {
 		Items:      items,
 		Selected:   c.settings.sel,
 	}
+}
+
+// editingNote replaces a row's description while its value is being
+// typed, for the settings that have nothing more specific to say.
+const editingNote = "enter to apply, esc to cancel"
+
+// editingHelp is what a row says while you type into it: the shape of a
+// value it will accept, if the setting knows one.
+//
+// The keys to press are deliberately not repeated here — the status bar
+// already spells those out for as long as the edit is open (see
+// settingsHint). What was missing is the other half: a free-text row
+// gave no clue what it wanted, which is how "popup-command" ended up
+// looking like a field you could write a sentence into.
+func editingHelp(s config.Setting) string {
+	if s.Hint != "" {
+		return s.Hint
+	}
+	return editingNote
+}
+
+// settingDoc is a row's ordinary description.
+func settingDoc(s config.Setting) string {
+	if s.NewPanesOnly {
+		return s.Doc + " [new panes]"
+	}
+	return s.Doc
+}
+
+// choiceIndicator is the "3/11" position shown against the selected row
+// of a setting with a fixed set of values.
+func choiceIndicator(s config.Setting, value string) string {
+	return fmt.Sprintf("  ←→ %d/%d", choiceIndex(s, value)+1, len(s.Choices()))
+}
+
+// worstCaseNote is the longest note a row can ever show, so the column
+// can be sized once instead of following the selection around.
+func worstCaseNote(s config.Setting) string {
+	longest := settingDoc(s)
+	if ch := s.Choices(); len(ch) > 0 {
+		// The widest position is the *last* one ("11/11", not "1/11"),
+		// so measure against that rather than the first.
+		if withPos := longest + choiceIndicator(s, ch[len(ch)-1]); len([]rune(withPos)) > len([]rune(longest)) {
+			longest = withPos
+		}
+	}
+	// The hint is shown in this same column while the row is being
+	// edited, so it has to be measured here too — otherwise the box
+	// widens the moment you press enter on a setting whose hint is longer
+	// than its description.
+	if h := editingHelp(s); len([]rune(h)) > len([]rune(longest)) {
+		longest = h
+	}
+	return longest
+}
+
+// editWindow renders the value being typed inside a fixed width: the
+// tail of it, with a leading ellipsis when there is more to the left,
+// and the cursor at the end.
+func editWindow(text string, width int) string {
+	cursor := "_"
+	room := width - len([]rune(cursor))
+	if room < 1 {
+		return cursor
+	}
+	r := []rune(text)
+	if len(r) <= room {
+		return text + cursor
+	}
+	return "…" + string(r[len(r)-room+1:]) + cursor
 }
 
 // choiceIndex is where value sits in a setting's list, or 0 when it
@@ -516,12 +609,11 @@ func (c *Core) settingsHint() string {
 	return "↑↓ move, enter to type a value, S save to file, esc close"
 }
 
+// settingsTitle is deliberately constant. It varied with the selected
+// row, and the overlay is sized to the longer of its title and its
+// widest item — so the title alone made the box change width as you
+// moved. What the arrows do on *this* row is in the status bar
+// instead (see settingsHint), which has no such effect.
 func (c *Core) settingsTitle() string {
-	if c.settings.editing {
-		return "settings — type a value, enter applies it, esc cancels"
-	}
-	if s, ok := c.selectedSetting(); ok && len(s.Choices()) > 0 {
-		return "settings — ↑↓ move, ←→ choose, enter type, S save to file, esc close"
-	}
-	return "settings — ↑↓ move, enter type a value, S save to file, esc close"
+	return "settings — ↑↓ move, ←→ choose, enter type, S save to file, esc close"
 }

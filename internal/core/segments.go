@@ -150,12 +150,21 @@ func readBattery() string {
 			continue
 		}
 		pct := strings.TrimSpace(string(capBytes))
-		icon := "🔋"
+		// The shade follows the charge, so the glyph and the figure say
+		// the same thing; charging gets a triangle instead, which is in
+		// every font checked and reads as "going up". All of these are
+		// one column, so none can throw the right-aligned status bar's
+		// alignment out (see TestStatusSegmentsAreWidthPredictable).
+		level := uint64(0)
+		if n, err := strconv.ParseUint(pct, 10, 64); err == nil {
+			level = n
+		}
+		nerd, uni := "\uf240", shadeFor(level) // a battery / how full it is
 		if statusBytes, err := os.ReadFile(base + e.Name() + "/status"); err == nil &&
 			strings.TrimSpace(string(statusBytes)) == "Charging" {
-			icon = "⚡"
+			nerd, uni = "\uf0e7", "\u25b2" // a bolt / an upward triangle
 		}
-		return icon + " bat " + pct + "%"
+		return icon(nerd, uni) + "bat " + pct + "%"
 	}
 	return ""
 }
@@ -206,7 +215,7 @@ func cpuPercent(prev, cur cpuSample) string {
 		return "" // clock hasn't advanced, or a counter wrapped — nothing sane to report
 	}
 	pct := 100 * (dTotal - dIdle) / dTotal
-	return fmt.Sprintf("🖥️ cpu %d%%", pct)
+	return fmt.Sprintf("%scpu %d%%", icon("\uf2db", shadeFor(pct)), pct)
 }
 
 // readMem reads /proc/meminfo for the fraction of memory in use —
@@ -236,5 +245,71 @@ func readMem() string {
 		return ""
 	}
 	pct := 100 * (total - avail) / total
-	return fmt.Sprintf("🧠 mem %d%%", pct)
+	return fmt.Sprintf("%smem %d%%", icon("\uf1c0", shadeFor(pct)), pct)
+}
+
+// statusIcons is which glyph set the segments are drawn with. Read from
+// the session's settings by the functions below, which are called from
+// places that have no Core to hand — a package-level flag is the smaller
+// evil than threading a config through readBattery and readMem.
+var statusIcons string
+
+// icon returns a glyph plus a space, or nothing at all when icons are
+// off. It takes both a Nerd Font glyph and a plain-Unicode stand-in, and
+// picks by mode.
+//
+// There are two sets because there is no way to ask a terminal whether
+// its font has a glyph. Nerd Font icons are Private Use Area codepoints:
+// a patched font draws a microchip, an unpatched one draws a replacement
+// box, and the status bar reads "◆ mem 10%" — which is how this was
+// first reported. Turning the setting into a three-way choice lets the
+// eye do the detection that code cannot: step it to "unicode", and if
+// those show, keep them.
+//
+// The unicode set was first drawn from Geometric Shapes on the
+// assumption that every monospace font covers that block. Checking the
+// actual cmap of four common ones said otherwise: "▣" and "▤" are in
+// Cascadia but in neither JetBrains Mono Nerd Font nor Consolas, so the
+// no-font-needed option needed a font. See shadeFor — the set is now
+// Block Elements shades, which all four do have, and which are
+// text-presentation, so unlike an emoji they stay one column wide and
+// cannot shift the right-aligned status bar (see
+// TestStatusSegmentsAreWidthPredictable).
+//
+// Off stays the default: the words alone are never wrong.
+func icon(nerd, unicode string) string {
+	switch statusIcons {
+	case "nerd":
+		return nerd + " "
+	case "unicode":
+		return unicode + " "
+	default:
+		return ""
+	}
+}
+
+// shadeFor is the unicode set's glyph for a percentage: one of the four
+// Block Elements shades, filling up as the number climbs.
+//
+// A level rather than a fixed picture, because a shade is what these
+// characters already look like — a static one would be an arbitrary
+// mark, while a rising one says something the number then says exactly.
+// It is also the honest thing to draw here: no assigned Unicode
+// character means "CPU", so the alternative was picking a shape and
+// hoping it read as one.
+//
+// The words stay in front of the figure regardless (see the file's
+// header comment): the glyph is a second look at the number, never the
+// only label.
+func shadeFor(pct uint64) string {
+	switch {
+	case pct >= 75:
+		return "█"
+	case pct >= 50:
+		return "▓"
+	case pct >= 25:
+		return "▒"
+	default:
+		return "░"
+	}
 }

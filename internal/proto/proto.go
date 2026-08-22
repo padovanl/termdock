@@ -70,6 +70,19 @@ type Overlay struct {
 	Items        []string
 	Selected     int
 	PreviewCells [][]Cell
+	// Accent optionally marks one run of each item to draw in the
+	// theme's accent colour, as {first rune index, length} into
+	// Items[i]. Parallel to Items; a shorter or nil slice simply means
+	// the remaining items have no accent, so an overlay that wants none
+	// leaves it unset.
+	//
+	// It exists because the timeline's bars are the one thing in a list
+	// that is a picture rather than text: drawn in the body colour they
+	// read as punctuation, and drawn in the theme's accent they read as
+	// the chart they are. Kept as a range rather than per-cell styling
+	// because that is all any caller has needed, and a whole styled-run
+	// model would be a lot of machinery for one row of blocks.
+	Accent [][2]int
 }
 
 // OverviewTile is one pane's thumbnail in the Ctrl-B g overview grid: a

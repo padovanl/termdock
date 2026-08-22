@@ -274,8 +274,25 @@ func (c *Core) endTitleDrag(x, y int) {
 
 // tabAt returns the index of the window tab strip entry column x falls
 // under, if any.
+// tabAt resolves a column on the status bar to the window whose tab is
+// drawn there.
+//
+// Against the strip from the last frame, not a freshly laid out one. A
+// tab's label grows an "!" the moment its window prints something in the
+// background, which widens it by a column and slides every tab to its
+// right along by one. Re-deriving the strip when the click arrives means
+// hit-testing against a strip that is no longer the one on screen: click
+// a tab just as a background window wakes up, and you select its
+// neighbour. The frame is rebuilt many times a second, so the stored
+// strip is what the user is looking at.
 func (c *Core) tabAt(x int) (int, bool) {
-	for _, t := range c.windowTabs() {
+	tabs := c.lastTabs
+	if tabs == nil {
+		// No frame has been built yet — nothing has been drawn to click on,
+		// but lay the strip out rather than refusing outright.
+		tabs = c.windowTabs()
+	}
+	for _, t := range tabs {
 		if x >= t.X && x < t.X+t.W {
 			return t.Index, true
 		}

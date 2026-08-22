@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>termdock cheatsheet</title>
+<meta name="description" content="Every termdock keybinding on one printable page: panes, windows, copy-mode and the command line.">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<style>
+  /* A cheatsheet is its own object: one page, dense, and it has to
+     survive being printed. Hence its own layout rather than the
+     manual's reading column. */
+  .cs-page { max-width: 68rem; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+  .cs-head { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap;
+             border-bottom: 1px solid var(--hairline); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  .cs-head h1 { font-family: var(--serif); font-size: 2rem; margin: 0; }
+  .cs-head .cs-sub { color: var(--rust); font-family: var(--mono); font-size: .82rem; }
+  .cs-print { margin-left: auto; font-family: var(--mono); font-size: .8rem;
+              border: 1px solid var(--hairline); border-radius: 6px; padding: .35rem .7rem;
+              color: var(--phosphor); cursor: pointer; background: none; }
+  .cs-grid { columns: 3 20rem; column-gap: 1.75rem; }
+  .cs-block { break-inside: avoid; margin: 0 0 1.4rem; }
+  .cs-block.cs-wide { column-span: all; }
+  .cs-block h2 { font-family: var(--serif); font-size: 1.05rem; color: var(--phosphor);
+                 margin: 0 0 .4rem; letter-spacing: 0; }
+  .cs-block h2::before { content: ""; }
+  .cs-note { font-family: var(--mono); font-size: .7rem; color: var(--rust); }
+  .cs-block table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+  .cs-block td { padding: .18rem .4rem .18rem 0; vertical-align: top;
+                 border-bottom: 1px solid var(--hairline-soft); }
+  .cs-block td.k { font-family: var(--mono); color: var(--phosphor-dim);
+                   white-space: nowrap; width: 1%; padding-right: .8rem; }
+  .cs-foot { margin-top: 1.5rem; border-top: 1px solid var(--hairline); padding-top: 1rem;
+             font-size: .82rem; color: var(--rust); }
+
+  @media print {
+    /* Printed on paper the CRT palette is unreadable and wastes ink, so
+       the sheet inverts to black on white and drops the chrome. */
+    .crt-veil, .topbar, footer, .cs-print { display: none !important; }
+    body { background: #fff !important; color: #111 !important; font-size: 10pt; }
+    .cs-page { max-width: none; padding: 0; }
+    .cs-grid { columns: 3 15rem; column-gap: 1.2rem; }
+    .cs-head h1, .cs-block h2 { color: #000 !important; }
+    .cs-block td.k { color: #333 !important; }
+    .cs-block td { border-bottom: 1px solid #ddd !important; }
+    .cs-head, .cs-foot { border-color: #999 !important; }
+    a { color: #000 !important; text-decoration: none; }
+    @page { margin: 12mm; }
+  }
+</style>
+</head>
+<body>
+<div class="crt-veil" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="index.html" style="text-decoration:none;border:0"><img src="logo.svg" alt="" width="18" height="18" style="vertical-align:-3px;margin-right:.4rem">termdock<span class="cursor">_</span></a>
+    <nav class="navlinks">
+      <a href="getting-started.html">start</a>
+      <a href="keys.html">keys</a>
+      <a href="shell-integration.html">shell</a>
+      <a href="workflow.html">workflow</a>
+      <a href="configuration.html">config</a>
+      <a href="remote.html">remote</a>
+      <a href="https://github.com/padovanl/termdock">github</a>
+    </nav>
+  </div>
+</header>
+
+<main class="cs-page">
+  <div class="cs-head">
+    <h1>termdock cheatsheet</h1>
+    <span class="cs-sub">every key starts with <strong>Ctrl-B</strong> unless noted</span>
+    <button class="cs-print" onclick="window.print()">Print / save as PDF</button>
+  </div>
+
+  <div class="cs-grid">
+<section class="cs-block"><h2>Panes</h2><table><tr><td class="k">v</td><td>split vertically (side by side)</td></tr>
+<tr><td class="k">s</td><td>split horizontally (stacked)</td></tr>
+<tr><td class="k">h</td><td>move focus left (arrows also always work, regardless of rebinding)</td></tr>
+<tr><td class="k">j</td><td>move focus down (arrows also always work, regardless of rebinding)</td></tr>
+<tr><td class="k">k</td><td>move focus up (arrows also always work, regardless of rebinding)</td></tr>
+<tr><td class="k">l</td><td>move focus right (arrows also always work, regardless of rebinding)</td></tr>
+<tr><td class="k">o</td><td>cycle to the next pane (Tab also always works, regardless of rebinding)</td></tr>
+<tr><td class="k">;</td><td>toggle back to the previously active pane in this window</td></tr>
+<tr><td class="k">z</td><td>zoom the active pane full-screen (again to undo)</td></tr>
+<tr><td class="k">r</td><td>resize-mode: arrows/hjkl resize, any other key exits</td></tr>
+<tr><td class="k">x</td><td>close the active pane</td></tr>
+<tr><td class="k">Z</td><td>reopen the last closed pane, back in its window and directory</td></tr>
+<tr><td class="k">!</td><td>break the active pane out into its own new window</td></tr>
+<tr><td class="k">R</td><td>respawn-pane: restart the shell in the active pane, in place</td></tr>
+<tr><td class="k">.</td><td>name this pane (empty clears it, back to the process name)</td></tr>
+<tr><td class="k">Q</td><td>quick-jump: press a pane's number to jump straight to it</td></tr>
+<tr><td class="k">Space</td><td>cycle the active window through preset layouts</td></tr></table></section>
+<section class="cs-block"><h2>Windows</h2><table><tr><td class="k">c</td><td>create a new window</td></tr>
+<tr><td class="k">n</td><td>switch to the next window</td></tr>
+<tr><td class="k">p</td><td>switch to the previous window</td></tr>
+<tr><td class="k">W</td><td>toggle back to the previously active window</td></tr>
+<tr><td class="k">,</td><td>rename the current window</td></tr>
+<tr><td class="k">&amp;</td><td>close the current window and every pane in it (asks first)</td></tr>
+<tr><td class="k">w</td><td>jump picker: fuzzy-jump to any window/pane</td></tr>
+<tr><td class="k">g</td><td>overview: a live-thumbnail grid of every pane</td></tr></table></section>
+<section class="cs-block"><h2>Finding things</h2><table><tr><td class="k">/</td><td>search every pane's scrollback at once</td></tr>
+<tr><td class="k">[</td><td>enter copy-mode (scroll/select the scrollback)</td></tr>
+<tr><td class="k">u</td><td>open picker: fuzzy-pick a URL/path spotted on screen</td></tr>
+<tr><td class="k">H</td><td>search every command run in this session (needs shell-init)</td></tr>
+<tr><td class="k">T</td><td>session timeline: when each command ran and for how long</td></tr>
+<tr><td class="k">O</td><td>copy the last command's entire output (needs shell-init)</td></tr></table></section>
+<section class="cs-block"><h2>Session</h2><table><tr><td class="k">d</td><td>detach (session keeps running)</td></tr>
+<tr><td class="k">q</td><td>quit (asks first; ends the whole session)</td></tr>
+<tr><td class="k">$</td><td>rename this session (its socket and snapshot move with it)</td></tr>
+<tr><td class="k">S</td><td>switch to another session without detaching</td></tr>
+<tr><td class="k">P</td><td>toggle the floating scratch terminal</td></tr>
+<tr><td class="k">y</td><td>toggle sync-panes (type into every pane at once)</td></tr>
+<tr><td class="k">C</td><td>settings: view and change this session's settings live</td></tr>
+<tr><td class="k">:</td><td>command prompt: type a command (new-window, split-window, ...)</td></tr>
+<tr><td class="k">?</td><td>toggle this help screen</td></tr></table></section>
+<section class="cs-block"><h2>Copying &amp; logging</h2><table><tr><td class="k">]</td><td>paste the last yank</td></tr>
+<tr><td class="k">=</td><td>paste register picker: fuzzy-pick an older yank to paste</td></tr>
+<tr><td class="k">L</td><td>toggle logging the active pane's output to a file</td></tr>
+<tr><td class="k">A</td><td>log every pane in this window to a directory you name</td></tr>
+<tr><td class="k">m</td><td>tell me when this pane's command finishes (bell + message)</td></tr></table></section>
+<section class="cs-block"><h2>Copy-mode <span class="cs-note">(no prefix, fixed keys)</span></h2><table><tr><td class="k">h j k l / arrows</td><td>Move the cursor</td></tr>
+<tr><td class="k">PgUp PgDn Ctrl-U Ctrl-D</td><td>Page and half-page</td></tr>
+<tr><td class="k">g / G</td><td>Top / bottom of the scrollback</td></tr>
+<tr><td class="k">v</td><td>Start a character-wise selection</td></tr>
+<tr><td class="k">V</td><td>Whole-line selection (v switches back)</td></tr>
+<tr><td class="k">y</td><td>Yank to clipboard and paste registers</td></tr>
+<tr><td class="k">/</td><td>Search this pane (regex, else literal)</td></tr>
+<tr><td class="k">n / N</td><td>Next / previous match</td></tr>
+<tr><td class="k">{ }</td><td>Previous / next command *</td></tr>
+<tr><td class="k">q or Esc</td><td>Leave copy-mode</td></tr></table></section>
+<section class="cs-block cs-wide"><h2>From the shell</h2><table><tr><td class="k">termdock</td><td>Attach to (or create) the session named main</td></tr>
+<tr><td class="k">termdock new -s NAME</td><td>Create a session and attach</td></tr>
+<tr><td class="k">termdock attach -t NAME [-r]</td><td>Attach; -r is read-only</td></tr>
+<tr><td class="k">termdock ls</td><td>List running sessions</td></tr>
+<tr><td class="k">termdock kill-session -t NAME</td><td>End a session</td></tr>
+<tr><td class="k">termdock themes</td><td>List the bundled colour themes</td></tr>
+<tr><td class="k">termdock doctor</td><td>Check for settings failing silently</td></tr>
+<tr><td class="k">termdock shell-init [SHELL]</td><td>Print the shell snippet for command marks *</td></tr>
+<tr><td class="k">termdock layout save|apply|ls|rm</td><td>Named window arrangements</td></tr>
+<tr><td class="k">termdock send-keys -t TARGET ...</td><td>Type into a pane from a script</td></tr>
+<tr><td class="k">termdock split-window -t TARGET</td><td>Split from a script</td></tr>
+<tr><td class="k">termdock select-pane -t TARGET -L|-R|-U|-D</td><td>Move focus from a script</td></tr>
+<tr><td class="k">termdock list-windows / list-panes -t T</td><td>Inspect a session</td></tr></table></section>
+  </div>
+
+  <p class="cs-foot">
+    45 bindings, read straight from the source so this sheet cannot
+    drift from the program. Every one of them is rebindable — see
+    <a href="keys.html">Every key</a>. Lines marked <strong>*</strong> need
+    <a href="shell-integration.html">shell integration</a>.
+    Inside termdock, <span class="k">Ctrl-B</span> <span class="k">?</span>
+    shows the same list generated from what you actually have bound.
+  </p>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-chips">
+      <a class="foot-chip" href="index.html">Home</a>
+      <a class="foot-chip" href="getting-started.html">Manual</a>
+      <a class="foot-chip" href="https://github.com/padovanl/termdock">GitHub</a>
+    </div>
+    <p class="foot-note">MIT licensed · written from scratch in Go · linux &amp; macOS</p>
+  </div>
+</footer>
+</body>
+</html>
