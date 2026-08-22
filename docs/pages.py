@@ -568,22 +568,38 @@ status-icons unicode     # icons before them: off, unicode or nerd</code></pre>
 <h2>Icons in the status bar</h2>
 
 <p><code>status-icons</code> puts a glyph in front of each optional
-segment. It has three values rather than on/off, because no program can
-ask a terminal whether its font actually contains a glyph — so the
-choice is yours to make by looking.</p>
+segment.</p>
+
+<div class="note">
+<strong>Only <code>nerd</code> needs a font installed.</strong>
+termdock cannot ship an icon font, and no terminal program can: it
+writes characters to a pty, and your <em>terminal emulator</em> draws
+them with whatever font it is set to. Which glyphs exist is its
+decision, never termdock's. If you would rather not install anything,
+use <code>unicode</code> — or leave it <code>off</code>.
+</div>
+
+<p>It has three values rather than on/off, because no program can ask a
+terminal whether its font actually contains a glyph — so the choice is
+yours to make by looking.</p>
 
 <table>
 <tr><th>Value</th><th>Shows</th></tr>
 <tr><td><code>off</code></td><td>The default. Words alone:
 <code>cpu 8% | mem 41%</code>. Never wrong on any font.</td></tr>
-<tr><td><code>unicode</code></td><td>Shapes from the Geometric Shapes
-block: <code>▣ cpu 8% | ▤ mem 41%</code>. Every monospace font ships
-these, and they are text-presentation, so they stay one column wide and
-cannot push the right-aligned bar out of alignment.</td></tr>
-<tr><td><code>nerd</code></td><td>Real Nerd Font icons. These live in
-the Private Use Area, so they need a patched font — on an ordinary one
-the bar reads <code>◆ mem 10%</code>, a replacement box where the
-microchip should be.</td></tr>
+<tr><td><code>unicode</code></td><td><code>▣ cpu 8% | ▤ mem 41%</code>.
+Nothing to install: these are ordinary assigned Unicode characters, the
+kind a monospace font already covers, rather than the Private Use Area.
+They are text-presentation too, so they stay one column wide and cannot
+push the right-aligned bar out of alignment.</td></tr>
+<tr><td><code>nerd</code></td><td>Real microchip and memory icons, and
+the only value that <strong>requires installing a
+<a href="https://www.nerdfonts.com/">Nerd Font</a></strong> and
+selecting it in your terminal. These glyphs live in the Private Use
+Area — codepoints Unicode leaves deliberately unassigned — so only a
+font patched to add them has anything to draw. Without one the bar reads
+<code>◆ mem 10%</code>: a replacement box where the microchip should
+be.</td></tr>
 </table>
 
 <p>Open the settings screen with <span class="k">Ctrl-B</span>

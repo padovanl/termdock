@@ -592,3 +592,58 @@ func TestSetThemeThenAColorDropsTheThemeName(t *testing.T) {
 }
 
 func ptr(c config.Config) *config.Config { return &c }
+
+// The settings box is sized to its widest row, so any row's text can
+// move the whole box. It used to jump: the title varied with the
+// selection, and a long value typed into a row grew that row. Both are
+// fixed, and this pins the result — a row's wording can be changed, but
+// not without noticing that the box changed with it.
+func TestSettingsBoxIsOneWidthWhateverIsSelected(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.mode = ModeSettings
+
+	width := func() (int, string) {
+		ov := c.settingsOverlay()
+		max, widest := len([]rune(ov.Title)), "(the title)"
+		for _, it := range ov.Items {
+			if n := len([]rune(it)); n > max {
+				max, widest = n, it
+			}
+		}
+		return max, widest
+	}
+
+	// Pinned to a number, not merely to "the same as the other rows":
+	// the note column is sized to the widest note across every setting,
+	// so a single over-long description or hint widens all of them
+	// together and a row-against-row comparison stays happy while the box
+	// grows. Changing any row's wording is allowed — updating this number
+	// along with it is the point, so the change is a decision rather
+	// than a surprise.
+	const want = 92
+	if got, widest := width(); got != want {
+		t.Fatalf("the settings box is %d columns, want %d — widest row is %q", got, want, widest)
+	}
+	_, widest := width()
+	n := len(config.Settings())
+	for i := 0; i < n; i++ {
+		c.settings.sel = i
+
+		got, _ := width()
+		if got != want {
+			t.Errorf("row %d selected: box is %d columns, want %d (widest normally %q)", i, got, want, widest)
+		}
+		// And while that row is being typed into, which is when the hint
+		// replaces its description.
+		c.settings.editing = true
+		c.settings.buffer = []rune("a value being typed")
+		got, _ = width()
+		c.settings.editing = false
+		c.settings.buffer = nil
+		if got != want {
+			t.Errorf("row %d being edited: box is %d columns, want %d", i, got, want)
+		}
+	}
+}

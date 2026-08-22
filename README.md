@@ -1077,17 +1077,34 @@ interval apart to compute a delta from, so it shows nothing for the
 first few seconds after being enabled) so nothing here adds real
 overhead to every redraw.
 
-`status-icons` puts a small glyph in front of each of those segments and
-takes three values, because no program can ask a terminal whether its
-font actually has a glyph. `off` is the default and shows the words
-alone, which is never wrong. `unicode` uses shapes from the Geometric
-Shapes block (`▣ cpu 8%`, `▤ mem 41%`), which every monospace font
-ships. `nerd` uses proper Nerd Font icons, which live in the Private Use
-Area and need a patched font — on a font without them the bar reads
-`◆ mem 10%`, a replacement box where the microchip should be. Open the
-settings screen with <kbd>Ctrl-B</kbd> <kbd>,</kbd> and step the value
-with ←→ to see which set your font can draw: your eyes are the only
-reliable test. See
+`status-icons` puts a small glyph in front of each of those segments.
+
+> **`nerd` needs a font installed. The other two do not.**
+> termdock cannot ship an icon font, and no terminal program can: it
+> writes characters to a pty, and your *terminal emulator* draws them
+> with whatever font it is set to. Which glyphs exist is therefore its
+> decision, never termdock's. If you would rather not install anything,
+> use `unicode` — or leave it `off`.
+
+It takes three values:
+
+| Value | Shows | Needs |
+|---|---|---|
+| `off` | `cpu 8% \| mem 41%` — the words alone | nothing; the default |
+| `unicode` | `▣ cpu 8% \| ▤ mem 41%` | nothing — ordinary Unicode characters, the kind a monospace font already covers |
+| `nerd` | proper microchip and memory icons | **a [Nerd Font](https://www.nerdfonts.com/) installed and selected in your terminal** |
+
+Nerd Font icons live in the Private Use Area — codepoints that are
+deliberately unassigned in Unicode, so only a font patched to add them
+has anything to draw. Without one the bar reads `◆ mem 10%`: a
+replacement box where the microchip should be.
+
+No program can ask a terminal which glyphs its font has, so termdock
+cannot pick for you. Open the settings screen with <kbd>Ctrl-B</kbd>
+<kbd>,</kbd>, put the cursor on `status-icons` and step it with ←→ — the
+bar redraws as you go, so you can see which set your font can draw
+rather than guessing. If a set shows boxes, it is the wrong one for your
+font. See
 [⌨️ Custom keybindings](#-custom-keybindings) and
 [🎯 Focus events](#-focus-events) above for `bind` and `focus-events`.
 

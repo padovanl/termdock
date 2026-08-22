@@ -199,7 +199,13 @@ var settings = []Setting{
 	colorSetting("pane-bg", "background behind unstyled pane content", func(c *Config) *tcell.Color { return &c.PaneBG }),
 	colorSetting("pane-fg", "foreground for unstyled pane content", func(c *Config) *tcell.Color { return &c.PaneFG }),
 	{
-		Key: "status-icons", Doc: "icons before status segments (off|unicode|nerd)", Scope: ScopeClient,
+		// The values are not listed here the way other settings list
+		// theirs: this one is stepped with ←→, so they read themselves out
+		// as you go. What stepping cannot tell you is that one of them
+		// needs something installed, so the row spends its width on that
+		// instead — same length, strictly more than you could find out on
+		// your own.
+		Key: "status-icons", Doc: "icons before status segments (nerd needs a font)", Scope: ScopeClient,
 		get: func(c *Config) string {
 			if c.StatusIcons == "" {
 				return "off"
