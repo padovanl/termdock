@@ -121,6 +121,6 @@ func cmdShellInit(args []string) {
 	fmt.Print(snippet)
 	// To stderr so `eval "$(termdock shell-init)"` stays clean while a
 	// bare run still explains itself.
-	fmt.Fprintf(os.Stderr, "\n# Add to your %s startup file:\n#   eval \"$(termdock shell-init %s)\"\n",
-		name, name)
+	// fmt.Fprintf(os.Stderr, "\n# Add to your %s startup file:\n#   eval \"$(termdock shell-init %s)\"\n",
+	// 	name, name)
 }
