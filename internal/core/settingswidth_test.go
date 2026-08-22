@@ -1,6 +1,7 @@
 package core
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/padovanl/termdock/internal/config"
@@ -58,5 +59,76 @@ func TestSettingsOverlayWidthNeverChanges(t *testing.T) {
 			t.Errorf("editing %q: width %d, want a constant %d", s.Key, got, want)
 		}
 		c.settings.editing = false
+	}
+}
+
+// A setting with a known set of values is never typed into. Offering a
+// free-text field for "mouse" invites "yes", "1" and "ON", all of which
+// the parser silently rejects — and it let popup-command be set to a
+// single letter, after which the popup opened, the command exited, and
+// the feature looked broken.
+func TestSettingsWithFixedValuesCannotBeTypedInto(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.enterSettings()
+
+	for i, s := range config.Settings() {
+		if len(s.Choices()) == 0 {
+			continue
+		}
+		c.settings.sel = i
+		before := config.Get(&c.cfg, s.Key)
+		c.startEditingSetting()
+
+		if c.settings.editing {
+			t.Errorf("%q has a fixed set of values but opened a text field", s.Key)
+			c.settings.editing = false
+			continue
+		}
+		// Enter did what the arrows do: moved to another valid value.
+		if after := config.Get(&c.cfg, s.Key); after == before && len(s.Choices()) > 1 {
+			t.Errorf("%q: enter left it at %q instead of stepping to the next value", s.Key, after)
+		}
+	}
+}
+
+// Typing a long value must not widen the box under the cursor.
+func TestTypingALongValueDoesNotWidenTheBox(t *testing.T) {
+	c := newTestCore(t)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.enterSettings()
+	want := settingsOverlayWidth(c)
+
+	for i, s := range config.Settings() {
+		if len(s.Choices()) > 0 {
+			continue // those cannot be typed into at all
+		}
+		c.settings.sel = i
+		c.startEditingSetting()
+		buf := make([]rune, 200)
+		for j := range buf {
+			buf[j] = 'x'
+		}
+		c.settings.buffer = buf
+		if got := settingsOverlayWidth(c); got != want {
+			t.Fatalf("typing into %q widened the box to %d, want a constant %d", s.Key, got, want)
+		}
+		c.settings.editing = false
+	}
+}
+
+// The tail is what must stay visible: that is where the cursor is.
+func TestEditWindowKeepsTheCursorEndVisible(t *testing.T) {
+	got := editWindow("/a/very/long/path/to/some/shell", 12)
+	if len([]rune(got)) > 12 {
+		t.Fatalf("%q is %d wide, want at most 12", got, len([]rune(got)))
+	}
+	if !strings.HasSuffix(got, "shell_") {
+		t.Errorf("%q should end with the text being typed and the cursor", got)
+	}
+	if !strings.HasPrefix(got, "…") {
+		t.Errorf("%q should show it has been scrolled", got)
 	}
 }

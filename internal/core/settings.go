@@ -318,6 +318,17 @@ func (c *Core) startEditingSetting() {
 	if !ok {
 		return
 	}
+	// A setting with a known set of values is never typed. Offering a
+	// free-text field for "mouse" invites "yes", "1", "ON" and anything
+	// else, all of which the parser has to reject silently — and it let
+	// popup-command be set to a single letter, after which the popup
+	// opened and vanished and looked broken. Enter steps to the next
+	// value instead, which is the same thing the arrows do and the only
+	// thing that can be meant here.
+	if len(s.Choices()) > 0 {
+		c.stepSelectedSetting(1)
+		return
+	}
 	current := config.Get(&c.cfg, s.Key)
 	if strings.HasPrefix(current, "(") {
 		current = "" // a description of "unset", not a value to edit
@@ -477,7 +488,12 @@ func (c *Core) settingsOverlay() *proto.Overlay {
 		note := settingDoc(s)
 		switch {
 		case i == c.settings.sel && c.settings.editing:
-			value = string(c.settings.buffer) + "_"
+			// Scrolled to the cursor rather than shown whole: a long path
+			// typed into "shell" grew the row, and the overlay is sized to
+			// its widest row, so the whole box widened under the cursor as
+			// you typed. Keeping the end in view is what matters while
+			// typing — that is where the cursor is.
+			value = editWindow(string(c.settings.buffer), valW)
 			note = editingNote
 		case i == c.settings.sel && len(s.Choices()) > 0:
 			// Only shown on the row it applies to: most settings are typed,
@@ -532,6 +548,22 @@ func worstCaseNote(s config.Setting) string {
 		longest = editingNote
 	}
 	return longest
+}
+
+// editWindow renders the value being typed inside a fixed width: the
+// tail of it, with a leading ellipsis when there is more to the left,
+// and the cursor at the end.
+func editWindow(text string, width int) string {
+	cursor := "_"
+	room := width - len([]rune(cursor))
+	if room < 1 {
+		return cursor
+	}
+	r := []rune(text)
+	if len(r) <= room {
+		return text + cursor
+	}
+	return "…" + string(r[len(r)-room+1:]) + cursor
 }
 
 // choiceIndex is where value sits in a setting's list, or 0 when it
