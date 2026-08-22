@@ -63,13 +63,55 @@ fi
 
 # The tag is what publishes a release, so it's worth knowing the tests
 # pass before pushing one rather than finding out from a red workflow.
+#
+# The output is shown rather than sent to /dev/null. Two reasons, and
+# the second is the important one:
+#
+#   - This is the slow step. Go prints nothing at all while it compiles
+#     every package and every test binary, which on a cold cache — or a
+#     working copy on a network or /mnt filesystem — is a couple of
+#     minutes of silence that is indistinguishable from a hang.
+#   - A release stopped by a failing test has to say *which* test. The
+#     old version discarded exactly the output needed to find out, and
+#     left you to reproduce the failure by hand to see it.
 if command -v go >/dev/null 2>&1; then
+	# Colour only when someone is watching; piped or redirected output
+	# gets none, so a log or a CI transcript stays plain.
+	if [ -t 1 ]; then
+		green=$'\033[32m'; red=$'\033[31m'; dim=$'\033[2m'; off=$'\033[0m'
+	else
+		green=""; red=""; dim=""; off=""
+	fi
+
+	pkgs="$(go list ./... 2>/dev/null | wc -l | tr -d ' ')"
+
+	# Compiling is most of the wait, and `go build` covers everything
+	# except the test files — so doing it as its own visible step turns
+	# one long silence into a short one and a stream of results.
+	printf 'Compiling %s packages...\n' "$pkgs"
+	if ! go build ./...; then
+		echo "error: ${RELEASE_BRANCH} does not build; not tagging" >&2
+		exit 1
+	fi
+
 	echo "Running tests..."
-	if ! go test ./... >/dev/null; then
+	# go test reports a line per package as each one finishes, so this
+	# streams. set -o pipefail (top of the file) is what makes the
+	# pipeline still fail when go test does.
+	if go test ./... 2>&1 | while IFS= read -r line; do
+		case "$line" in
+		"ok  "*) printf '  %s✓%s %s\n' "$green" "$off" "${line#ok  }" ;;
+		"---"*|"FAIL"*|*"panic:"*)
+			printf '  %s%s%s\n' "$red" "$line" "$off" ;;
+		"?   "*) printf '  %s· %s%s\n' "$dim" "${line#?   }" "$off" ;;
+		*) printf '  %s\n' "$line" ;;
+		esac
+	done; then
+		echo "Tests pass."
+	else
 		echo "error: tests fail on ${RELEASE_BRANCH}; not tagging" >&2
 		exit 1
 	fi
-	echo "Tests pass."
 else
 	echo "warning: go not found, skipping the local test run" >&2
 fi
