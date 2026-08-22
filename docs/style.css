@@ -48,6 +48,13 @@
   a:hover { text-decoration: underline; }
   .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
 
+  /* Any element carrying a display value of its own outranks the
+     browser's [hidden] rule, so a hidden panel stayed on screen and the
+     tabs above it appeared to do nothing. It had already bitten the
+     install panels, which carry a rule of their own for it; this is the
+     general fix so the next panel added does not repeat it. */
+  [hidden] { display: none !important; }
+
   /* --- topbar --- */
   .topbar {
     position: sticky; top: 0; z-index: 40;
@@ -67,6 +74,14 @@
   .navlinks a { font-family: var(--mono); font-size: .82rem; color: var(--rust); }
   .navlinks a:hover { color: var(--phosphor); text-decoration: none; }
   @media (max-width: 620px) { .navlinks a[data-optional] { display: none; } }
+  /* On a phone the nav needs two lines, and inside one flex row that
+     left the brand vertically centred against them — which reads as the
+     links sitting on top of it. Stack instead, and let the links start
+     from the left rather than being pushed right by margin-left:auto. */
+  @media (max-width: 700px) {
+    .topbar-inner { flex-wrap: wrap; align-items: flex-start; gap: 8px; padding: 10px 16px; }
+    .navlinks { margin-left: 0; width: 100%; gap: 14px; row-gap: 6px; }
+  }
 
   /* --- hero --- */
   .hero { padding: 70px 0 48px; border-bottom: 1px solid var(--hairline-soft); }
@@ -214,8 +229,23 @@
   align-items: start;
 }
 @media (max-width: 900px) {
-  .manual { grid-template-columns: 1fr; gap: 1.5rem; }
+  /* minmax(0, 1fr), not 1fr. A bare 1fr is minmax(auto, 1fr), whose
+     floor is the content's min-content width — so anything wide inside
+     (the demo still, a long code line) widened the track past the
+     viewport and the whole page scrolled sideways, with the heading and
+     prose running off the right edge. The desktop track above already
+     says minmax(0, 1fr) for the same reason. */
+  .manual { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
   .manual-toc { position: static; }
+}
+
+@media (max-width: 620px) {
+  .manual { padding: 1.5rem 1rem 3rem; }
+  .manual-body h1 { font-size: 1.7rem !important; }
+  /* Tables in the manual are two-column key/description lists; on a
+     narrow screen the nowrap key column is what forces them wide, so
+     let the whole table scroll rather than the page. */
+  .manual-body table { display: block; overflow-x: auto; }
 }
 
 .manual-toc {
