@@ -27,6 +27,10 @@ PAGE = """<!doctype html>
 <meta property="og:title" content="{title} — termdock">
 <meta property="og:description" content="{description}">
 <meta property="og:type" content="article">
+<!-- Shared with the landing page: a still from the demo, since link
+     previews never animate a GIF and this one opens on a blank prompt. -->
+<meta property="og:image" content="https://padovanl.github.io/termdock/social-card.png">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#07100f">
 <link rel="icon" href="logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
