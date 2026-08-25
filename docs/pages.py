@@ -208,6 +208,31 @@ Inside, the prefix is not needed:</p>
 <tr><td><code>q</code> or <code>Esc</code></td><td>Leave.</td></tr>
 </table>
 
+<h2>The mouse</h2>
+
+<p>At a shell prompt the mouse drives termdock: click a pane to focus it,
+click-drag its content to select and copy, drag a border to resize, drag
+a pane's title onto a window tab to move it there, click a tab to switch
+window, and use the wheel to scroll that pane's scrollback.</p>
+
+<div class="note">
+<strong>Programs that want the mouse get the mouse.</strong>
+htop, vim, less, lazygit and anything else that asks the terminal to
+report mouse events receives your clicks, drags and wheel directly, in a
+pane or in the popup. termdock knows which is which because it emulates
+the terminal itself, so it sees the program turn reporting on.
+</div>
+
+<p>Hold <span class="k">Shift</span> to take the mouse back. Shift-click
+focuses a pane running a full-screen program, shift-drag selects its text
+or drags its border, and shift-wheel scrolls the pane's scrollback rather
+than the program's own list. Without an escape hatch of this kind a pane
+running htop could not be resized with the mouse at all, which is why
+tmux has the same one.</p>
+
+<p>The whole thing is off if you set <code>mouse off</code>; see
+<a href="configuration.html">Configuration</a>.</p>
+
 <h2>Session and everything else</h2>
 
 <table>

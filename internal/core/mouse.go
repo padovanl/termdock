@@ -48,6 +48,15 @@ func (c *Core) handleMouse(m proto.ClientMsg) Result {
 		return Result{}
 	}
 
+	// Before any of termdock's own gestures: a pane whose program asked
+	// for mouse reporting owns the mouse inside itself, wheel included —
+	// scrolling htop's list is the program's job, not the scrollback's.
+	// See mousefwd.go, and shift-click to take it back.
+	if c.forwardMouse(m) {
+		c.markDirty()
+		return Result{}
+	}
+
 	// Wheel-scrolling only makes sense over the normal pane layout or
 	// while already scrolled back in copy-mode; with the popup or
 	// overview covering the screen, there's no window underneath for it

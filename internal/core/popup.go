@@ -174,7 +174,7 @@ func (c *Core) writeToPopup(key tcell.Key, r rune) {
 	if c.popup == nil {
 		return
 	}
-	if b := keyBytes(key, r); b != nil {
+	if b := keyBytes(key, r, appCursorMode(c.popup)); b != nil {
 		c.popup.Write(b)
 	}
 }

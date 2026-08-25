@@ -927,6 +927,21 @@ Enter with `Ctrl-B [`. From there:
   scrolls; scrolling back to the bottom exits it automatically.
 - Drag in copy-mode: selects text and copies it on release.
 
+**Programs that want the mouse get the mouse.** htop, vim, less, lazygit
+and anything else that asks the terminal to report mouse events receives
+your clicks, drags and wheel directly, in a pane or in the popup: the
+list above applies to a pane sitting at a shell prompt, not to one
+running a program that has other plans for a click. termdock knows which
+is which because it emulates the terminal itself, so it sees the program
+turn reporting on.
+
+Hold **Shift** to take the mouse back for termdock. Shift-click focuses a
+pane running a full-screen program, shift-drag selects its text or its
+border, and shift-wheel scrolls the pane's scrollback instead of the
+program's own list. That is tmux's convention, and the reason it needs
+one: without it, a pane running htop could not be resized with the mouse
+at all.
+
 ### 🎨 Pane titles and borders
 
 Every pane is framed by a thin border, with its title embedded in the top
