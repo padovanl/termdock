@@ -536,8 +536,10 @@ One line in your shell's startup file:
 eval "$(termdock shell-init)"
 ```
 
-`termdock shell-init` detects your shell from `$SHELL`; pass `bash`,
-`zsh` or `fish` explicitly if you'd rather. It **prints** the snippet
+`termdock shell-init` detects your shell from `$SHELL`. That is the
+*login* shell, so name the shell explicitly (`termdock shell-init bash`)
+whenever the file you are editing belongs to a different one, which is
+the case if you log in with zsh and also use bash, or the reverse. It **prints** the snippet
 instead of installing it — that file is yours and you should read what
 goes into it; a program that edits your shell rc behind your back is one
 you stop trusting. Run it with no `eval` to just look:

@@ -284,8 +284,10 @@ it has no emulator of its own to record them in.</p>
 eval "$(termdock shell-init)"</code></pre>
 
 <p><code>termdock shell-init</code> detects your shell from
-<code>$SHELL</code>; pass <code>bash</code>, <code>zsh</code> or
-<code>fish</code> to be explicit. It <strong>prints</strong> the snippet
+<code>$SHELL</code>. That is the <em>login</em> shell, so name the shell
+explicitly (<code>termdock shell-init bash</code>) whenever the file you
+are editing belongs to a different one, which is the case if you log in
+with zsh and also use bash, or the reverse. It <strong>prints</strong> the snippet
 rather than installing it — that file is yours and you should read what
 goes into it. To just look:</p>
 
