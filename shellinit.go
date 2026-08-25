@@ -95,17 +95,7 @@ end
 // whatever $SHELL says when none is given — the shell they are in is
 // nearly always the one they mean.
 func cmdShellInit(args []string) {
-	name := ""
-	for _, a := range args {
-		if !strings.HasPrefix(a, "-") {
-			name = a
-			break
-		}
-	}
-	if name == "" {
-		name = filepath.Base(os.Getenv("SHELL"))
-	}
-	name = strings.ToLower(strings.TrimSpace(name))
+	name := shellInitName(args)
 
 	snippet, ok := shellSnippets[name]
 	if !ok {
@@ -119,8 +109,46 @@ func cmdShellInit(args []string) {
 	}
 
 	fmt.Print(snippet)
-	// To stderr so `eval "$(termdock shell-init)"` stays clean while a
-	// bare run still explains itself.
-	// fmt.Fprintf(os.Stderr, "\n# Add to your %s startup file:\n#   eval \"$(termdock shell-init %s)\"\n",
-	// 	name, name)
+
+	// The note is for someone who ran this by hand to see what it does.
+	// Putting it on stderr is not enough to keep it out of the way:
+	// `eval "$(termdock shell-init)"` captures stdout and leaves stderr
+	// pointed at the terminal, so the note printed on every single new
+	// shell — which is exactly how it was reported. Whether stdout is a
+	// terminal is the thing that actually separates the two cases.
+	if isTerminal(os.Stdout) {
+		fmt.Fprintf(os.Stderr, "\n# Add to your %s startup file:\n#   eval \"$(termdock shell-init %s)\"\n",
+			name, name)
+	}
+}
+
+// shellInitName is which shell to emit for: the first non-flag argument,
+// or the basename of $SHELL when none was given.
+//
+// $SHELL is the login shell, which is not necessarily the shell whose
+// startup file you are editing. It is right for nearly everybody and
+// wrong for anyone who logs in with one shell and also uses another, so
+// naming the shell explicitly stays supported and is what the docs
+// recommend for that case.
+func shellInitName(args []string) string {
+	name := ""
+	for _, a := range args {
+		if !strings.HasPrefix(a, "-") {
+			name = a
+			break
+		}
+	}
+	if name == "" {
+		name = filepath.Base(os.Getenv("SHELL"))
+	}
+	return strings.ToLower(strings.TrimSpace(name))
+}
+
+// isTerminal reports whether f is a terminal rather than a pipe or a
+// file. Command substitution gives a pipe, which is the case worth
+// telling apart; a redirect to a file is not a terminal either, and a
+// caller redirecting the snippet to a file does not need the note.
+func isTerminal(f *os.File) bool {
+	fi, err := f.Stat()
+	return err == nil && fi.Mode()&os.ModeCharDevice != 0
 }

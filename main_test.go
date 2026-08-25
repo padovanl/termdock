@@ -74,3 +74,64 @@ func TestConfigDocMentionsEveryTheme(t *testing.T) {
 		}
 	}
 }
+
+// The shell-init note is for a human who ran the command to look at it.
+// Sending it to stderr is not enough to keep it out of the way, because
+// `eval "$(termdock shell-init)"` captures stdout and leaves stderr
+// pointed at the terminal: the note then printed on every new shell,
+// which is how it was reported. What separates the two cases is whether
+// stdout is a terminal.
+func TestIsTerminalTellsCommandSubstitutionApartFromATerminal(t *testing.T) {
+	// A pipe is what command substitution gives the process, and is the
+	// case that has to come out false.
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	defer r.Close()
+	defer w.Close()
+	if isTerminal(w) {
+		t.Error("a pipe was reported as a terminal, so the note would print under eval $(...)")
+	}
+
+	// A redirect to a file: also not a terminal, and also does not want
+	// the note mixed into what it is collecting.
+	f, err := os.CreateTemp(t.TempDir(), "snippet")
+	if err != nil {
+		t.Fatalf("CreateTemp: %v", err)
+	}
+	defer f.Close()
+	if isTerminal(f) {
+		t.Error("a regular file was reported as a terminal")
+	}
+
+	// And a character device is, which is the shape a tty has. /dev/null
+	// stands in for one, since a test has no tty of its own.
+	if dev, err := os.Open(os.DevNull); err == nil {
+		defer dev.Close()
+		if !isTerminal(dev) {
+			t.Errorf("%s is a character device but was not recognised as one, so the note would never print", os.DevNull)
+		}
+	}
+}
+
+// The shell is named on the command line, or taken from $SHELL. Flags
+// are skipped, so "shell-init --whatever bash" still means bash.
+func TestShellInitPicksTheNamedShellOverTheEnvironment(t *testing.T) {
+	for _, tc := range []struct {
+		args  []string
+		shell string
+		want  string
+	}{
+		{[]string{"zsh"}, "/bin/bash", "zsh"},
+		{[]string{"-x", "fish"}, "/bin/bash", "fish"},
+		{nil, "/usr/bin/zsh", "zsh"},
+		{nil, "/bin/bash", "bash"},
+		{[]string{"BASH"}, "", "bash"},
+	} {
+		t.Setenv("SHELL", tc.shell)
+		if got := shellInitName(tc.args); got != tc.want {
+			t.Errorf("shellInitName(%q) with SHELL=%q = %q, want %q", tc.args, tc.shell, got, tc.want)
+		}
+	}
+}
