@@ -50,8 +50,39 @@ func (c *csiEscape) parse() {
 			//t.logf("invalid CSI arg '%s'\n", p)
 			break
 		}
-		c.args = append(c.args, i)
+		c.args = append(c.args, clampCSIParam(i))
 	}
+}
+
+// maxCSIParam is the largest value a CSI parameter is allowed to carry,
+// matching what xterm caps them at.
+//
+// Clamping happens here, once, rather than in each of the thirty-odd
+// handlers that use a parameter, because the failure is not a wrong
+// picture but a crash: the handlers do arithmetic like "cursor column +
+// n" and index the line with the result, so a parameter near the top of
+// int64 overflows to a negative index and panics. "\033[9223372036854775807P"
+// was enough to take down the daemon, and with it every pane of every
+// session in the process.
+//
+// ECMA-48 has no negative parameters; strconv.Atoi is happy to return
+// one for "-1", which would index backwards just as badly. Zero is the
+// safe reading, and is what a parameter that was never meant to exist
+// should mean.
+//
+// The cap costs nothing real: parameters address screen positions and
+// counts, and every handler already clamps to the actual grid, so no
+// legitimate sequence notices the difference.
+const maxCSIParam = 65535
+
+func clampCSIParam(n int) int {
+	switch {
+	case n < 0:
+		return 0
+	case n > maxCSIParam:
+		return maxCSIParam
+	}
+	return n
 }
 
 func (c *csiEscape) arg(i, def int) int {

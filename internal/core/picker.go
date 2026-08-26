@@ -10,6 +10,7 @@ import (
 
 	"github.com/padovanl/termdock/internal/layout"
 	"github.com/padovanl/termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/vt10x"
 )
 
 // The jump picker (Ctrl-B w) is termdock's answer to tmux's choose-tree:
@@ -291,7 +292,7 @@ func (c *Core) buildPreview(paneID int, maxW, maxH int) [][]proto.Cell {
 				row[x] = glyphToCell(t.Cell(x, yOff+y))
 				continue
 			}
-			row[x] = proto.Cell{Ch: ' '}
+			row[x] = blankCell()
 		}
 		cells[y] = row
 	}
@@ -368,17 +369,36 @@ func (c *Core) buildThumbnail(paneID int, maxW, maxH int) [][]proto.Cell {
 					}
 				}
 			}
-			cell := proto.Cell{Ch: ' '}
+			cell := blankCell()
 			if dots != 0 {
 				// Colored from the first bit of real text in the block, so
 				// a green prompt still reads as green at thumbnail scale.
-				cell = proto.Cell{Ch: 0x2800 | dots, FG: fg}
+				cell.Ch = 0x2800 | dots
+				cell.FG = fg
 			}
 			row[cx] = cell
 		}
 		cells[cy] = row
 	}
 	return cells
+}
+
+// blankCell is an empty cell in a preview: a space in the *default*
+// colours, meaning "whatever the theme paints a pane with".
+//
+// Spelling the colours out matters because zero is not neutral here. A
+// proto.Cell's colours are the raw values vt10x uses, where "default" is
+// 1<<24 and up (see convColor in internal/client) and anything under 256
+// is a palette index. So a cell built as proto.Cell{Ch: ' '} carries
+// palette index 0 twice over: black on black, drawn as black whatever
+// theme is set. That is what filled the empty part of the jump picker's
+// preview with a black slab, and sat behind the braille dots too.
+func blankCell() proto.Cell {
+	return proto.Cell{
+		Ch: ' ',
+		FG: uint32(vt10x.DefaultFG),
+		BG: uint32(vt10x.DefaultBG),
+	}
 }
 
 func minInt(a, b int) int {

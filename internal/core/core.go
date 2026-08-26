@@ -137,8 +137,12 @@ type Core struct {
 	prefix    bool
 	prefixKey tcell.Key
 	statusMsg string
-	shellName string
-	hostname  string
+	// flashMsg/flashUntil are a message that outranks a modal screen's
+	// own status-bar hint for a few seconds; see flash.go.
+	flashMsg   string
+	flashUntil time.Time
+	shellName  string
+	hostname   string
 
 	bindings map[rune]action // defaultBindings, overridden per-key by config's "bind" setting; see SetBindOverrides
 
@@ -187,6 +191,9 @@ type Core struct {
 	contentPress *contentPressState
 	titleDrag    *titleDragState
 	closedPanes  []closedPane // undo stack behind Ctrl-B Z; see undoclose.go
+	// mouseFwd tracks a button held down in a pane whose program asked
+	// for mouse reporting; see mousefwd.go.
+	mouseFwd mouseForwardState
 	// lastTabs is the window tab strip as the last Frame laid it out, so
 	// a click resolves against what is on screen rather than a strip
 	// re-derived after the labels have moved on. See tabAt.

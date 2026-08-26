@@ -301,7 +301,7 @@ func (c *Core) stepSelectedSetting(delta int) {
 		return
 	}
 	if len(s.Choices()) == 0 {
-		c.statusMsg = fmt.Sprintf("%s has no fixed set of values — press enter to type one", s.Key)
+		c.flash("%s has no fixed set of values — press enter to type one", s.Key)
 		return
 	}
 	updated := c.cfg
@@ -370,12 +370,15 @@ func (c *Core) commitEditedSetting() {
 	c.settings.buffer = nil
 
 	updated := c.cfg
+	// Flashed rather than set: the screen stays open after a refusal, so
+	// its own instructions would cover the reason and the value would
+	// look as though it had been accepted.
 	if err := config.Set(&updated, s.Key, value); err != nil {
-		c.statusMsg = s.Key + ": " + err.Error()
+		c.flash("%s: %v", s.Key, err)
 		return
 	}
 	if err := config.CheckSetting(&updated, s.Key); err != nil {
-		c.statusMsg = s.Key + ": " + err.Error()
+		c.flash("%s: %v", s.Key, err)
 		return
 	}
 	c.applySettingChange(s, updated, config.Get(&updated, s.Key))
@@ -392,14 +395,16 @@ func (c *Core) saveSelectedSetting() {
 	}
 	value := config.Get(&c.cfg, s.Key)
 	if strings.HasPrefix(value, "(") {
-		c.statusMsg = fmt.Sprintf("%s isn't set to anything to save", s.Key)
+		c.flash("%s isn't set to anything to save", s.Key)
 		return
 	}
 	if err := c.persistSetting(s.Key, value); err != nil {
-		c.statusMsg = fmt.Sprintf("could not save %s: %v", s.Key, err)
+		c.flash("could not save %s: %v", s.Key, err)
 		return
 	}
-	c.statusMsg = fmt.Sprintf("%s = %s — saved to %s", s.Key, value, config.Path())
+	// Flashed, not merely set: this screen keeps its own instructions in
+	// the status bar, so a plain message here was written and never seen.
+	c.flash("saved %s = %s to %s", s.Key, value, config.Path())
 }
 
 // applySettingChange is the one place a change made on this screen takes

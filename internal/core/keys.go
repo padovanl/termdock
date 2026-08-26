@@ -6,6 +6,7 @@ import (
 	"github.com/padovanl/termdock/internal/layout"
 	"github.com/padovanl/termdock/internal/pane"
 	"github.com/padovanl/termdock/internal/proto"
+	"github.com/padovanl/termdock/internal/vt10x"
 
 	"github.com/gdamore/tcell/v2"
 )
@@ -329,22 +330,49 @@ func (c *Core) requestQuit() {
 }
 
 func (c *Core) forwardKey(key tcell.Key, r rune) {
-	b := keyBytes(key, r)
-	if b == nil {
-		return
-	}
+	// Encoded per pane rather than once: which bytes an arrow key is
+	// depends on whether the program in that pane asked for application
+	// cursor keys, and with synchronized input the panes need not agree
+	// (one running vim, another sitting at a prompt).
 	w := c.win()
+	send := func(p *pane.Pane) {
+		if b := keyBytes(key, r, appCursorMode(p)); b != nil {
+			p.Write(b)
+		}
+	}
 	if w.syncPanes {
 		for _, l := range c.broadcastTargets(w) {
 			if p, ok := c.panes[l.ID]; ok {
-				p.Write(b)
+				send(p)
 			}
 		}
 		return
 	}
 	if p, ok := c.panes[w.active.ID]; ok {
-		p.Write(b)
+		send(p)
 	}
+}
+
+// appCursorMode reports whether the program running in p has switched
+// the cursor keys into application mode (DECCKM, "\033[?1h").
+//
+// It matters because in that mode an arrow key is SS3-introduced
+// ("\033OA") rather than CSI-introduced ("\033[A"), and that is the form
+// ncurses looks up in terminfo once a program calls keypad(). termdock
+// tracked the mode in its emulator but never consulted it when sending
+// keys, so it always sent the CSI form: arrow keys did nothing in htop,
+// and in anything else that turns the mode on.
+//
+// Locked here, per this package's convention with vt10x accessors (see
+// paneHistory): the mode is written by the pane's pump goroutine.
+func appCursorMode(p *pane.Pane) bool {
+	if p == nil {
+		return false
+	}
+	t := p.Term()
+	t.Lock()
+	defer t.Unlock()
+	return t.Mode()&vt10x.ModeAppCursor != 0
 }
 
 // handleConfirmKey answers a pending confirm prompt (see
@@ -382,7 +410,31 @@ func (c *Core) handleResizeKey(key tcell.Key, r rune) {
 	c.relayoutLocked()
 }
 
-func keyBytes(key tcell.Key, r rune) []byte {
+// keyBytes is the byte sequence a key sends to the program in a pane.
+//
+// appCursor selects between the two encodings the cursor keys have:
+// CSI ("\033[A") in the default mode, SS3 ("\033OA") once a program has
+// set DECCKM. Passing the wrong one is not a near miss — the program
+// simply does not recognise the key. See appCursorMode.
+func keyBytes(key tcell.Key, r rune, appCursor bool) []byte {
+	if appCursor {
+		// Home and End move with the arrows: xterm sends all six through
+		// SS3 in application mode, and terminfo's smkx entries expect it.
+		switch key {
+		case tcell.KeyUp:
+			return []byte("\x1bOA")
+		case tcell.KeyDown:
+			return []byte("\x1bOB")
+		case tcell.KeyRight:
+			return []byte("\x1bOC")
+		case tcell.KeyLeft:
+			return []byte("\x1bOD")
+		case tcell.KeyHome:
+			return []byte("\x1bOH")
+		case tcell.KeyEnd:
+			return []byte("\x1bOF")
+		}
+	}
 	switch key {
 	case tcell.KeyRune:
 		return []byte(string(r))
