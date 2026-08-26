@@ -137,8 +137,12 @@ type Core struct {
 	prefix    bool
 	prefixKey tcell.Key
 	statusMsg string
-	shellName string
-	hostname  string
+	// flashMsg/flashUntil are a message that outranks a modal screen's
+	// own status-bar hint for a few seconds; see flash.go.
+	flashMsg   string
+	flashUntil time.Time
+	shellName  string
+	hostname   string
 
 	bindings map[rune]action // defaultBindings, overridden per-key by config's "bind" setting; see SetBindOverrides
 

@@ -290,6 +290,12 @@ func (c *Core) statusHint() (hint, style string) {
 	case c.statusMsg != "":
 		hint = c.statusMsg
 	}
+	// A flash outranks a modal screen's own instructions, briefly. Set
+	// after the switch rather than before it so it keeps that screen's
+	// styling and only replaces the words. See flash.go.
+	if msg := c.activeFlash(); msg != "" {
+		hint = msg
+	}
 	return hint, style
 }
 
