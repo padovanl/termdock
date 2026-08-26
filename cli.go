@@ -190,7 +190,13 @@ func parseTarget(spec string) (session string, windowIdx int, windowName string,
 		return session, windowIdx, windowName, paneIdx
 	}
 	wp := strings.SplitN(parts[1], ".", 2)
-	if n, err := strconv.Atoi(wp[0]); err == nil {
+	// A negative number is not an index, and must not be taken as one:
+	// -1 is this function's own "no window given" sentinel, so "-t
+	// main:-1" would have resolved to the *active* window without
+	// complaint. Silently acting on the wrong window is the worst
+	// outcome for a scripting interface whose main verb is send-keys.
+	// Left as a name instead, so it fails with "no such window".
+	if n, err := strconv.Atoi(wp[0]); err == nil && n >= 0 {
 		windowIdx = n
 	} else {
 		windowName = wp[0]
